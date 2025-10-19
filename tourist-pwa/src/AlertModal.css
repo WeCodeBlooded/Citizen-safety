@@ -1,0 +1,48 @@
+
+.alert-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(2, 6, 23, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  z-index: 100000;
+  backdrop-filter: blur(6px);
+}
+
+
+.alert-modal-content {
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 26px 80px rgba(2,6,23,0.45);
+  border: 1px solid rgba(255,255,255,0.12);
+  max-width: 420px;
+  width: 92%;
+  text-align: center;
+  animation: fadeIn 0.28s ease-out;
+  color: var(--text-light);
+}
+
+
+.alert-modal-message { font-size: 1.15rem; color: var(--text-light); margin-bottom: 18px; font-weight: 600; }
+
+
+.alert-modal-button { background: linear-gradient(90deg, var(--primary), var(--accent)); color: #0b1220; border: none; border-radius: 999px; padding: 12px 28px; cursor: pointer; font-size: 1rem; font-weight: 800; box-shadow: 0 10px 28px rgba(99,102,241,0.22); }
+.alert-modal-button:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

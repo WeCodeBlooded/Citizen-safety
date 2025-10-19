@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Integration Test - Tourist Safety System</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+            color: #374151;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background: linear-gradient(135deg, #4fd1c5, #6b8cff);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 8px 8px 8px 0;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            border: 1px solid #fecaca;
+        }
+        .success {
+            background: #f0fdf4;
+            color: #166534;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            border: 1px solid #bbf7d0;
+        }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        h1, h2 {
+            color: #1f2937;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+        .status.offline {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        .status.online {
+            background: #f0fdf4;
+            color: #166534;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Backend Integration Testing</h1>
+    
+    <div id="serverStatus" class="status offline">🔴 Backend Offline</div>
+    
+    <div class="container">
+        <h2>🔗 Server Connection Test</h2>
+        <button onclick="testServerConnection()">Test Backend Connection</button>
+        <div id="connectionLog" class="log"></div>
+    </div>
+
+    <div class="container">
+        <h2>📝 Registration Test</h2>
+        <form id="registrationForm">
+            <div class="form-group">
+                <label>Full Name:</label>
+                <input type="text" id="regName" value="John Doe" required>
+            </div>
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="regEmail" value="john.doe@example.com" required>
+            </div>
+            <div class="form-group">
+                <label>Phone:</label>
+                <input type="tel" id="regPhone" value="+1234567890" required>
+            </div>
+            <div class="form-group">
+                <label>Passport ID:</label>
+                <input type="text" id="regPassportId" value="ABC123456" required>
+            </div>
+            <button type="button" onclick="testRegistration()">Test Registration</button>
+            <button type="button" onclick="clearRegistrationForm()">Clear Form</button>
+        </form>
+        <div id="registrationResult"></div>
+        <div id="registrationLog" class="log"></div>
+    </div>
+
+    <div class="container">
+        <h2>📧 Email Verification Test</h2>
+        <div class="form-group">
+            <label>Passport ID:</label>
+            <input type="text" id="verifyPassportId" value="ABC123456">
+        </div>
+        <div class="form-group">
+            <label>Verification Code:</label>
+            <input type="text" id="verificationCode" placeholder="6-digit code">
+        </div>
+        <button onclick="testEmailVerification()">Verify Email</button>
+        <div id="verificationResult"></div>
+        <div id="verificationLog" class="log"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔐 Login Test</h2>
+        <div class="form-group">
+            <label>Passport ID:</label>
+            <input type="text" id="loginPassportId" value="ABC123456">
+        </div>
+        <button onclick="testLogin()">Send Login OTP</button>
+        <div id="loginResult"></div>
+        <div id="loginLog" class="log"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔑 OTP Verification Test</h2>
+        <div class="form-group">
+            <label>Passport ID:</label>
+            <input type="text" id="otpPassportId" value="ABC123456">
+        </div>
+        <div class="form-group">
+            <label>OTP Code:</label>
+            <input type="text" id="otpCode" placeholder="6-digit OTP">
+        </div>
+        <button onclick="testOtpVerification()">Verify OTP</button>
+        <div id="otpResult"></div>
+        <div id="otpLog" class="log"></div>
+    </div>
+
+    <div class="container">
+        <h2>👨‍👩‍👧‍👦 Family Login Test</h2>
+        <div class="form-group">
+            <label>Emergency Email:</label>
+            <input type="email" id="familyEmail" value="john.doe@example.com">
+        </div>
+        <button onclick="testFamilyOtpRequest()">Send Family OTP</button>
+        <div class="form-group" style="margin-top: 16px;">
+            <label>Family OTP Code:</label>
+            <input type="text" id="familyOtp" placeholder="6-digit OTP">
+        </div>
+        <button onclick="testFamilyOtpVerification()">Verify Family OTP</button>
+        <div id="familyResult"></div>
+        <div id="familyLog" class="log"></div>
+    </div>
+
+    <script>
+        // Configure axios defaults
+        axios.defaults.withCredentials = true;
+        axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+        
+        const BACKEND_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3001' 
+            : 'https://2fc10333427c.ngrok-free.app';
+
+        function log(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = isError ? 'error' : 'info';
+            element.innerHTML += `<div class="${logClass}">[${timestamp}] ${message}</div>`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function showResult(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.className = isSuccess ? 'success' : 'error';
+            element.innerHTML = message;
+        }
+
+        async function testServerConnection() {
+            log('connectionLog', 'Testing server connection...');
+            try {
+                const response = await axios.get(`${BACKEND_URL}/health`, { timeout: 10000 });
+                log('connectionLog', `✅ Server connected: ${response.data.message}`);
+                document.getElementById('serverStatus').className = 'status online';
+                document.getElementById('serverStatus').innerHTML = '🟢 Backend Online';
+                showResult('connectionResult', 'Backend server is running and accessible!', true);
+            } catch (error) {
+                log('connectionLog', `❌ Connection failed: ${error.message}`, true);
+                showResult('connectionResult', `Connection failed: ${error.message}`, false);
+            }
+        }
+
+        async function testRegistration() {
+            const name = document.getElementById('regName').value;
+            const email = document.getElementById('regEmail').value;
+            const phone = document.getElementById('regPhone').value;
+            const passportId = document.getElementById('regPassportId').value;
+            
+            if (!name || !email || !phone || !passportId) {
+                showResult('registrationResult', 'Please fill all fields', false);
+                return;
+            }
+
+            log('registrationLog', 'Testing registration...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/v1/auth/register`, {
+                    name, email, phone, passportId
+                });
+                log('registrationLog', `✅ Registration successful: ${response.data.message}`);
+                showResult('registrationResult', 'Registration successful! Check your email for verification code.', true);
+                
+                // Auto-fill verification form
+                document.getElementById('verifyPassportId').value = passportId;
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('registrationLog', `❌ Registration failed: ${errorMsg}`, true);
+                showResult('registrationResult', `Registration failed: ${errorMsg}`, false);
+            }
+        }
+
+        async function testEmailVerification() {
+            const passportId = document.getElementById('verifyPassportId').value;
+            const code = document.getElementById('verificationCode').value;
+            
+            if (!passportId || !code) {
+                showResult('verificationResult', 'Please provide passport ID and verification code', false);
+                return;
+            }
+
+            log('verificationLog', 'Testing email verification...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/v1/auth/verify-email`, {
+                    passportId, code
+                });
+                log('verificationLog', `✅ Email verified: ${response.data.message}`);
+                showResult('verificationResult', 'Email verified successfully! You can now login.', true);
+                
+                // Auto-fill login form
+                document.getElementById('loginPassportId').value = passportId;
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('verificationLog', `❌ Verification failed: ${errorMsg}`, true);
+                showResult('verificationResult', `Verification failed: ${errorMsg}`, false);
+            }
+        }
+
+        async function testLogin() {
+            const passportId = document.getElementById('loginPassportId').value;
+            
+            if (!passportId) {
+                showResult('loginResult', 'Please provide passport ID', false);
+                return;
+            }
+
+            log('loginLog', 'Testing login OTP request...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/v1/auth/login`, {
+                    passportId
+                });
+                log('loginLog', `✅ Login OTP sent: ${response.data.message}`);
+                showResult('loginResult', 'OTP sent to your registered email!', true);
+                
+                // Auto-fill OTP form
+                document.getElementById('otpPassportId').value = passportId;
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('loginLog', `❌ Login failed: ${errorMsg}`, true);
+                showResult('loginResult', `Login failed: ${errorMsg}`, false);
+            }
+        }
+
+        async function testOtpVerification() {
+            const passportId = document.getElementById('otpPassportId').value;
+            const otp = document.getElementById('otpCode').value;
+            
+            if (!passportId || !otp) {
+                showResult('otpResult', 'Please provide passport ID and OTP', false);
+                return;
+            }
+
+            log('otpLog', 'Testing OTP verification...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/v1/auth/verify-otp`, {
+                    passportId, otp
+                });
+                log('otpLog', `✅ OTP verified successfully`);
+                showResult('otpResult', `Login successful! Welcome ${response.data.name}`, true);
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('otpLog', `❌ OTP verification failed: ${errorMsg}`, true);
+                showResult('otpResult', `OTP verification failed: ${errorMsg}`, false);
+            }
+        }
+
+        async function testFamilyOtpRequest() {
+            const email = document.getElementById('familyEmail').value;
+            
+            if (!email) {
+                showResult('familyResult', 'Please provide emergency email', false);
+                return;
+            }
+
+            log('familyLog', 'Testing family OTP request...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/family/auth/request-otp`, {
+                    email
+                });
+                log('familyLog', `✅ Family OTP sent: ${response.data.message}`);
+                showResult('familyResult', 'Family OTP sent to the emergency email!', true);
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('familyLog', `❌ Family OTP request failed: ${errorMsg}`, true);
+                showResult('familyResult', `Family OTP request failed: ${errorMsg}`, false);
+            }
+        }
+
+        async function testFamilyOtpVerification() {
+            const email = document.getElementById('familyEmail').value;
+            const otp = document.getElementById('familyOtp').value;
+            
+            if (!email || !otp) {
+                showResult('familyResult', 'Please provide emergency email and OTP', false);
+                return;
+            }
+
+            log('familyLog', 'Testing family OTP verification...');
+            try {
+                const response = await axios.post(`${BACKEND_URL}/api/family/auth/verify-otp`, {
+                    email, otp
+                });
+                log('familyLog', `✅ Family OTP verified successfully`);
+                showResult('familyResult', `Family access granted! Tourist: ${response.data.name}`, true);
+            } catch (error) {
+                const errorMsg = error.response?.data?.message || error.message;
+                log('familyLog', `❌ Family OTP verification failed: ${errorMsg}`, true);
+                showResult('familyResult', `Family OTP verification failed: ${errorMsg}`, false);
+            }
+        }
+
+        function clearRegistrationForm() {
+            document.getElementById('regName').value = '';
+            document.getElementById('regEmail').value = '';
+            document.getElementById('regPhone').value = '';
+            document.getElementById('regPassportId').value = '';
+            document.getElementById('registrationResult').innerHTML = '';
+            document.getElementById('registrationLog').innerHTML = '';
+        }
+
+        // Auto-test server connection when page loads
+        window.addEventListener('load', () => {
+            setTimeout(testServerConnection, 1000);
+        });
+    </script>
+</body>
+</html>

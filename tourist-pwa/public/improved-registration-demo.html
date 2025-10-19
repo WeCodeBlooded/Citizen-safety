@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improved Registration Form - Tourist Safety System</title>
+    <link rel="stylesheet" href="components/register.css">
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0;
+        }
+        /* Demo styles */
+        .demo-section {
+            margin: 40px 0;
+        }
+        .demo-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a202c;
+            margin: 0 0 20px 0;
+        }
+        .improvements-list {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 8px;
+        }
+        .improvements-list h3 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+        .improvements-list ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .improvements-list li {
+            padding: 8px 0;
+            position: relative;
+            padding-left: 24px;
+        }
+        .improvements-list li::before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="improvements-list">
+        <h3>🎉 Registration Form Improvements Made</h3>
+        <ul>
+            <li><strong>Full-width Create Account Button:</strong> Button now takes maximum width for better accessibility</li>
+            <li><strong>Login Option Below:</strong> "Already registered? Login here!" text moved below the button</li>
+            <li><strong>Smart Validation:</strong> Create Account button is disabled until all required fields are filled</li>
+            <li><strong>Fixed Text Visibility:</strong> Hero section text is no longer hidden behind forms</li>
+            <li><strong>Better Button States:</strong> Clear disabled state styling with grayed-out appearance</li>
+            <li><strong>Improved Spacing:</strong> Better padding and margins for optimal text visibility</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <div class="demo-title">📝 Updated Registration Form</div>
+        
+        <div class="rt-container">
+            <header class="rt-hero">
+                <div class="rt-hero-inner">
+                    <h1>Register for Smart Tourist Safety</h1>
+                    <p class="rt-tag">Stay safe on the go — enable location to receive smart alerts.</p>
+                </div>
+            </header>
+
+            <main class="rt-main">
+                <form class="rt-card" novalidate="">
+                    <div class="rt-form-header">
+                        <h2 class="rt-form-title">Create your account</h2>
+                        <p class="rt-form-sub">Quick setup — takes under a minute</p>
+                    </div>
+                    <div class="rt-floating" aria-hidden="true"></div>
+                    <div class="rt-left-visual">
+                        <div class="hero-ill" aria-hidden="true"></div>
+                    </div>
+                    <div class="rt-row">
+                        <label class="rt-field">
+                            <span class="rt-label rt-label-bold">Full name</span>
+                            <input placeholder="Full name" type="text" value="">
+                        </label>
+
+                        <label class="rt-field">
+                            <span class="rt-label rt-label-bold">Email address</span>
+                            <input placeholder="Email address" type="email" value="">
+                        </label>
+
+                        <label class="rt-field">
+                            <span class="rt-label rt-label-bold">Phone number</span>
+                            <input placeholder="Phone number" type="tel" value="">
+                        </label>
+
+                        <label class="rt-field">
+                            <span class="rt-label rt-label-bold">Passport ID</span>
+                            <input placeholder="Passport ID" value="">
+                        </label>
+
+                        <div class="rt-toggle-row">
+                            <label class="rt-toggle">
+                                <input type="checkbox" checked="">
+                                <div class="rt-toggle-text">
+                                    <strong>Location sharing</strong>
+                                    <div class="rt-small">Required for live safety &amp; geofence alerts</div>
+                                </div>
+                            </label>
+
+                            <label class="rt-toggle">
+                                <input type="checkbox" checked="">
+                                <div class="rt-toggle-text">
+                                    <strong>SMS alerts</strong>
+                                    <div class="rt-small">Receive urgent alerts by SMS</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="rt-cta-row">
+                            <button class="rt-cta" style="width: 100%" disabled="">
+                                Create Account
+                            </button>
+                        </div>
+
+                        <div class="rt-toggle-links">
+                            <p class="rt-note">
+                                Already registered? <span class="rt-link">Login here!</span>
+                            </p>
+                        </div>
+
+                        <div class="rt-note">Data encrypted • Privacy-first • Works offline</div>
+                    </div>
+                </form>
+            </main>
+        </div>
+    </div>
+
+    <div class="demo-section" style="background: #f8fafc; padding: 20px 0;">
+        <div class="demo-title">🔐 Login Form (for comparison)</div>
+        
+        <div class="rt-container">
+            <header class="rt-hero">
+                <div class="rt-hero-inner">
+                    <h1>Welcome Back to Smart Tourist Safety</h1>
+                    <p class="rt-tag">Sign in to continue your safe journey</p>
+                </div>
+            </header>
+
+            <main class="rt-main">
+                <form class="rt-card" novalidate="">
+                    <div class="rt-form-header">
+                        <h2 class="rt-form-title">Login</h2>
+                        <p class="rt-form-sub">Enter your credentials to access your account</p>
+                    </div>
+                    <div class="rt-floating" aria-hidden="true"></div>
+                    <div class="rt-left-visual">
+                        <div class="hero-ill" aria-hidden="true"></div>
+                    </div>
+                    <div class="rt-row">
+                        <label class="rt-field">
+                            <span class="rt-label rt-label-bold">Passport ID</span>
+                            <input placeholder="Passport ID" type="text" value="ABC123456">
+                        </label>
+
+                        <div class="rt-cta-row">
+                            <button class="rt-cta" style="width: 100%">Send OTP</button>
+                        </div>
+
+                        <div class="rt-toggle-links">
+                            <p class="rt-note">
+                                Don't have an account? <span class="rt-link">Register here.</span>
+                            </p>
+                            <p class="rt-note" style="margin-top: 8px;">
+                                Or <span class="rt-link">Login as a Family Member</span>
+                            </p>
+                        </div>
+                    </div>
+                </form>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Demo script to show form validation in action
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
+            const button = document.querySelector('.rt-cta[disabled]');
+            
+            function checkFormValidity() {
+                let allFilled = true;
+                inputs.forEach(input => {
+                    if (!input.value.trim()) {
+                        allFilled = false;
+                    }
+                });
+                
+                if (allFilled) {
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                    button.textContent = 'Create Account';
+                } else {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                    button.textContent = 'Fill all fields to continue';
+                }
+            }
+            
+            inputs.forEach(input => {
+                input.addEventListener('input', checkFormValidity);
+            });
+            
+            checkFormValidity(); // Initial check
+        });
+    </script>
+</body>
+</html>

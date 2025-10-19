@@ -1,0 +1,54 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(2, 6, 23, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100000;
+  backdrop-filter: blur(6px);
+}
+
+.modal-content {
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
+  padding: 25px;
+  border-radius: 16px;
+  width: 92%;
+  max-width: 540px;
+  box-shadow: 0 26px 80px rgba(2,6,23,0.45);
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-light);
+}
+
+.modal-content h2 { margin-top: 0; color: var(--danger); }
+
+.modal-content .map-container {
+  height: 250px;
+  width: 100%;
+  margin: 20px 0;
+}
+
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+
+.modal-question {
+  font-weight: bold;
+  margin-top: 20px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 25px;
+  gap: 15px;
+}
+.modal-button { padding: 10px 20px; border: none; border-radius: 999px; cursor: pointer; font-size: 1rem; font-weight: 800; color: #0b1220; width: 120px; box-shadow: 0 10px 28px rgba(99,102,241,0.22); }
+.button-yes { background: linear-gradient(90deg, var(--success), #34d399); }
+.button-no { background: linear-gradient(90deg, var(--danger), #b91c1c); color: #fff; }

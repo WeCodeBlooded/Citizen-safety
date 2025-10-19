@@ -1,0 +1,699 @@
+report_id,session_id,user_id,lat,lon,timestamp,review_text,threat_label,severity_score,location_name
+R000442,S0081,U2587,34.152707,77.577019,2025-07-11T11:23:09,Auto driver refused meter and behaved aggressively near Leh Market.,unsafe_transport,0.483,Leh Market
+R000381,S0070,U7930,19.054898,72.839169,2025-09-14T14:36:22,"My bag was snatched near Bandra, Mumbai. I lost my phone and wallet.",theft,0.636,"Bandra, Mumbai"
+R000121,S0022,U1650,26.577406,93.17166,2025-09-07T04:32:45,I was attacked near Kaziranga Park. Got hurt and need police help.,assault,1.0,Kaziranga Park
+R000429,S0078,U1248,8.486196,76.936128,2025-07-09T09:06:51,"Pickpocketing at Kovalam, Trivandrum — they took my wallet during the crowd.",theft,0.751,"Kovalam, Trivandrum"
+R000006,S0002,U1399,27.61656,93.830877,2025-08-27T02:44:18,Someone tried a credit-card scam near Ziro Valley.,scam,0.452,Ziro Valley
+R000614,S0113,U3419,34.152619,77.576985,2025-09-03T21:57:38,Boat operator was reckless near Leh Market and it felt unsafe. Happened at night.,unsafe_transport,0.358,Leh Market
+R000467,S0088,U9385,18.943766,72.823022,2025-07-09T04:06:48,"My bag was snatched near Marine Drive, Mumbai. I lost my phone and wallet.",theft,0.695,"Marine Drive, Mumbai"
+R000192,S0035,U5346,34.083594,74.797142,2025-07-13T11:38:14,"Group of men assaulted me close to Srinagar Dal Lake. Lost valuables worth approx. INR 15,000.",assault,0.843,Srinagar Dal Lake
+R000607,S0112,U6367,27.585944,91.863876,2025-08-15T05:13:11,Physical assault happened near Tawang during the night.,assault,0.84,Tawang
+R000656,S0122,U6373,10.088324,77.058787,2025-07-02T14:20:26,Taxi driver tried to drive off-route near Munnar.,unsafe_transport,0.414,Munnar
+R000548,S0101,U6525,11.934037,79.830713,2025-07-14T06:02:49,Saw a suspicious person lurking near Pondicherry Promenade for hours.,suspicious_person,0.511,Pondicherry Promenade
+R000671,S0124,U1734,19.88665,86.095137,2025-09-23T23:11:23,Property damage near Konark Sun Temple area late at night. I was alone at that time.,vandalism,0.206,Konark Sun Temple area
+R000359,S0064,U3806,26.847454,80.945535,2025-09-03T12:55:45,Saw a suspicious person lurking near Lucknow Hazratganj for hours.,suspicious_person,0.651,Lucknow Hazratganj
+R000188,S0034,U9008,27.585991,91.864088,2025-07-30T04:07:46,Fake guide scammed me at Tawang promising discount tours.,scam,0.417,Tawang
+R000536,S0098,U4358,30.734278,76.779089,2025-09-25T23:57:06,Auto driver refused meter and behaved aggressively near Chandigarh Sector 17.,unsafe_transport,0.447,Chandigarh Sector 17
+R000286,S0051,U9641,27.586817,91.861757,2025-09-08T18:05:19,Group of men assaulted me close to Tawang. Reported to local police but no help.,assault,0.804,Tawang
+R000159,S0029,U8229,25.311681,82.974311,2025-08-01T11:09:49,Auto driver refused meter and behaved aggressively near Varanasi Dashashwamedh Ghat.,unsafe_transport,0.623,Varanasi Dashashwamedh Ghat
+R000033,S0007,U7234,8.486446,76.936536,2025-09-17T12:04:41,"Taxi driver tried to drive off-route near Kovalam, Trivandrum. Happened at night.",unsafe_transport,0.628,"Kovalam, Trivandrum"
+R000418,S0076,U7808,26.84784,80.94508,2025-08-03T17:10:45,Auto driver refused meter and behaved aggressively near Lucknow Hazratganj.,unsafe_transport,0.636,Lucknow Hazratganj
+R000059,S0011,U2699,12.976331,77.592534,2025-08-23T20:17:21,"I faced harassment near Cubbon Park, Bengaluru. People were catcalling and it felt unsafe. Took place during peak hours.",harassment,0.662,"Cubbon Park, Bengaluru"
+R000265,S0048,U5691,9.498168,76.338597,2025-07-09T10:47:25,Auto driver refused meter and behaved aggressively near Alleppey Backwaters.,unsafe_transport,0.535,Alleppey Backwaters
+R000485,S0091,U6159,19.813564,85.831027,2025-08-21T22:07:30,I got scammed by a taxi driver around Puri Jagannath Temple. They overcharged and threatened me. I was alone at that time.,scam,0.441,Puri Jagannath Temple
+R000200,S0037,U6869,26.846288,80.947,2025-08-16T11:30:56,I got scammed by a taxi driver around Lucknow Hazratganj. They overcharged and threatened me.,scam,0.4,Lucknow Hazratganj
+R000028,S0006,U4810,27.175122,78.04168,2025-07-22T08:43:01,"I was attacked near Taj Mahal, Agra. Got hurt and need police help.",assault,1.0,"Taj Mahal, Agra"
+R000585,S0108,U9639,26.912456,75.787482,2025-08-30T22:02:17,"Boat operator was reckless near Pink City, Jaipur and it felt unsafe.",unsafe_transport,0.394,"Pink City, Jaipur"
+R000293,S0052,U2721,9.966017,76.240805,2025-09-25T13:08:06,"Physical assault happened near Fort Kochi, Kochi during the night.",assault,0.926,"Fort Kochi, Kochi"
+R000206,S0038,U5326,30.08748,78.263922,2025-08-24T18:50:17,Someone stole my backpack at Rishikesh Laxman Jhula while I was on my phone. Witnessed by many tourists.,theft,0.808,Rishikesh Laxman Jhula
+R000577,S0106,U8269,27.616508,93.828724,2025-08-26T13:01:35,Someone stole my backpack at Ziro Valley while I was on my phone.,theft,0.654,Ziro Valley
+R000363,S0065,U3092,27.03929,88.263012,2025-08-04T00:57:50,I got scammed by a taxi driver around Darjeeling Mall. They overcharged and threatened me. I was alone at that time.,scam,0.386,Darjeeling Mall
+R000362,S0065,U3092,27.04161,88.262446,2025-07-22T18:13:57,Auto driver refused meter and behaved aggressively near Darjeeling Mall.,unsafe_transport,0.622,Darjeeling Mall
+R000154,S0028,U4665,19.099976,72.827873,2025-07-18T14:39:03,"Person fainted near Juhu Beach, Mumbai and there was delay in help.",medical_emergency,0.797,"Juhu Beach, Mumbai"
+R000625,S0116,U5244,28.524489,77.185478,2025-08-28T16:35:36,"Someone tried a credit-card scam near Qutub Minar, Delhi.",scam,0.59,"Qutub Minar, Delhi"
+R000523,S0097,U3159,24.576093,73.680476,2025-07-24T11:25:17,Physical assault happened near Udaipur Lake Pichola during the night.,assault,1.0,Udaipur Lake Pichola
+R000217,S0039,U3694,12.976256,77.592797,2025-08-17T01:21:38,"Someone tried a credit-card scam near Cubbon Park, Bengaluru.",scam,0.52,"Cubbon Park, Bengaluru"
+R000136,S0026,U3267,30.733102,76.778696,2025-08-13T23:57:42,Physical assault happened near Chandigarh Sector 17 during the night.,assault,0.886,Chandigarh Sector 17
+R000388,S0071,U7120,19.055158,72.839956,2025-07-07T18:00:11,"Boat operator was reckless near Bandra, Mumbai and it felt unsafe.",unsafe_transport,0.478,"Bandra, Mumbai"
+R000241,S0042,U4783,9.49806,76.338799,2025-07-11T18:24:36,I was attacked near Alleppey Backwaters. Got hurt and need police help. Witnessed by many tourists.,assault,0.847,Alleppey Backwaters
+R000397,S0073,U7459,11.623321,92.726428,2025-09-23T10:49:39,Verbal harassment at Andaman Port Blair when I was walking alone.,harassment,0.691,Andaman Port Blair
+R000475,S0089,U4665,26.297694,73.019032,2025-09-12T22:36:14,Phone stolen at Jodhpur Mehrangarh. Be careful around the market.,theft,0.779,Jodhpur Mehrangarh
+R000401,S0073,U7459,11.623469,92.726568,2025-09-19T13:57:23,Phone stolen at Andaman Port Blair. Be careful around the market.,theft,0.844,Andaman Port Blair
+R000157,S0029,U8229,25.310068,82.973398,2025-07-19T20:10:30,My bag was snatched near Varanasi Dashashwamedh Ghat. I lost my phone and wallet.,theft,0.841,Varanasi Dashashwamedh Ghat
+R000694,S0130,U4779,19.887262,86.09437,2025-08-23T05:42:23,"Physical assault happened near Konark Sun Temple area during the night. Lost valuables worth approx. INR 15,000.",assault,0.863,Konark Sun Temple area
+R000323,S0057,U1628,18.922327,72.834601,2025-08-20T15:28:53,"I got scammed by a taxi driver around Gateway of India, Mumbai. They overcharged and threatened me.",scam,0.4,"Gateway of India, Mumbai"
+R000580,S0107,U9200,26.2971,73.018833,2025-09-27T02:01:49,Vandalism noticed near Jodhpur Mehrangarh. Statues/graffiti and broken benches.,vandalism,0.432,Jodhpur Mehrangarh
+R000462,S0087,U6938,26.92391,75.825456,2025-09-11T11:25:20,"Verbal harassment at Hawa Mahal, Jaipur when I was walking alone.",harassment,0.732,"Hawa Mahal, Jaipur"
+R000524,S0097,U3159,24.57593,73.680291,2025-09-23T03:44:21,I misplaced my passport at Udaipur Lake Pichola. Please help locate. Took place during peak hours.,lost,0.339,Udaipur Lake Pichola
+R000100,S0018,U4994,19.099364,72.82588,2025-07-23T20:46:55,"Auto driver refused meter and behaved aggressively near Juhu Beach, Mumbai.",unsafe_transport,0.58,"Juhu Beach, Mumbai"
+R000662,S0123,U1709,26.84794,80.9473,2025-07-09T18:59:51,Phone stolen at Lucknow Hazratganj. Be careful around the market.,theft,0.799,Lucknow Hazratganj
+R000273,S0048,U5691,9.498036,76.338013,2025-07-26T17:15:35,Auto driver refused meter and behaved aggressively near Alleppey Backwaters.,unsafe_transport,0.595,Alleppey Backwaters
+R000238,S0042,U4783,9.498076,76.339139,2025-09-19T13:25:57,I got scammed by a taxi driver around Alleppey Backwaters. They overcharged and threatened me. I was alone at that time.,scam,0.614,Alleppey Backwaters
+R000213,S0039,U3694,12.976243,77.593071,2025-08-04T20:27:34,"Someone tried a credit-card scam near Cubbon Park, Bengaluru. Took place during peak hours.",scam,0.589,"Cubbon Park, Bengaluru"
+R000360,S0064,U3806,26.847752,80.947035,2025-08-06T01:24:11,Taxi driver tried to drive off-route near Lucknow Hazratganj.,unsafe_transport,0.476,Lucknow Hazratganj
+R000308,S0055,U7438,8.737831,76.71599,2025-09-02T16:15:47,"Taxi driver tried to drive off-route near Varkala Beach, Kerala.",unsafe_transport,0.608,"Varkala Beach, Kerala"
+R000122,S0023,U1531,28.632669,77.21964,2025-07-12T18:46:39,"Pickpocketing at Connaught Place, Delhi — they took my wallet during the crowd. Took place during peak hours.",theft,0.729,"Connaught Place, Delhi"
+R000555,S0102,U6890,12.975852,77.605034,2025-08-24T10:25:35,Phone stolen at Bengaluru MG Road. Be careful around the market.,theft,0.704,Bengaluru MG Road
+R000597,S0110,U7374,29.946007,78.164166,2025-07-27T21:00:09,I was attacked near Haridwar Har-ki-Pauri. Got hurt and need police help.,assault,0.84,Haridwar Har-ki-Pauri
+R000026,S0005,U4960,27.617471,93.829947,2025-07-26T17:57:31,Pickpocketing at Ziro Valley — they took my wallet during the crowd.,theft,0.806,Ziro Valley
+R000271,S0048,U5691,9.498098,76.338798,2025-08-14T17:45:06,Auto driver refused meter and behaved aggressively near Alleppey Backwaters. Happened at night.,unsafe_transport,0.437,Alleppey Backwaters
+R000683,S0127,U7414,28.633864,77.221056,2025-07-13T04:50:17,"Fake guide scammed me at Connaught Place, Delhi promising discount tours.",scam,0.372,"Connaught Place, Delhi"
+R000242,S0042,U4783,9.499,76.338902,2025-09-17T07:11:31,Left my bag on a bench near Alleppey Backwaters and couldn't find it. Witnessed by many tourists.,lost,0.538,Alleppey Backwaters
+R000550,S0101,U6525,11.933803,79.830361,2025-08-05T00:31:05,"Minor road accident near Pondicherry Promenade. No ambulance available immediately. Lost valuables worth approx. INR 15,000.",accident,0.945,Pondicherry Promenade
+R000661,S0123,U1709,26.846992,80.946996,2025-08-21T02:34:55,Property damage near Lucknow Hazratganj late at night.,vandalism,0.229,Lucknow Hazratganj
+R000554,S0102,U6890,12.975801,77.60511,2025-07-04T23:54:17,Verbal harassment at Bengaluru MG Road when I was walking alone. Witnessed by many tourists.,harassment,0.726,Bengaluru MG Road
+R000072,S0014,U2115,13.009552,80.267767,2025-08-11T19:20:56,"Someone stole my backpack at Besant Nagar, Chennai while I was on my phone.",theft,0.765,"Besant Nagar, Chennai"
+R000123,S0023,U1531,28.631167,77.220821,2025-09-05T11:04:01,"Minor road accident near Connaught Place, Delhi. No ambulance available immediately.",accident,0.923,"Connaught Place, Delhi"
+R000628,S0116,U5244,28.524494,77.185763,2025-09-11T08:36:10,"My bag was snatched near Qutub Minar, Delhi. I lost my phone and wallet. Witnessed by many tourists.",theft,0.682,"Qutub Minar, Delhi"
+R000227,S0040,U1007,26.912368,75.787503,2025-08-10T07:40:57,"Group of men assaulted me close to Pink City, Jaipur.",assault,1.0,"Pink City, Jaipur"
+R000125,S0023,U1531,28.631847,77.220014,2025-08-14T10:33:08,"My bag was snatched near Connaught Place, Delhi. I lost my phone and wallet.",theft,0.614,"Connaught Place, Delhi"
+R000476,S0090,U2452,28.525308,77.1848,2025-07-10T06:14:22,"Boat operator was reckless near Qutub Minar, Delhi and it felt unsafe.",unsafe_transport,0.557,"Qutub Minar, Delhi"
+R000681,S0127,U7414,28.633445,77.222421,2025-07-19T05:58:07,"I got scammed by a taxi driver around Connaught Place, Delhi. They overcharged and threatened me. Happened at night.",scam,0.627,"Connaught Place, Delhi"
+R000124,S0023,U1531,28.632463,77.219841,2025-09-02T14:53:34,"My bag was snatched near Connaught Place, Delhi. I lost my phone and wallet. Happened at night.",theft,0.551,"Connaught Place, Delhi"
+R000373,S0067,U3070,26.9161,70.908772,2025-08-04T00:36:16,My bag was snatched near Jaisalmer Fort. I lost my phone and wallet.,theft,0.607,Jaisalmer Fort
+R000088,S0016,U7054,12.975968,77.604645,2025-07-14T05:31:04,Minor road accident near Bengaluru MG Road. No ambulance available immediately. Reported to local police but no help.,accident,0.798,Bengaluru MG Road
+R000311,S0056,U4081,27.586098,91.863914,2025-07-05T13:54:54,My bag was snatched near Tawang. I lost my phone and wallet.,theft,0.716,Tawang
+R000013,S0003,U6641,18.520301,73.856728,2025-09-01T09:35:47,Phone stolen at Pune FC road area. Be careful around the market. Witnessed by many tourists.,theft,0.751,Pune FC road area
+R000030,S0006,U4810,27.174603,78.044031,2025-09-25T18:47:56,"Pickpocketing at Taj Mahal, Agra — they took my wallet during the crowd.",theft,0.648,"Taj Mahal, Agra"
+R000365,S0065,U3092,27.040836,88.262571,2025-08-21T20:34:30,Verbal harassment at Darjeeling Mall when I was walking alone.,harassment,0.57,Darjeeling Mall
+R000024,S0005,U4960,27.617031,93.829298,2025-07-10T20:28:06,Someone was following me near Ziro Valley— very suspicious.,suspicious_person,0.476,Ziro Valley
+R000491,S0091,U6159,19.81339,85.831055,2025-08-04T12:20:49,Public infrastructure vandalized at Puri Jagannath Temple. I was alone at that time.,vandalism,0.329,Puri Jagannath Temple
+R000220,S0040,U1007,26.912202,75.786644,2025-08-16T03:01:12,"Verbal harassment at Pink City, Jaipur when I was walking alone.",harassment,0.456,"Pink City, Jaipur"
+R000075,S0014,U2115,13.009149,80.267513,2025-07-18T14:07:48,"Fake guide scammed me at Besant Nagar, Chennai promising discount tours.",scam,0.633,"Besant Nagar, Chennai"
+R000398,S0073,U7459,11.62416,92.727121,2025-07-14T08:16:34,Auto driver refused meter and behaved aggressively near Andaman Port Blair.,unsafe_transport,0.591,Andaman Port Blair
+R000312,S0056,U4081,27.587443,91.86422,2025-08-11T22:40:24,My bag was snatched near Tawang. I lost my phone and wallet. Reported to local police but no help.,theft,0.629,Tawang
+R000410,S0075,U9464,15.545816,73.756364,2025-09-22T02:40:16,I got scammed by a taxi driver around Goa - Calangute. They overcharged and threatened me.,scam,0.611,Goa - Calangute
+R000455,S0086,U2886,17.361361,78.474776,2025-09-05T04:41:41,Auto driver refused meter and behaved aggressively near Hyderabad Charminar.,unsafe_transport,0.465,Hyderabad Charminar
+R000133,S0025,U6699,22.545786,88.346722,2025-09-01T13:36:43,I faced harassment near Kolkata New Market. People were catcalling and it felt unsafe.,harassment,0.576,Kolkata New Market
+R000652,S0121,U5998,11.62257,92.726313,2025-07-08T16:49:49,I misplaced my passport at Andaman Port Blair. Please help locate. Witnessed by many tourists.,lost,0.542,Andaman Port Blair
+R000390,S0071,U7120,19.054532,72.840378,2025-07-12T17:30:19,"Lost my wallet and ID near Bandra, Mumbai after crowding. Witnessed by many tourists.",lost,0.389,"Bandra, Mumbai"
+R000321,S0057,U1628,18.921986,72.834699,2025-07-24T01:04:57,"Fake guide scammed me at Gateway of India, Mumbai promising discount tours. I was alone at that time.",scam,0.505,"Gateway of India, Mumbai"
+R000474,S0089,U4665,26.297393,73.017554,2025-07-27T18:30:43,I misplaced my passport at Jodhpur Mehrangarh. Please help locate. Took place during peak hours.,lost,0.262,Jodhpur Mehrangarh
+R000503,S0094,U2800,8.088166,77.538207,2025-08-12T09:01:15,My bag was snatched near Kanyakumari. I lost my phone and wallet. I was alone at that time.,theft,0.727,Kanyakumari
+R000385,S0071,U7120,19.054197,72.840161,2025-06-30T10:40:07,"Boat operator was reckless near Bandra, Mumbai and it felt unsafe.",unsafe_transport,0.576,"Bandra, Mumbai"
+R000387,S0071,U7120,19.053984,72.839965,2025-07-12T19:38:49,"I got scammed by a taxi driver around Bandra, Mumbai. They overcharged and threatened me.",scam,0.365,"Bandra, Mumbai"
+R000073,S0014,U2115,13.009718,80.26739,2025-07-06T20:45:03,"Left my bag on a bench near Besant Nagar, Chennai and couldn't find it.",lost,0.506,"Besant Nagar, Chennai"
+R000096,S0017,U7707,30.733156,76.778883,2025-07-14T11:12:24,Public infrastructure vandalized at Chandigarh Sector 17.,vandalism,0.17,Chandigarh Sector 17
+R000561,S0103,U1433,18.519927,73.856902,2025-07-26T03:11:22,Saw a suspicious person lurking near Pune FC road area for hours.,suspicious_person,0.626,Pune FC road area
+R000516,S0096,U9927,18.922012,72.834769,2025-07-21T01:33:04,"I got scammed by a taxi driver around Gateway of India, Mumbai. They overcharged and threatened me.",scam,0.4,"Gateway of India, Mumbai"
+R000619,S0115,U2945,18.519887,73.855786,2025-06-30T11:18:12,Eve-teasing incident near Pune FC road area— women should avoid the area at night. Witnessed by many tourists.,harassment,0.719,Pune FC road area
+R000604,S0112,U6367,27.587748,91.864245,2025-08-19T12:56:37,Auto driver refused meter and behaved aggressively near Tawang. Took place during peak hours.,unsafe_transport,0.505,Tawang
+R000611,S0113,U3419,34.152477,77.578719,2025-08-12T06:12:42,Boat operator was reckless near Leh Market and it felt unsafe.,unsafe_transport,0.369,Leh Market
+R000508,S0094,U2800,8.088168,77.538079,2025-07-29T06:53:52,Someone stole my backpack at Kanyakumari while I was on my phone.,theft,0.652,Kanyakumari
+R000436,S0080,U3272,33.985072,75.239963,2025-09-02T22:24:58,Boat operator was reckless near Amarnath base area (approx) and it felt unsafe.,unsafe_transport,0.618,Amarnath base area (approx)
+R000048,S0010,U2739,28.632355,77.220253,2025-08-10T16:18:48,"Someone stole my backpack at Connaught Place, Delhi while I was on my phone. Reported to local police but no help.",theft,0.764,"Connaught Place, Delhi"
+R000382,S0071,U7120,19.054096,72.840039,2025-07-27T20:54:13,"Physical assault happened near Bandra, Mumbai during the night.",assault,0.801,"Bandra, Mumbai"
+R000039,S0008,U2101,11.406411,76.694553,2025-08-26T09:19:11,I got scammed by a taxi driver around Ooty. They overcharged and threatened me.,scam,0.55,Ooty
+R000196,S0036,U1727,29.944685,78.16599,2025-07-26T01:38:09,I faced harassment near Haridwar Har-ki-Pauri. People were catcalling and it felt unsafe.,harassment,0.705,Haridwar Har-ki-Pauri
+R000272,S0048,U5691,9.499513,76.339421,2025-08-17T07:27:34,Eve-teasing incident near Alleppey Backwaters— women should avoid the area at night. Took place during peak hours.,harassment,0.667,Alleppey Backwaters
+R000556,S0102,U6890,12.976021,77.604337,2025-09-13T04:39:49,Verbal harassment at Bengaluru MG Road when I was walking alone. I was alone at that time.,harassment,0.453,Bengaluru MG Road
+R000237,S0042,U4783,9.497944,76.339194,2025-08-04T23:18:09,"Auto driver refused meter and behaved aggressively near Alleppey Backwaters. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.587,Alleppey Backwaters
+R000179,S0033,U3152,27.175135,78.042122,2025-08-16T13:33:28,"Boat operator was reckless near Taj Mahal, Agra and it felt unsafe.",unsafe_transport,0.641,"Taj Mahal, Agra"
+R000046,S0010,U2739,28.633148,77.219338,2025-08-29T19:25:45,"I misplaced my passport at Connaught Place, Delhi. Please help locate.",lost,0.419,"Connaught Place, Delhi"
+R000297,S0053,U8145,31.104803,77.1734,2025-08-17T04:06:25,Someone tried a credit-card scam near Shimla Mall. Reported to local police but no help.,scam,0.568,Shimla Mall
+R000494,S0092,U9608,11.4063,76.695156,2025-07-19T13:51:20,Eve-teasing incident near Ooty— women should avoid the area at night.,harassment,0.524,Ooty
+R000113,S0021,U9129,8.737669,76.715965,2025-09-23T01:55:12,"Bike collided near Varkala Beach, Kerala and rider is badly hurt.",accident,0.99,"Varkala Beach, Kerala"
+R000634,S0118,U8913,8.088547,77.538505,2025-08-09T03:11:18,I got scammed by a taxi driver around Kanyakumari. They overcharged and threatened me.,scam,0.375,Kanyakumari
+R000253,S0045,U3994,25.595176,85.139784,2025-09-13T11:29:26,Verbal harassment at Patna Gandhi Maidan when I was walking alone.,harassment,0.579,Patna Gandhi Maidan
+R000193,S0035,U5346,34.083765,74.798389,2025-09-09T14:49:52,Pickpocketing at Srinagar Dal Lake — they took my wallet during the crowd.,theft,0.739,Srinagar Dal Lake
+R000076,S0014,U2115,13.009046,80.268168,2025-07-28T19:35:02,"Verbal harassment at Besant Nagar, Chennai when I was walking alone.",harassment,0.56,"Besant Nagar, Chennai"
+R000301,S0054,U9587,24.576057,73.680245,2025-08-06T00:27:12,Public infrastructure vandalized at Udaipur Lake Pichola.,vandalism,0.243,Udaipur Lake Pichola
+R000175,S0032,U4360,12.424229,75.737444,2025-09-05T02:37:20,Eve-teasing incident near Coorg Madikeri— women should avoid the area at night.,harassment,0.725,Coorg Madikeri
+R000083,S0015,U7462,18.922012,72.834102,2025-08-27T03:42:56,"Someone stole my backpack at Gateway of India, Mumbai while I was on my phone.",theft,0.801,"Gateway of India, Mumbai"
+R000170,S0031,U6017,22.30728,88.767382,2025-09-01T12:44:22,"Auto driver refused meter and behaved aggressively near Sundarbans Entry. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.596,Sundarbans Entry
+R000618,S0115,U2945,18.520426,73.856812,2025-07-28T09:59:19,I misplaced my passport at Pune FC road area. Please help locate.,lost,0.41,Pune FC road area
+R000094,S0017,U7707,30.733363,76.779042,2025-09-21T20:31:57,Public infrastructure vandalized at Chandigarh Sector 17.,vandalism,0.291,Chandigarh Sector 17
+R000586,S0108,U9639,26.911828,75.787154,2025-09-26T13:59:24,"Eve-teasing incident near Pink City, Jaipur— women should avoid the area at night.",harassment,0.564,"Pink City, Jaipur"
+R000176,S0032,U4360,12.424393,75.737954,2025-09-16T17:06:38,Eve-teasing incident near Coorg Madikeri— women should avoid the area at night. Reported to local police but no help.,harassment,0.702,Coorg Madikeri
+R000218,S0039,U3694,12.9758,77.592814,2025-08-31T23:11:16,"Boat operator was reckless near Cubbon Park, Bengaluru and it felt unsafe.",unsafe_transport,0.622,"Cubbon Park, Bengaluru"
+R000512,S0095,U1647,17.363009,78.474824,2025-08-07T17:50:57,Someone stole my backpack at Hyderabad Charminar while I was on my phone.,theft,0.764,Hyderabad Charminar
+R000037,S0008,U2101,11.406605,76.694421,2025-07-16T10:59:07,Someone was following me near Ooty— very suspicious. Took place during peak hours.,suspicious_person,0.402,Ooty
+R000067,S0012,U7883,13.048916,80.282677,2025-07-02T04:05:27,"Taxi driver tried to drive off-route near Marina Beach, Chennai.",unsafe_transport,0.641,"Marina Beach, Chennai"
+R000682,S0127,U7414,28.632449,77.220047,2025-08-08T01:57:27,"Left my bag on a bench near Connaught Place, Delhi and couldn't find it.",lost,0.528,"Connaught Place, Delhi"
+R000603,S0111,U8790,22.545279,88.342476,2025-07-26T05:47:44,Someone tried a credit-card scam near Kolkata Victoria Memorial area. Reported to local police but no help.,scam,0.526,Kolkata Victoria Memorial area
+R000015,S0003,U6641,18.520037,73.856584,2025-07-04T21:56:52,I was attacked near Pune FC road area. Got hurt and need police help.,assault,1.0,Pune FC road area
+R000449,S0084,U8077,27.616921,93.829787,2025-09-10T17:25:15,Auto driver refused meter and behaved aggressively near Ziro Valley.,unsafe_transport,0.401,Ziro Valley
+R000144,S0027,U5709,19.098736,72.827433,2025-08-03T13:57:52,"Phone stolen at Juhu Beach, Mumbai. Be careful around the market.",theft,0.644,"Juhu Beach, Mumbai"
+R000570,S0104,U8722,26.912384,75.785669,2025-09-10T01:20:29,"Someone was following me near Pink City, Jaipur— very suspicious.",suspicious_person,0.622,"Pink City, Jaipur"
+R000668,S0124,U1734,19.888187,86.094565,2025-07-12T07:24:11,Someone was following me near Konark Sun Temple area— very suspicious.,suspicious_person,0.684,Konark Sun Temple area
+R000130,S0024,U8805,11.964036,92.967231,2025-07-23T09:08:44,My bag was snatched near Havelock Island. I lost my phone and wallet. Took place during peak hours.,theft,0.681,Havelock Island
+R000299,S0053,U8145,31.105366,77.173486,2025-08-01T23:23:51,Someone tried a credit-card scam near Shimla Mall.,scam,0.526,Shimla Mall
+R000186,S0034,U9008,27.584471,91.864614,2025-08-23T14:31:38,Fake guide scammed me at Tawang promising discount tours.,scam,0.609,Tawang
+R000421,S0076,U7808,26.847191,80.947283,2025-08-13T03:37:29,Someone stole my backpack at Lucknow Hazratganj while I was on my phone.,theft,0.583,Lucknow Hazratganj
+R000572,S0106,U8269,27.614625,93.828872,2025-07-04T05:40:42,Person fainted near Ziro Valley and there was delay in help.,medical_emergency,0.961,Ziro Valley
+R000174,S0031,U6017,22.308616,88.768691,2025-08-14T22:40:03,Boat operator was reckless near Sundarbans Entry and it felt unsafe.,unsafe_transport,0.514,Sundarbans Entry
+R000131,S0025,U6699,22.54586,88.349431,2025-07-01T04:15:01,Verbal harassment at Kolkata New Market when I was walking alone.,harassment,0.579,Kolkata New Market
+R000161,S0029,U8229,25.310394,82.974976,2025-07-11T16:26:22,Someone tried a credit-card scam near Varanasi Dashashwamedh Ghat.,scam,0.634,Varanasi Dashashwamedh Ghat
+R000163,S0030,U1722,26.92384,75.826481,2025-07-05T20:18:12,"Group of men assaulted me close to Hawa Mahal, Jaipur. Witnessed by many tourists.",assault,0.827,"Hawa Mahal, Jaipur"
+R000419,S0076,U7808,26.847807,80.947792,2025-07-24T22:21:49,"I misplaced my passport at Lucknow Hazratganj. Please help locate. Lost valuables worth approx. INR 15,000.",lost,0.342,Lucknow Hazratganj
+R000422,S0076,U7808,26.846331,80.946949,2025-07-28T21:49:37,Verbal harassment at Lucknow Hazratganj when I was walking alone.,harassment,0.732,Lucknow Hazratganj
+R000525,S0097,U3159,24.575564,73.680538,2025-08-21T07:24:53,Fake guide scammed me at Udaipur Lake Pichola promising discount tours.,scam,0.618,Udaipur Lake Pichola
+R000127,S0024,U8805,11.96338,92.966501,2025-09-03T18:23:06,Pickpocketing at Havelock Island — they took my wallet during the crowd.,theft,0.788,Havelock Island
+R000166,S0030,U1722,26.922495,75.825851,2025-09-24T07:03:45,"Fake guide scammed me at Hawa Mahal, Jaipur promising discount tours.",scam,0.557,"Hawa Mahal, Jaipur"
+R000063,S0012,U7883,13.047904,80.282081,2025-07-29T04:01:31,"I faced harassment near Marina Beach, Chennai. People were catcalling and it felt unsafe.",harassment,0.564,"Marina Beach, Chennai"
+R000630,S0117,U7562,27.338265,88.604893,2025-09-15T19:33:44,Left my bag on a bench near Gangtok MG Marg and couldn't find it.,lost,0.293,Gangtok MG Marg
+R000267,S0048,U5691,9.497205,76.337662,2025-08-28T21:52:15,Pickpocketing at Alleppey Backwaters — they took my wallet during the crowd.,theft,0.678,Alleppey Backwaters
+R000350,S0062,U2826,32.219022,76.323624,2025-08-08T12:52:13,Taxi driver tried to drive off-route near Dharamshala.,unsafe_transport,0.428,Dharamshala
+R000287,S0051,U9641,27.586387,91.863318,2025-07-07T14:42:24,"Eve-teasing incident near Tawang— women should avoid the area at night. Lost valuables worth approx. INR 15,000.",harassment,0.619,Tawang
+R000279,S0050,U4405,19.88703,86.094427,2025-07-04T04:32:11,Someone was following me near Konark Sun Temple area— very suspicious.,suspicious_person,0.634,Konark Sun Temple area
+R000673,S0124,U1734,19.886796,86.094605,2025-08-24T09:08:51,I got scammed by a taxi driver around Konark Sun Temple area. They overcharged and threatened me.,scam,0.508,Konark Sun Temple area
+R000427,S0078,U1248,8.486235,76.936557,2025-06-30T19:07:08,"Lost my wallet and ID near Kovalam, Trivandrum after crowding.",lost,0.332,"Kovalam, Trivandrum"
+R000589,S0109,U3227,28.523694,77.18392,2025-08-07T09:52:58,"Eve-teasing incident near Qutub Minar, Delhi— women should avoid the area at night.",harassment,0.567,"Qutub Minar, Delhi"
+R000354,S0064,U3806,26.8472,80.945864,2025-08-04T03:58:57,"Group acting strange near Lucknow Hazratganj. Could be a threat. Lost valuables worth approx. INR 15,000.",suspicious_person,0.449,Lucknow Hazratganj
+R000084,S0015,U7462,18.92216,72.835003,2025-08-11T14:35:34,"Lost my wallet and ID near Gateway of India, Mumbai after crowding.",lost,0.41,"Gateway of India, Mumbai"
+R000426,S0077,U9408,34.082888,74.796764,2025-09-19T05:14:47,I got scammed by a taxi driver around Srinagar Dal Lake. They overcharged and threatened me.,scam,0.352,Srinagar Dal Lake
+R000440,S0081,U2587,34.153516,77.5756,2025-07-27T03:24:46,Boat operator was reckless near Leh Market and it felt unsafe.,unsafe_transport,0.593,Leh Market
+R000223,S0040,U1007,26.911867,75.787296,2025-09-21T19:03:38,"Taxi driver tried to drive off-route near Pink City, Jaipur. I was alone at that time.",unsafe_transport,0.452,"Pink City, Jaipur"
+R000583,S0107,U9200,26.297253,73.017187,2025-08-25T15:52:06,Minor road accident near Jodhpur Mehrangarh. No ambulance available immediately. Took place during peak hours.,accident,0.77,Jodhpur Mehrangarh
+R000530,S0098,U4358,30.73341,76.779058,2025-09-04T08:59:28,Someone was following me near Chandigarh Sector 17— very suspicious. Reported to local police but no help.,suspicious_person,0.561,Chandigarh Sector 17
+R000153,S0028,U4665,19.099089,72.827585,2025-09-09T19:37:57,"Verbal harassment at Juhu Beach, Mumbai when I was walking alone.",harassment,0.595,"Juhu Beach, Mumbai"
+R000543,S0100,U5027,26.92396,75.826823,2025-08-04T04:40:35,"Physical assault happened near Hawa Mahal, Jaipur during the night.",assault,1.0,"Hawa Mahal, Jaipur"
+R000269,S0048,U5691,9.496442,76.338446,2025-08-29T20:36:47,Group acting strange near Alleppey Backwaters. Could be a threat.,suspicious_person,0.492,Alleppey Backwaters
+R000537,S0099,U8855,28.524605,77.185233,2025-07-07T16:49:13,"Lost my wallet and ID near Qutub Minar, Delhi after crowding.",lost,0.363,"Qutub Minar, Delhi"
+R000183,S0033,U3152,27.175283,78.042414,2025-07-10T23:57:38,"Lost my wallet and ID near Taj Mahal, Agra after crowding.",lost,0.524,"Taj Mahal, Agra"
+R000155,S0029,U8229,25.309993,82.973641,2025-09-19T23:04:59,Pickpocketing at Varanasi Dashashwamedh Ghat — they took my wallet during the crowd. I was alone at that time.,theft,0.62,Varanasi Dashashwamedh Ghat
+R000675,S0125,U5602,18.944094,72.824554,2025-07-12T19:30:26,"Someone was following me near Marine Drive, Mumbai— very suspicious.",suspicious_person,0.49,"Marine Drive, Mumbai"
+R000167,S0030,U1722,26.924123,75.825776,2025-08-17T20:43:04,"Group of men assaulted me close to Hawa Mahal, Jaipur.",assault,0.801,"Hawa Mahal, Jaipur"
+R000439,S0081,U2587,34.151671,77.577821,2025-07-18T11:22:00,Phone stolen at Leh Market. Be careful around the market.,theft,0.772,Leh Market
+R000110,S0020,U2597,32.218919,76.323113,2025-08-15T22:45:38,Auto driver refused meter and behaved aggressively near Dharamshala.,unsafe_transport,0.386,Dharamshala
+R000463,S0087,U6938,26.924412,75.827445,2025-07-21T05:49:10,"Left my bag on a bench near Hawa Mahal, Jaipur and couldn't find it.",lost,0.366,"Hawa Mahal, Jaipur"
+R000247,S0043,U2857,22.54583,88.343583,2025-07-23T02:26:30,Vandalism noticed near Kolkata Victoria Memorial area. Statues/graffiti and broken benches.,vandalism,0.256,Kolkata Victoria Memorial area
+R000328,S0058,U3742,24.576003,73.680162,2025-07-29T02:13:11,Verbal harassment at Udaipur Lake Pichola when I was walking alone.,harassment,0.548,Udaipur Lake Pichola
+R000347,S0061,U6540,11.406724,76.695143,2025-08-14T05:47:01,I faced harassment near Ooty. People were catcalling and it felt unsafe.,harassment,0.642,Ooty
+R000389,S0071,U7120,19.054474,72.839845,2025-09-07T10:54:21,"My bag was snatched near Bandra, Mumbai. I lost my phone and wallet.",theft,0.786,"Bandra, Mumbai"
+R000532,S0098,U4358,30.733173,76.779571,2025-09-06T18:51:22,Boat operator was reckless near Chandigarh Sector 17 and it felt unsafe.,unsafe_transport,0.612,Chandigarh Sector 17
+R000383,S0071,U7120,19.054774,72.84036,2025-07-15T14:24:10,"Taxi driver tried to drive off-route near Bandra, Mumbai.",unsafe_transport,0.519,"Bandra, Mumbai"
+R000230,S0041,U5990,32.242961,77.188988,2025-08-13T03:19:51,Someone stole my backpack at Manali Mall while I was on my phone.,theft,0.593,Manali Mall
+R000160,S0029,U8229,25.31121,82.972615,2025-08-04T22:48:39,Saw a suspicious person lurking near Varanasi Dashashwamedh Ghat for hours.,suspicious_person,0.56,Varanasi Dashashwamedh Ghat
+R000545,S0100,U5027,26.92351,75.826316,2025-07-30T20:09:07,"I got scammed by a taxi driver around Hawa Mahal, Jaipur. They overcharged and threatened me.",scam,0.484,"Hawa Mahal, Jaipur"
+R000396,S0072,U3011,8.088119,77.537553,2025-07-09T03:25:46,I faced harassment near Kanyakumari. People were catcalling and it felt unsafe. I was alone at that time.,harassment,0.464,Kanyakumari
+R000251,S0045,U3994,25.59265,85.137127,2025-08-21T17:56:10,"Public infrastructure vandalized at Patna Gandhi Maidan. Lost valuables worth approx. INR 15,000.",vandalism,0.313,Patna Gandhi Maidan
+R000061,S0012,U7883,13.048919,80.282611,2025-09-21T07:25:57,"Fake guide scammed me at Marina Beach, Chennai promising discount tours. Witnessed by many tourists.",scam,0.637,"Marina Beach, Chennai"
+R000468,S0089,U4665,26.296666,73.018058,2025-08-24T17:48:53,Group acting strange near Jodhpur Mehrangarh. Could be a threat. Happened at night.,suspicious_person,0.598,Jodhpur Mehrangarh
+R000081,S0015,U7462,18.92193,72.834679,2025-08-13T10:47:05,"Verbal harassment at Gateway of India, Mumbai when I was walking alone.",harassment,0.562,"Gateway of India, Mumbai"
+R000441,S0081,U2587,34.153405,77.578154,2025-07-27T12:08:53,Verbal harassment at Leh Market when I was walking alone. Happened at night.,harassment,0.46,Leh Market
+R000425,S0077,U9408,34.084092,74.798237,2025-09-13T19:35:17,Left my bag on a bench near Srinagar Dal Lake and couldn't find it.,lost,0.421,Srinagar Dal Lake
+R000687,S0128,U8614,22.581968,88.34648,2025-08-17T20:17:41,"Lost my wallet and ID near Howrah Bridge area, Kolkata after crowding.",lost,0.423,"Howrah Bridge area, Kolkata"
+R000034,S0007,U7234,8.48639,76.935751,2025-07-14T18:44:14,"Person fainted near Kovalam, Trivandrum and there was delay in help.",medical_emergency,0.958,"Kovalam, Trivandrum"
+R000633,S0117,U7562,27.338942,88.606722,2025-08-06T17:47:38,Fake guide scammed me at Gangtok MG Marg promising discount tours.,scam,0.586,Gangtok MG Marg
+R000337,S0059,U5186,13.049619,80.283198,2025-08-07T02:22:28,"Someone stole my backpack at Marina Beach, Chennai while I was on my phone.",theft,0.772,"Marina Beach, Chennai"
+R000584,S0108,U9639,26.912533,75.786637,2025-08-25T08:03:55,"Someone stole my backpack at Pink City, Jaipur while I was on my phone. Lost valuables worth approx. INR 15,000.",theft,0.651,"Pink City, Jaipur"
+R000169,S0031,U6017,22.307762,88.768443,2025-08-07T18:34:58,Lost my wallet and ID near Sundarbans Entry after crowding. Happened at night.,lost,0.366,Sundarbans Entry
+R000233,S0041,U5990,32.244015,77.190528,2025-08-25T07:06:18,Pickpocketing at Manali Mall — they took my wallet during the crowd.,theft,0.846,Manali Mall
+R000480,S0090,U2452,28.524326,77.18573,2025-08-29T15:19:55,"I was attacked near Qutub Minar, Delhi. Got hurt and need police help.",assault,0.887,"Qutub Minar, Delhi"
+R000408,S0075,U9464,15.54614,73.754757,2025-08-17T09:40:39,Boat operator was reckless near Goa - Calangute and it felt unsafe.,unsafe_transport,0.515,Goa - Calangute
+R000469,S0089,U4665,26.296749,73.017935,2025-07-24T14:03:24,Fake guide scammed me at Jodhpur Mehrangarh promising discount tours. Took place during peak hours.,scam,0.525,Jodhpur Mehrangarh
+R000256,S0045,U3994,25.59351,85.137787,2025-06-30T17:47:29,Auto driver refused meter and behaved aggressively near Patna Gandhi Maidan. I was alone at that time.,unsafe_transport,0.456,Patna Gandhi Maidan
+R000260,S0046,U2121,22.306894,88.770375,2025-07-31T17:46:30,Vandalism noticed near Sundarbans Entry. Statues/graffiti and broken benches.,vandalism,0.154,Sundarbans Entry
+R000019,S0004,U1964,28.52386,77.18627,2025-08-17T11:19:46,"I faced harassment near Qutub Minar, Delhi. People were catcalling and it felt unsafe.",harassment,0.628,"Qutub Minar, Delhi"
+R000068,S0013,U8994,34.083061,74.795867,2025-07-14T17:17:03,Someone stole my backpack at Srinagar Dal Lake while I was on my phone.,theft,0.829,Srinagar Dal Lake
+R000052,S0010,U2739,28.633742,77.220335,2025-09-22T20:51:51,"I was attacked near Connaught Place, Delhi. Got hurt and need police help.",assault,1.0,"Connaught Place, Delhi"
+R000557,S0103,U1433,18.519932,73.855409,2025-07-21T21:49:14,I slipped and got injured at Pune FC road area. Need medical help.,accident,0.967,Pune FC road area
+R000635,S0118,U8913,8.088356,77.538767,2025-07-24T18:49:55,Fake guide scammed me at Kanyakumari promising discount tours.,scam,0.542,Kanyakumari
+R000531,S0098,U4358,30.735275,76.778391,2025-07-25T00:21:13,My bag was snatched near Chandigarh Sector 17. I lost my phone and wallet.,theft,0.796,Chandigarh Sector 17
+R000352,S0063,U6043,8.088504,77.537193,2025-07-09T17:23:34,Boat operator was reckless near Kanyakumari and it felt unsafe. Happened at night.,unsafe_transport,0.476,Kanyakumari
+R000504,S0094,U2800,8.088717,77.538125,2025-08-08T00:32:29,Eve-teasing incident near Kanyakumari— women should avoid the area at night.,harassment,0.701,Kanyakumari
+R000406,S0074,U1655,25.594556,85.137051,2025-07-25T10:25:35,Someone tried a credit-card scam near Patna Gandhi Maidan.,scam,0.368,Patna Gandhi Maidan
+R000296,S0052,U2721,9.966281,76.241637,2025-08-02T20:05:04,"Auto driver refused meter and behaved aggressively near Fort Kochi, Kochi. I was alone at that time.",unsafe_transport,0.412,"Fort Kochi, Kochi"
+R000542,S0100,U5027,26.923576,75.827256,2025-07-09T13:55:45,"Boat operator was reckless near Hawa Mahal, Jaipur and it felt unsafe. Witnessed by many tourists.",unsafe_transport,0.649,"Hawa Mahal, Jaipur"
+R000334,S0059,U5186,13.04881,80.282698,2025-09-07T02:06:23,"Someone stole my backpack at Marina Beach, Chennai while I was on my phone.",theft,0.599,"Marina Beach, Chennai"
+R000171,S0031,U6017,22.308257,88.768165,2025-07-04T16:12:06,I got scammed by a taxi driver around Sundarbans Entry. They overcharged and threatened me.,scam,0.404,Sundarbans Entry
+R000690,S0129,U2896,22.30782,88.769417,2025-09-11T22:29:08,Physical assault happened near Sundarbans Entry during the night.,assault,1.0,Sundarbans Entry
+R000437,S0080,U3272,33.984953,75.240236,2025-08-07T23:28:09,I slipped and got injured at Amarnath base area (approx). Need medical help.,accident,0.851,Amarnath base area (approx)
+R000417,S0076,U7808,26.846515,80.947266,2025-08-26T22:26:05,Someone stole my backpack at Lucknow Hazratganj while I was on my phone. Happened at night.,theft,0.642,Lucknow Hazratganj
+R000450,S0084,U8077,27.617181,93.829675,2025-09-19T22:49:51,Public infrastructure vandalized at Ziro Valley.,vandalism,0.211,Ziro Valley
+R000343,S0061,U6540,11.406578,76.69509,2025-09-25T11:05:44,Medical emergency at Ooty — we couldn't find first aid.,medical_emergency,0.792,Ooty
+R000089,S0016,U7054,12.977021,77.604203,2025-08-07T05:53:28,Someone stole my backpack at Bengaluru MG Road while I was on my phone.,theft,0.783,Bengaluru MG Road
+R000012,S0002,U1399,27.616759,93.829585,2025-09-05T00:10:54,Taxi driver tried to drive off-route near Ziro Valley.,unsafe_transport,0.539,Ziro Valley
+R000459,S0086,U2886,17.361766,78.474606,2025-08-12T08:55:10,Auto driver refused meter and behaved aggressively near Hyderabad Charminar.,unsafe_transport,0.628,Hyderabad Charminar
+R000659,S0122,U6373,10.088892,77.058546,2025-09-15T14:13:38,Taxi driver tried to drive off-route near Munnar.,unsafe_transport,0.445,Munnar
+R000400,S0073,U7459,11.62346,92.727018,2025-09-10T01:14:40,Taxi driver tried to drive off-route near Andaman Port Blair. Witnessed by many tourists.,unsafe_transport,0.562,Andaman Port Blair
+R000424,S0077,U9408,34.082738,74.795819,2025-09-03T05:33:38,Someone stole my backpack at Srinagar Dal Lake while I was on my phone.,theft,0.731,Srinagar Dal Lake
+R000327,S0058,U3742,24.575996,73.680094,2025-09-15T15:18:51,Someone stole my backpack at Udaipur Lake Pichola while I was on my phone.,theft,0.757,Udaipur Lake Pichola
+R000386,S0071,U7120,19.053841,72.839796,2025-08-27T06:26:37,"I faced harassment near Bandra, Mumbai. People were catcalling and it felt unsafe. Happened at night.",harassment,0.74,"Bandra, Mumbai"
+R000079,S0014,U2115,13.009724,80.267679,2025-08-10T10:20:28,"Boat operator was reckless near Besant Nagar, Chennai and it felt unsafe. Happened at night.",unsafe_transport,0.47,"Besant Nagar, Chennai"
+R000399,S0073,U7459,11.621819,92.727093,2025-08-05T02:11:13,Boat operator was reckless near Andaman Port Blair and it felt unsafe. Took place during peak hours.,unsafe_transport,0.636,Andaman Port Blair
+R000257,S0046,U2121,22.308344,88.768714,2025-06-30T01:48:22,Pickpocketing at Sundarbans Entry — they took my wallet during the crowd.,theft,0.613,Sundarbans Entry
+R000022,S0005,U4960,27.616839,93.829546,2025-07-09T18:03:48,Taxi driver tried to drive off-route near Ziro Valley.,unsafe_transport,0.395,Ziro Valley
+R000464,S0087,U6938,26.924126,75.827242,2025-09-04T02:53:27,"Phone stolen at Hawa Mahal, Jaipur. Be careful around the market. I was alone at that time.",theft,0.699,"Hawa Mahal, Jaipur"
+R000036,S0007,U7234,8.486229,76.935946,2025-08-21T21:14:51,"Verbal harassment at Kovalam, Trivandrum when I was walking alone.",harassment,0.473,"Kovalam, Trivandrum"
+R000298,S0053,U8145,31.104801,77.173661,2025-07-14T01:50:42,Taxi driver tried to drive off-route near Shimla Mall.,unsafe_transport,0.449,Shimla Mall
+R000128,S0024,U8805,11.963274,92.967097,2025-09-19T14:29:44,Pickpocketing at Havelock Island — they took my wallet during the crowd.,theft,0.64,Havelock Island
+R000288,S0051,U9641,27.585909,91.864121,2025-08-08T14:57:12,Auto driver refused meter and behaved aggressively near Tawang.,unsafe_transport,0.596,Tawang
+R000484,S0091,U6159,19.813445,85.831674,2025-07-09T07:28:58,Physical assault happened near Puri Jagannath Temple during the night. Took place during peak hours.,assault,0.848,Puri Jagannath Temple
+R000102,S0018,U4994,19.098671,72.826283,2025-08-23T10:44:31,"Verbal harassment at Juhu Beach, Mumbai when I was walking alone.",harassment,0.463,"Juhu Beach, Mumbai"
+R000645,S0120,U3268,27.586005,91.863583,2025-07-31T12:03:02,Auto driver refused meter and behaved aggressively near Tawang.,unsafe_transport,0.401,Tawang
+R000649,S0120,U3268,27.586716,91.861662,2025-07-30T09:11:00,"I got scammed by a taxi driver around Tawang. They overcharged and threatened me. Lost valuables worth approx. INR 15,000.",scam,0.568,Tawang
+R000632,S0117,U7562,27.338916,88.606307,2025-08-03T23:03:02,Saw a suspicious person lurking near Gangtok MG Marg for hours.,suspicious_person,0.615,Gangtok MG Marg
+R000622,S0115,U2945,18.52135,73.856347,2025-08-01T14:47:03,Bike collided near Pune FC road area and rider is badly hurt. Witnessed by many tourists.,accident,0.925,Pune FC road area
+R000541,S0099,U8855,28.526591,77.184154,2025-08-17T09:17:41,"I got scammed by a taxi driver around Qutub Minar, Delhi. They overcharged and threatened me. Happened at night.",scam,0.385,"Qutub Minar, Delhi"
+R000199,S0037,U6869,26.846945,80.947112,2025-09-08T14:43:50,Minor road accident near Lucknow Hazratganj. No ambulance available immediately.,accident,0.933,Lucknow Hazratganj
+R000274,S0049,U8534,26.577396,93.171491,2025-08-22T11:32:19,Phone stolen at Kaziranga Park. Be careful around the market.,theft,0.67,Kaziranga Park
+R000235,S0041,U5990,32.243113,77.189493,2025-09-24T17:14:28,I misplaced my passport at Manali Mall. Please help locate. Reported to local police but no help.,lost,0.513,Manali Mall
+R000526,S0097,U3159,24.575926,73.680191,2025-06-30T19:23:47,My bag was snatched near Udaipur Lake Pichola. I lost my phone and wallet.,theft,0.742,Udaipur Lake Pichola
+R000648,S0120,U3268,27.58591,91.863992,2025-07-25T11:13:46,Public infrastructure vandalized at Tawang.,vandalism,0.272,Tawang
+R000505,S0094,U2800,8.089721,77.539238,2025-07-20T19:21:21,Someone stole my backpack at Kanyakumari while I was on my phone.,theft,0.599,Kanyakumari
+R000535,S0098,U4358,30.73325,76.779449,2025-09-22T11:00:50,Eve-teasing incident near Chandigarh Sector 17— women should avoid the area at night.,harassment,0.501,Chandigarh Sector 17
+R000180,S0033,U3152,27.175522,78.041608,2025-08-28T01:23:31,"My bag was snatched near Taj Mahal, Agra. I lost my phone and wallet.",theft,0.835,"Taj Mahal, Agra"
+R000341,S0060,U3819,30.734042,76.779077,2025-08-30T22:28:26,I faced harassment near Chandigarh Sector 17. People were catcalling and it felt unsafe. Happened at night.,harassment,0.622,Chandigarh Sector 17
+R000205,S0038,U5326,30.086332,78.266206,2025-08-28T06:24:44,Property damage near Rishikesh Laxman Jhula late at night.,vandalism,0.224,Rishikesh Laxman Jhula
+R000249,S0044,U3277,28.632672,77.219679,2025-07-04T11:33:47,"Medical emergency at Connaught Place, Delhi — we couldn't find first aid.",medical_emergency,0.883,"Connaught Place, Delhi"
+R000581,S0107,U9200,26.297424,73.017422,2025-07-26T12:44:04,Pickpocketing at Jodhpur Mehrangarh — they took my wallet during the crowd. Witnessed by many tourists.,theft,0.65,Jodhpur Mehrangarh
+R000214,S0039,U3694,12.976126,77.592622,2025-07-08T13:08:47,"Minor road accident near Cubbon Park, Bengaluru. No ambulance available immediately. Witnessed by many tourists.",accident,0.786,"Cubbon Park, Bengaluru"
+R000357,S0064,U3806,26.847199,80.947162,2025-09-10T11:48:57,Someone was following me near Lucknow Hazratganj— very suspicious.,suspicious_person,0.567,Lucknow Hazratganj
+R000258,S0046,U2121,22.308781,88.768621,2025-07-29T22:11:22,Fake guide scammed me at Sundarbans Entry promising discount tours.,scam,0.475,Sundarbans Entry
+R000496,S0092,U9608,11.405375,76.694043,2025-08-20T23:31:16,Boat operator was reckless near Ooty and it felt unsafe.,unsafe_transport,0.615,Ooty
+R000254,S0045,U3994,25.594003,85.136819,2025-09-07T16:12:26,Boat operator was reckless near Patna Gandhi Maidan and it felt unsafe.,unsafe_transport,0.382,Patna Gandhi Maidan
+R000182,S0033,U3152,27.175093,78.041974,2025-07-07T02:59:35,"Someone stole my backpack at Taj Mahal, Agra while I was on my phone.",theft,0.77,"Taj Mahal, Agra"
+R000486,S0091,U6159,19.811558,85.831231,2025-09-16T00:01:27,Eve-teasing incident near Puri Jagannath Temple— women should avoid the area at night.,harassment,0.585,Puri Jagannath Temple
+R000329,S0058,U3742,24.575487,73.679123,2025-08-21T01:37:32,Person fainted near Udaipur Lake Pichola and there was delay in help.,medical_emergency,0.929,Udaipur Lake Pichola
+R000544,S0100,U5027,26.9239,75.8267,2025-08-29T20:03:44,"Someone stole my backpack at Hawa Mahal, Jaipur while I was on my phone.",theft,0.746,"Hawa Mahal, Jaipur"
+R000407,S0075,U9464,15.545492,73.755573,2025-09-19T02:59:59,I misplaced my passport at Goa - Calangute. Please help locate. Happened at night.,lost,0.431,Goa - Calangute
+R000617,S0114,U1289,19.054851,72.839621,2025-09-03T01:18:33,"Pickpocketing at Bandra, Mumbai — they took my wallet during the crowd. I was alone at that time.",theft,0.805,"Bandra, Mumbai"
+R000658,S0122,U6373,10.089338,77.059209,2025-08-12T08:40:50,Someone was following me near Munnar— very suspicious. Took place during peak hours.,suspicious_person,0.56,Munnar
+R000650,S0120,U3268,27.585763,91.864291,2025-07-11T23:12:12,Group of men assaulted me close to Tawang. Reported to local police but no help.,assault,0.996,Tawang
+R000322,S0057,U1628,18.922437,72.834735,2025-07-12T08:22:23,"Boat operator was reckless near Gateway of India, Mumbai and it felt unsafe.",unsafe_transport,0.592,"Gateway of India, Mumbai"
+R000051,S0010,U2739,28.633693,77.219852,2025-09-01T17:46:48,"I got scammed by a taxi driver around Connaught Place, Delhi. They overcharged and threatened me. Witnessed by many tourists.",scam,0.645,"Connaught Place, Delhi"
+R000361,S0065,U3092,27.041476,88.263018,2025-07-30T21:22:55,Fake guide scammed me at Darjeeling Mall promising discount tours.,scam,0.559,Darjeeling Mall
+R000268,S0048,U5691,9.49811,76.33897,2025-08-15T21:50:16,Someone had severe allergic reaction near Alleppey Backwaters.,medical_emergency,0.882,Alleppey Backwaters
+R000643,S0120,U3268,27.586105,91.864257,2025-09-24T02:49:08,Eve-teasing incident near Tawang— women should avoid the area at night.,harassment,0.702,Tawang
+R000035,S0007,U7234,8.485856,76.936915,2025-09-02T09:27:54,"I faced harassment near Kovalam, Trivandrum. People were catcalling and it felt unsafe.",harassment,0.557,"Kovalam, Trivandrum"
+R000447,S0083,U9158,32.242811,77.189454,2025-07-30T06:25:33,My bag was snatched near Manali Mall. I lost my phone and wallet. I was alone at that time.,theft,0.648,Manali Mall
+R000244,S0043,U2857,22.544601,88.342535,2025-09-14T13:18:35,Physical assault happened near Kolkata Victoria Memorial area during the night.,assault,0.959,Kolkata Victoria Memorial area
+R000302,S0054,U9587,24.576426,73.680591,2025-09-06T02:47:09,Lost my wallet and ID near Udaipur Lake Pichola after crowding. Reported to local police but no help.,lost,0.549,Udaipur Lake Pichola
+R000629,S0116,U5244,28.524949,77.184451,2025-08-21T14:08:03,"Someone stole my backpack at Qutub Minar, Delhi while I was on my phone.",theft,0.629,"Qutub Minar, Delhi"
+R000095,S0017,U7707,30.733674,76.779005,2025-08-06T23:13:52,I faced harassment near Chandigarh Sector 17. People were catcalling and it felt unsafe.,harassment,0.474,Chandigarh Sector 17
+R000587,S0108,U9639,26.912418,75.787088,2025-09-22T08:11:22,"Boat operator was reckless near Pink City, Jaipur and it felt unsafe. Witnessed by many tourists.",unsafe_transport,0.54,"Pink City, Jaipur"
+R000558,S0103,U1433,18.520048,73.857713,2025-07-27T20:01:07,"My bag was snatched near Pune FC road area. I lost my phone and wallet. Lost valuables worth approx. INR 15,000.",theft,0.653,Pune FC road area
+R000086,S0015,U7462,18.920997,72.834529,2025-07-31T11:18:54,"My bag was snatched near Gateway of India, Mumbai. I lost my phone and wallet.",theft,0.614,"Gateway of India, Mumbai"
+R000697,S0130,U4779,19.886949,86.095345,2025-09-03T17:11:05,Boat operator was reckless near Konark Sun Temple area and it felt unsafe.,unsafe_transport,0.639,Konark Sun Temple area
+R000172,S0031,U6017,22.307274,88.768469,2025-07-01T03:03:09,Physical assault happened near Sundarbans Entry during the night.,assault,1.0,Sundarbans Entry
+R000490,S0091,U6159,19.813575,85.831144,2025-06-30T09:41:27,Eve-teasing incident near Puri Jagannath Temple— women should avoid the area at night.,harassment,0.48,Puri Jagannath Temple
+R000005,S0002,U1399,27.614854,93.829094,2025-08-01T01:09:22,Medical emergency at Ziro Valley — we couldn't find first aid.,medical_emergency,0.78,Ziro Valley
+R000020,S0004,U1964,28.523631,77.186604,2025-07-25T18:54:15,"Someone had severe allergic reaction near Qutub Minar, Delhi.",medical_emergency,0.964,"Qutub Minar, Delhi"
+R000054,S0011,U2699,12.976159,77.592428,2025-08-30T12:34:59,"Boat operator was reckless near Cubbon Park, Bengaluru and it felt unsafe.",unsafe_transport,0.486,"Cubbon Park, Bengaluru"
+R000216,S0039,U3694,12.975801,77.591527,2025-09-27T00:54:39,"Phone stolen at Cubbon Park, Bengaluru. Be careful around the market.",theft,0.821,"Cubbon Park, Bengaluru"
+R000142,S0027,U5709,19.097056,72.827466,2025-09-22T17:43:32,"I faced harassment near Juhu Beach, Mumbai. People were catcalling and it felt unsafe. Took place during peak hours.",harassment,0.491,"Juhu Beach, Mumbai"
+R000563,S0103,U1433,18.520466,73.857151,2025-07-27T20:58:50,Someone stole my backpack at Pune FC road area while I was on my phone.,theft,0.841,Pune FC road area
+R000574,S0106,U8269,27.615392,93.829759,2025-08-05T01:16:39,I got scammed by a taxi driver around Ziro Valley. They overcharged and threatened me.,scam,0.487,Ziro Valley
+R000610,S0113,U3419,34.152161,77.577257,2025-07-07T10:14:23,I faced harassment near Leh Market. People were catcalling and it felt unsafe. I was alone at that time.,harassment,0.456,Leh Market
+R000050,S0010,U2739,28.632588,77.219227,2025-09-25T15:20:48,"Taxi driver tried to drive off-route near Connaught Place, Delhi.",unsafe_transport,0.641,"Connaught Place, Delhi"
+R000044,S0009,U8758,28.612297,77.229012,2025-09-10T09:02:09,"Saw a suspicious person lurking near India Gate, Delhi for hours. Lost valuables worth approx. INR 15,000.",suspicious_person,0.443,"India Gate, Delhi"
+R000066,S0012,U7883,13.048391,80.284153,2025-09-20T17:42:13,"I faced harassment near Marina Beach, Chennai. People were catcalling and it felt unsafe.",harassment,0.589,"Marina Beach, Chennai"
+R000016,S0003,U6641,18.520289,73.85643,2025-07-10T06:02:52,Pickpocketing at Pune FC road area — they took my wallet during the crowd. Happened at night.,theft,0.809,Pune FC road area
+R000250,S0045,U3994,25.593683,85.137776,2025-07-13T14:38:14,Medical emergency at Patna Gandhi Maidan — we couldn't find first aid.,medical_emergency,0.826,Patna Gandhi Maidan
+R000143,S0027,U5709,19.098791,72.827339,2025-09-17T03:25:41,"Pickpocketing at Juhu Beach, Mumbai — they took my wallet during the crowd. Reported to local police but no help.",theft,0.803,"Juhu Beach, Mumbai"
+R000099,S0018,U4994,19.098176,72.827115,2025-07-07T13:57:26,"Vandalism noticed near Juhu Beach, Mumbai. Statues/graffiti and broken benches.",vandalism,0.274,"Juhu Beach, Mumbai"
+R000692,S0129,U2896,22.309123,88.767095,2025-09-21T15:29:15,Someone had severe allergic reaction near Sundarbans Entry. Reported to local police but no help.,medical_emergency,0.829,Sundarbans Entry
+R000654,S0121,U5998,11.624076,92.72592,2025-07-06T14:29:36,I got scammed by a taxi driver around Andaman Port Blair. They overcharged and threatened me.,scam,0.499,Andaman Port Blair
+R000060,S0012,U7883,13.048517,80.282468,2025-07-24T17:21:41,"Auto driver refused meter and behaved aggressively near Marina Beach, Chennai. Took place during peak hours.",unsafe_transport,0.512,"Marina Beach, Chennai"
+R000204,S0037,U6869,26.847185,80.946576,2025-09-02T05:28:42,Group of men assaulted me close to Lucknow Hazratganj.,assault,1.0,Lucknow Hazratganj
+R000461,S0087,U6938,26.924,75.826906,2025-09-24T23:04:55,"Group acting strange near Hawa Mahal, Jaipur. Could be a threat.",suspicious_person,0.578,"Hawa Mahal, Jaipur"
+R000294,S0052,U2721,9.965908,76.241913,2025-09-18T14:01:57,"I got scammed by a taxi driver around Fort Kochi, Kochi. They overcharged and threatened me.",scam,0.517,"Fort Kochi, Kochi"
+R000499,S0093,U2027,19.886844,86.09391,2025-08-17T17:39:42,Saw a suspicious person lurking near Konark Sun Temple area for hours. Reported to local police but no help.,suspicious_person,0.616,Konark Sun Temple area
+R000403,S0073,U7459,11.622533,92.727341,2025-07-01T02:35:35,Taxi driver tried to drive off-route near Andaman Port Blair. Reported to local police but no help.,unsafe_transport,0.551,Andaman Port Blair
+R000010,S0002,U1399,27.617328,93.829009,2025-07-31T09:21:21,Taxi driver tried to drive off-route near Ziro Valley.,unsafe_transport,0.368,Ziro Valley
+R000457,S0086,U2886,17.361531,78.474661,2025-09-27T10:20:05,My bag was snatched near Hyderabad Charminar. I lost my phone and wallet.,theft,0.821,Hyderabad Charminar
+R000011,S0002,U1399,27.61673,93.829819,2025-09-09T10:27:23,Group acting strange near Ziro Valley. Could be a threat.,suspicious_person,0.411,Ziro Valley
+R000500,S0093,U2027,19.886894,86.094648,2025-09-11T11:02:12,Boat operator was reckless near Konark Sun Temple area and it felt unsafe. Took place during peak hours.,unsafe_transport,0.558,Konark Sun Temple area
+R000129,S0024,U8805,11.963071,92.965675,2025-08-01T20:04:06,I got scammed by a taxi driver around Havelock Island. They overcharged and threatened me. Witnessed by many tourists.,scam,0.376,Havelock Island
+R000609,S0112,U6367,27.586212,91.86326,2025-08-06T18:26:38,I slipped and got injured at Tawang. Need medical help.,accident,0.717,Tawang
+R000263,S0047,U5782,25.594067,85.138594,2025-08-17T10:14:09,I faced harassment near Patna Gandhi Maidan. People were catcalling and it felt unsafe. Witnessed by many tourists.,harassment,0.561,Patna Gandhi Maidan
+R000165,S0030,U1722,26.923735,75.827127,2025-09-06T12:53:55,"Boat operator was reckless near Hawa Mahal, Jaipur and it felt unsafe. Happened at night.",unsafe_transport,0.644,"Hawa Mahal, Jaipur"
+R000651,S0120,U3268,27.585991,91.863554,2025-08-19T17:09:36,I faced harassment near Tawang. People were catcalling and it felt unsafe.,harassment,0.576,Tawang
+R000140,S0027,U5709,19.098021,72.825952,2025-09-17T10:13:42,"My bag was snatched near Juhu Beach, Mumbai. I lost my phone and wallet.",theft,0.776,"Juhu Beach, Mumbai"
+R000367,S0066,U1938,31.104809,77.173281,2025-07-26T14:14:11,Group of men assaulted me close to Shimla Mall.,assault,1.0,Shimla Mall
+R000372,S0067,U3070,26.91622,70.906418,2025-09-27T15:11:11,Eve-teasing incident near Jaisalmer Fort— women should avoid the area at night. Reported to local police but no help.,harassment,0.654,Jaisalmer Fort
+R000150,S0028,U4665,19.098145,72.827433,2025-09-25T10:36:03,"Pickpocketing at Juhu Beach, Mumbai — they took my wallet during the crowd.",theft,0.835,"Juhu Beach, Mumbai"
+R000623,S0116,U5244,28.524372,77.185477,2025-07-03T21:03:20,"Phone stolen at Qutub Minar, Delhi. Be careful around the market.",theft,0.811,"Qutub Minar, Delhi"
+R000057,S0011,U2699,12.975304,77.593213,2025-08-17T02:39:53,"Verbal harassment at Cubbon Park, Bengaluru when I was walking alone.",harassment,0.654,"Cubbon Park, Bengaluru"
+R000340,S0060,U3819,30.733848,76.780107,2025-08-16T08:17:55,Taxi driver tried to drive off-route near Chandigarh Sector 17. Happened at night.,unsafe_transport,0.475,Chandigarh Sector 17
+R000487,S0091,U6159,19.814203,85.831165,2025-07-13T02:14:24,Someone tried a credit-card scam near Puri Jagannath Temple. Happened at night.,scam,0.509,Puri Jagannath Temple
+R000281,S0050,U4405,19.886263,86.09423,2025-08-25T05:39:52,Vandalism noticed near Konark Sun Temple area. Statues/graffiti and broken benches.,vandalism,0.275,Konark Sun Temple area
+R000091,S0017,U7707,30.732987,76.781973,2025-08-14T08:30:04,Group of men assaulted me close to Chandigarh Sector 17. Reported to local police but no help.,assault,0.984,Chandigarh Sector 17
+R000282,S0050,U4405,19.887027,86.095176,2025-09-11T17:07:13,Property damage near Konark Sun Temple area late at night.,vandalism,0.306,Konark Sun Temple area
+R000358,S0064,U3806,26.847219,80.947089,2025-07-23T12:07:19,Boat operator was reckless near Lucknow Hazratganj and it felt unsafe.,unsafe_transport,0.461,Lucknow Hazratganj
+R000393,S0072,U3011,8.088723,77.537512,2025-06-30T07:01:57,My bag was snatched near Kanyakumari. I lost my phone and wallet.,theft,0.636,Kanyakumari
+R000229,S0040,U1007,26.912382,75.787311,2025-07-03T11:58:50,"Left my bag on a bench near Pink City, Jaipur and couldn't find it.",lost,0.489,"Pink City, Jaipur"
+R000502,S0094,U2800,8.08805,77.537413,2025-09-10T13:27:22,I was attacked near Kanyakumari. Got hurt and need police help.,assault,1.0,Kanyakumari
+R000402,S0073,U7459,11.62319,92.726731,2025-07-08T12:57:04,Group of men assaulted me close to Andaman Port Blair.,assault,0.981,Andaman Port Blair
+R000207,S0038,U5326,30.087347,78.265997,2025-08-18T00:17:14,Verbal harassment at Rishikesh Laxman Jhula when I was walking alone.,harassment,0.616,Rishikesh Laxman Jhula
+R000118,S0022,U1650,26.577684,93.170914,2025-09-15T08:18:26,Verbal harassment at Kaziranga Park when I was walking alone. I was alone at that time.,harassment,0.57,Kaziranga Park
+R000514,S0095,U1647,17.36166,78.474776,2025-09-25T07:02:21,Taxi driver tried to drive off-route near Hyderabad Charminar.,unsafe_transport,0.528,Hyderabad Charminar
+R000620,S0115,U2945,18.520457,73.857269,2025-08-18T12:06:49,My bag was snatched near Pune FC road area. I lost my phone and wallet.,theft,0.666,Pune FC road area
+R000336,S0059,U5186,13.048319,80.281075,2025-09-10T14:10:59,"Taxi driver tried to drive off-route near Marina Beach, Chennai.",unsafe_transport,0.475,"Marina Beach, Chennai"
+R000369,S0066,U1938,31.104845,77.173499,2025-08-07T18:02:01,Group acting strange near Shimla Mall. Could be a threat. I was alone at that time.,suspicious_person,0.546,Shimla Mall
+R000366,S0065,U3092,27.041585,88.26287,2025-09-08T07:17:43,Taxi driver tried to drive off-route near Darjeeling Mall.,unsafe_transport,0.613,Darjeeling Mall
+R000676,S0125,U5602,18.942998,72.822783,2025-07-24T01:31:48,"Vandalism noticed near Marine Drive, Mumbai. Statues/graffiti and broken benches.",vandalism,0.415,"Marine Drive, Mumbai"
+R000105,S0020,U2597,32.219643,76.32397,2025-07-27T06:52:05,I got scammed by a taxi driver around Dharamshala. They overcharged and threatened me.,scam,0.6,Dharamshala
+R000565,S0104,U8722,26.912254,75.788176,2025-07-18T08:32:21,"My bag was snatched near Pink City, Jaipur. I lost my phone and wallet.",theft,0.829,"Pink City, Jaipur"
+R000644,S0120,U3268,27.586305,91.864074,2025-07-13T10:50:56,Boat operator was reckless near Tawang and it felt unsafe.,unsafe_transport,0.611,Tawang
+R000551,S0101,U6525,11.933166,79.832005,2025-07-20T19:56:00,"Person fainted near Pondicherry Promenade and there was delay in help. Lost valuables worth approx. INR 15,000.",medical_emergency,0.828,Pondicherry Promenade
+R000471,S0089,U4665,26.296818,73.017615,2025-08-14T03:04:45,Someone stole my backpack at Jodhpur Mehrangarh while I was on my phone.,theft,0.558,Jodhpur Mehrangarh
+R000275,S0049,U8534,26.57743,93.171426,2025-07-04T06:45:03,Property damage near Kaziranga Park late at night.,vandalism,0.287,Kaziranga Park
+R000045,S0009,U8758,28.613151,77.228737,2025-08-12T03:40:25,"Boat operator was reckless near India Gate, Delhi and it felt unsafe.",unsafe_transport,0.545,"India Gate, Delhi"
+R000404,S0073,U7459,11.624136,92.727191,2025-07-01T01:34:15,My bag was snatched near Andaman Port Blair. I lost my phone and wallet. Happened at night.,theft,0.846,Andaman Port Blair
+R000120,S0022,U1650,26.576965,93.171626,2025-07-11T21:01:51,Fake guide scammed me at Kaziranga Park promising discount tours.,scam,0.539,Kaziranga Park
+R000472,S0089,U4665,26.29629,73.017997,2025-07-28T01:12:04,"My bag was snatched near Jodhpur Mehrangarh. I lost my phone and wallet. Lost valuables worth approx. INR 15,000.",theft,0.637,Jodhpur Mehrangarh
+R000042,S0009,U8758,28.612395,77.22898,2025-08-23T19:42:03,"Taxi driver tried to drive off-route near India Gate, Delhi.",unsafe_transport,0.617,"India Gate, Delhi"
+R000411,S0075,U9464,15.546364,73.754627,2025-07-18T15:41:23,Bike collided near Goa - Calangute and rider is badly hurt.,accident,0.901,Goa - Calangute
+R000305,S0055,U7438,8.738027,76.715645,2025-07-16T03:31:34,"Left my bag on a bench near Varkala Beach, Kerala and couldn't find it.",lost,0.529,"Varkala Beach, Kerala"
+R000612,S0113,U3419,34.152917,77.576763,2025-07-13T19:00:22,Boat operator was reckless near Leh Market and it felt unsafe.,unsafe_transport,0.645,Leh Market
+R000364,S0065,U3092,27.041058,88.26117,2025-07-25T15:19:41,Property damage near Darjeeling Mall late at night. Happened at night.,vandalism,0.32,Darjeeling Mall
+R000325,S0057,U1628,18.923607,72.833668,2025-06-30T11:02:30,"Eve-teasing incident near Gateway of India, Mumbai— women should avoid the area at night.",harassment,0.581,"Gateway of India, Mumbai"
+R000677,S0125,U5602,18.943653,72.823025,2025-07-25T08:51:19,"Fake guide scammed me at Marine Drive, Mumbai promising discount tours. I was alone at that time.",scam,0.431,"Marine Drive, Mumbai"
+R000082,S0015,U7462,18.921479,72.833484,2025-08-21T05:14:27,"Eve-teasing incident near Gateway of India, Mumbai— women should avoid the area at night. Witnessed by many tourists.",harassment,0.714,"Gateway of India, Mumbai"
+R000444,S0082,U9434,27.175181,78.042,2025-06-30T20:52:24,"Taxi driver tried to drive off-route near Taj Mahal, Agra.",unsafe_transport,0.55,"Taj Mahal, Agra"
+R000432,S0079,U4415,22.544897,88.343705,2025-08-12T19:13:23,Vandalism noticed near Kolkata Victoria Memorial area. Statues/graffiti and broken benches.,vandalism,0.267,Kolkata Victoria Memorial area
+R000146,S0028,U4665,19.098119,72.827496,2025-07-26T16:41:41,"Someone stole my backpack at Juhu Beach, Mumbai while I was on my phone.",theft,0.655,"Juhu Beach, Mumbai"
+R000303,S0054,U9587,24.576111,73.680256,2025-07-20T17:10:15,Auto driver refused meter and behaved aggressively near Udaipur Lake Pichola.,unsafe_transport,0.38,Udaipur Lake Pichola
+R000018,S0004,U1964,28.524465,77.185464,2025-08-20T06:17:58,"Eve-teasing incident near Qutub Minar, Delhi— women should avoid the area at night.",harassment,0.63,"Qutub Minar, Delhi"
+R000596,S0110,U7374,29.945873,78.164101,2025-07-12T04:45:28,Left my bag on a bench near Haridwar Har-ki-Pauri and couldn't find it. Witnessed by many tourists.,lost,0.465,Haridwar Har-ki-Pauri
+R000162,S0029,U8229,25.310077,82.972271,2025-07-10T11:28:45,Fake guide scammed me at Varanasi Dashashwamedh Ghat promising discount tours. I was alone at that time.,scam,0.437,Varanasi Dashashwamedh Ghat
+R000663,S0123,U1709,26.846983,80.947004,2025-07-05T09:27:19,Phone stolen at Lucknow Hazratganj. Be careful around the market.,theft,0.82,Lucknow Hazratganj
+R000276,S0049,U8534,26.576092,93.171715,2025-08-28T12:09:13,Lost my wallet and ID near Kaziranga Park after crowding.,lost,0.395,Kaziranga Park
+R000040,S0009,U8758,28.613117,77.228493,2025-07-31T03:15:23,"Boat operator was reckless near India Gate, Delhi and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.46,"India Gate, Delhi"
+R000201,S0037,U6869,26.846286,80.946819,2025-07-11T09:43:13,Person fainted near Lucknow Hazratganj and there was delay in help.,medical_emergency,0.988,Lucknow Hazratganj
+R000482,S0090,U2452,28.52513,77.185563,2025-08-22T02:53:49,"Group acting strange near Qutub Minar, Delhi. Could be a threat.",suspicious_person,0.61,"Qutub Minar, Delhi"
+R000539,S0099,U8855,28.524176,77.185572,2025-09-01T19:06:47,"Pickpocketing at Qutub Minar, Delhi — they took my wallet during the crowd. I was alone at that time.",theft,0.628,"Qutub Minar, Delhi"
+R000527,S0097,U3159,24.5763,73.679729,2025-09-25T10:50:31,I got scammed by a taxi driver around Udaipur Lake Pichola. They overcharged and threatened me.,scam,0.352,Udaipur Lake Pichola
+R000695,S0130,U4779,19.887833,86.09504,2025-09-12T21:00:56,My bag was snatched near Konark Sun Temple area. I lost my phone and wallet.,theft,0.808,Konark Sun Temple area
+R000686,S0128,U8614,22.582408,88.346548,2025-08-18T21:30:07,"I misplaced my passport at Howrah Bridge area, Kolkata. Please help locate.",lost,0.34,"Howrah Bridge area, Kolkata"
+R000458,S0086,U2886,17.362083,78.472492,2025-08-27T12:41:37,Fake guide scammed me at Hyderabad Charminar promising discount tours. I was alone at that time.,scam,0.39,Hyderabad Charminar
+R000470,S0089,U4665,26.296213,73.017099,2025-07-20T12:30:24,Boat operator was reckless near Jodhpur Mehrangarh and it felt unsafe. Took place during peak hours.,unsafe_transport,0.482,Jodhpur Mehrangarh
+R000460,S0086,U2886,17.361595,78.474738,2025-08-16T22:14:37,Auto driver refused meter and behaved aggressively near Hyderabad Charminar.,unsafe_transport,0.467,Hyderabad Charminar
+R000178,S0033,U3152,27.175083,78.042041,2025-08-05T23:11:49,"Physical assault happened near Taj Mahal, Agra during the night. Took place during peak hours.",assault,0.998,"Taj Mahal, Agra"
+R000177,S0033,U3152,27.175464,78.042299,2025-09-10T03:34:49,"My bag was snatched near Taj Mahal, Agra. I lost my phone and wallet.",theft,0.731,"Taj Mahal, Agra"
+R000636,S0118,U8913,8.090389,77.539504,2025-09-22T01:46:09,Property damage near Kanyakumari late at night.,vandalism,0.329,Kanyakumari
+R000456,S0086,U2886,17.361656,78.473126,2025-09-24T20:40:15,Group of men assaulted me close to Hyderabad Charminar.,assault,0.947,Hyderabad Charminar
+R000431,S0079,U4415,22.545184,88.342421,2025-09-14T06:17:59,Pickpocketing at Kolkata Victoria Memorial area — they took my wallet during the crowd.,theft,0.758,Kolkata Victoria Memorial area
+R000041,S0009,U8758,28.612854,77.229432,2025-09-05T09:26:06,"Saw a suspicious person lurking near India Gate, Delhi for hours.",suspicious_person,0.403,"India Gate, Delhi"
+R000053,S0011,U2699,12.976485,77.59309,2025-08-03T03:28:39,"Saw a suspicious person lurking near Cubbon Park, Bengaluru for hours.",suspicious_person,0.685,"Cubbon Park, Bengaluru"
+R000478,S0090,U2452,28.523574,77.18573,2025-08-29T04:11:19,"My bag was snatched near Qutub Minar, Delhi. I lost my phone and wallet. Witnessed by many tourists.",theft,0.627,"Qutub Minar, Delhi"
+R000209,S0038,U5326,30.08642,78.264987,2025-08-02T05:01:43,My bag was snatched near Rishikesh Laxman Jhula. I lost my phone and wallet. Reported to local police but no help.,theft,0.827,Rishikesh Laxman Jhula
+R000377,S0068,U5907,12.977015,77.592151,2025-07-14T19:40:32,"Verbal harassment at Cubbon Park, Bengaluru when I was walking alone.",harassment,0.727,"Cubbon Park, Bengaluru"
+R000349,S0062,U2826,32.219391,76.323239,2025-09-06T20:51:09,Eve-teasing incident near Dharamshala— women should avoid the area at night.,harassment,0.557,Dharamshala
+R000501,S0093,U2027,19.888076,86.093549,2025-08-13T23:40:21,"My bag was snatched near Konark Sun Temple area. I lost my phone and wallet. Lost valuables worth approx. INR 15,000.",theft,0.663,Konark Sun Temple area
+R000423,S0077,U9408,34.084144,74.799859,2025-09-13T23:28:24,My bag was snatched near Srinagar Dal Lake. I lost my phone and wallet.,theft,0.842,Srinagar Dal Lake
+R000448,S0083,U9158,32.243244,77.189217,2025-08-28T23:47:59,Boat operator was reckless near Manali Mall and it felt unsafe.,unsafe_transport,0.566,Manali Mall
+R000001,S0001,U5977,12.951982,77.586025,2025-08-21T21:17:37,"I faced harassment near Lalbagh, Bengaluru. People were catcalling and it felt unsafe.",harassment,0.538,"Lalbagh, Bengaluru"
+R000203,S0037,U6869,26.847053,80.945694,2025-07-14T13:25:31,My bag was snatched near Lucknow Hazratganj. I lost my phone and wallet.,theft,0.559,Lucknow Hazratganj
+R000187,S0034,U9008,27.585955,91.863559,2025-07-31T19:13:57,Physical assault happened near Tawang during the night.,assault,1.0,Tawang
+R000569,S0104,U8722,26.912309,75.786314,2025-09-07T00:00:39,"Taxi driver tried to drive off-route near Pink City, Jaipur.",unsafe_transport,0.572,"Pink City, Jaipur"
+R000109,S0020,U2597,32.218756,76.323146,2025-09-27T08:01:08,Phone stolen at Dharamshala. Be careful around the market.,theft,0.846,Dharamshala
+R000062,S0012,U7883,13.049257,80.281019,2025-07-28T01:10:04,"I misplaced my passport at Marina Beach, Chennai. Please help locate.",lost,0.451,"Marina Beach, Chennai"
+R000295,S0052,U2721,9.967708,76.242397,2025-07-18T05:45:23,"Auto driver refused meter and behaved aggressively near Fort Kochi, Kochi. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.542,"Fort Kochi, Kochi"
+R000571,S0105,U2842,31.620285,74.874942,2025-09-11T14:38:17,Phone stolen at Amritsar Golden Temple. Be careful around the market. Witnessed by many tourists.,theft,0.809,Amritsar Golden Temple
+R000331,S0058,U3742,24.575819,73.678315,2025-07-28T09:54:27,I faced harassment near Udaipur Lake Pichola. People were catcalling and it felt unsafe. Took place during peak hours.,harassment,0.668,Udaipur Lake Pichola
+R000270,S0048,U5691,9.497987,76.338201,2025-07-17T12:15:01,Taxi driver tried to drive off-route near Alleppey Backwaters.,unsafe_transport,0.46,Alleppey Backwaters
+R000509,S0094,U2800,8.088272,77.538606,2025-08-27T03:10:13,Eve-teasing incident near Kanyakumari— women should avoid the area at night. Happened at night.,harassment,0.552,Kanyakumari
+R000674,S0125,U5602,18.943457,72.82407,2025-08-31T08:33:53,"Boat operator was reckless near Marine Drive, Mumbai and it felt unsafe. Reported to local police but no help.",unsafe_transport,0.548,"Marine Drive, Mumbai"
+R000647,S0120,U3268,27.584588,91.864103,2025-08-29T11:03:47,Auto driver refused meter and behaved aggressively near Tawang.,unsafe_transport,0.417,Tawang
+R000626,S0116,U5244,28.525756,77.184791,2025-09-15T20:14:15,"Pickpocketing at Qutub Minar, Delhi — they took my wallet during the crowd.",theft,0.823,"Qutub Minar, Delhi"
+R000043,S0009,U8758,28.613208,77.229547,2025-09-09T19:40:09,"Phone stolen at India Gate, Delhi. Be careful around the market. Took place during peak hours.",theft,0.71,"India Gate, Delhi"
+R000374,S0067,U3070,26.915781,70.908437,2025-08-17T08:30:44,I got scammed by a taxi driver around Jaisalmer Fort. They overcharged and threatened me.,scam,0.384,Jaisalmer Fort
+R000147,S0028,U4665,19.099152,72.827119,2025-09-19T03:12:04,"Eve-teasing incident near Juhu Beach, Mumbai— women should avoid the area at night.",harassment,0.509,"Juhu Beach, Mumbai"
+R000243,S0042,U4783,9.498041,76.338511,2025-09-03T10:54:08,Physical assault happened near Alleppey Backwaters during the night. Took place during peak hours.,assault,0.925,Alleppey Backwaters
+R000264,S0047,U5782,25.594094,85.1376,2025-09-14T09:35:56,Someone stole my backpack at Patna Gandhi Maidan while I was on my phone. Happened at night.,theft,0.812,Patna Gandhi Maidan
+R000414,S0075,U9464,15.545244,73.75545,2025-09-04T06:07:11,I misplaced my passport at Goa - Calangute. Please help locate.,lost,0.334,Goa - Calangute
+R000345,S0061,U6540,11.406524,76.694776,2025-07-02T11:37:50,My bag was snatched near Ooty. I lost my phone and wallet. Took place during peak hours.,theft,0.793,Ooty
+R000594,S0109,U3227,28.525525,77.186539,2025-07-15T22:32:57,"Phone stolen at Qutub Minar, Delhi. Be careful around the market. Took place during peak hours.",theft,0.786,"Qutub Minar, Delhi"
+R000375,S0068,U5907,12.975465,77.593772,2025-07-10T10:55:49,"Fake guide scammed me at Cubbon Park, Bengaluru promising discount tours. Reported to local police but no help.",scam,0.365,"Cubbon Park, Bengaluru"
+R000613,S0113,U3419,34.151398,77.576808,2025-09-05T01:18:39,Minor road accident near Leh Market. No ambulance available immediately.,accident,0.928,Leh Market
+R000506,S0094,U2800,8.08832,77.538314,2025-08-23T05:53:44,Someone was following me near Kanyakumari— very suspicious.,suspicious_person,0.494,Kanyakumari
+R000313,S0056,U4081,27.585396,91.8644,2025-09-13T13:39:18,Pickpocketing at Tawang — they took my wallet during the crowd. Witnessed by many tourists.,theft,0.779,Tawang
+R000064,S0012,U7883,13.048607,80.282654,2025-08-23T21:59:20,"Left my bag on a bench near Marina Beach, Chennai and couldn't find it.",lost,0.487,"Marina Beach, Chennai"
+R000252,S0045,U3994,25.593858,85.135607,2025-07-03T04:17:58,"Group of men assaulted me close to Patna Gandhi Maidan. Lost valuables worth approx. INR 15,000.",assault,1.0,Patna Gandhi Maidan
+R000664,S0123,U1709,26.846984,80.947401,2025-07-25T02:07:16,Saw a suspicious person lurking near Lucknow Hazratganj for hours.,suspicious_person,0.694,Lucknow Hazratganj
+R000184,S0034,U9008,27.586148,91.863435,2025-09-21T21:14:38,"Eve-teasing incident near Tawang— women should avoid the area at night. Lost valuables worth approx. INR 15,000.",harassment,0.604,Tawang
+R000210,S0038,U5326,30.086855,78.265748,2025-08-05T06:32:14,Auto driver refused meter and behaved aggressively near Rishikesh Laxman Jhula.,unsafe_transport,0.546,Rishikesh Laxman Jhula
+R000031,S0006,U4810,27.175065,78.044153,2025-08-28T18:23:58,"I faced harassment near Taj Mahal, Agra. People were catcalling and it felt unsafe.",harassment,0.592,"Taj Mahal, Agra"
+R000552,S0101,U6525,11.932766,79.830301,2025-08-25T00:13:37,Someone tried a credit-card scam near Pondicherry Promenade.,scam,0.466,Pondicherry Promenade
+R000465,S0087,U6938,26.924607,75.827559,2025-07-30T01:46:09,"Group of men assaulted me close to Hawa Mahal, Jaipur. Happened at night.",assault,1.0,"Hawa Mahal, Jaipur"
+R000132,S0025,U6699,22.546128,88.3471,2025-08-14T07:48:50,"Someone tried a credit-card scam near Kolkata New Market. Lost valuables worth approx. INR 15,000.",scam,0.593,Kolkata New Market
+R000588,S0108,U9639,26.911968,75.78754,2025-07-26T22:33:02,"Auto driver refused meter and behaved aggressively near Pink City, Jaipur. Reported to local police but no help.",unsafe_transport,0.397,"Pink City, Jaipur"
+R000678,S0126,U2172,8.737824,76.715522,2025-07-07T12:53:01,"I got scammed by a taxi driver around Varkala Beach, Kerala. They overcharged and threatened me.",scam,0.574,"Varkala Beach, Kerala"
+R000547,S0101,U6525,11.933034,79.833003,2025-09-08T06:26:31,Vandalism noticed near Pondicherry Promenade. Statues/graffiti and broken benches.,vandalism,0.278,Pondicherry Promenade
+R000107,S0020,U2597,32.219053,76.323447,2025-09-02T00:27:51,Fake guide scammed me at Dharamshala promising discount tours. Took place during peak hours.,scam,0.501,Dharamshala
+R000234,S0041,U5990,32.242911,77.188622,2025-08-07T21:17:58,Pickpocketing at Manali Mall — they took my wallet during the crowd. Reported to local police but no help.,theft,0.735,Manali Mall
+R000602,S0111,U8790,22.544514,88.34156,2025-08-04T00:03:04,Boat operator was reckless near Kolkata Victoria Memorial area and it felt unsafe.,unsafe_transport,0.619,Kolkata Victoria Memorial area
+R000158,S0029,U8229,25.309543,82.973666,2025-09-10T15:25:09,Eve-teasing incident near Varanasi Dashashwamedh Ghat— women should avoid the area at night.,harassment,0.695,Varanasi Dashashwamedh Ghat
+R000342,S0060,U3819,30.733224,76.778897,2025-08-18T01:17:01,I misplaced my passport at Chandigarh Sector 17. Please help locate. I was alone at that time.,lost,0.26,Chandigarh Sector 17
+R000642,S0119,U7713,22.308501,88.768801,2025-08-15T04:40:24,Eve-teasing incident near Sundarbans Entry— women should avoid the area at night. I was alone at that time.,harassment,0.716,Sundarbans Entry
+R000277,S0050,U4405,19.887326,86.094922,2025-07-08T16:27:44,Taxi driver tried to drive off-route near Konark Sun Temple area. I was alone at that time.,unsafe_transport,0.456,Konark Sun Temple area
+R000454,S0085,U7418,28.525812,77.184143,2025-08-27T21:03:42,"Phone stolen at Qutub Minar, Delhi. Be careful around the market.",theft,0.832,"Qutub Minar, Delhi"
+R000641,S0119,U7713,22.308502,88.768747,2025-09-12T04:01:20,Fake guide scammed me at Sundarbans Entry promising discount tours.,scam,0.357,Sundarbans Entry
+R000540,S0099,U8855,28.524587,77.185353,2025-08-19T12:30:45,"Someone stole my backpack at Qutub Minar, Delhi while I was on my phone.",theft,0.709,"Qutub Minar, Delhi"
+R000691,S0129,U2896,22.307861,88.768722,2025-09-25T07:45:18,My bag was snatched near Sundarbans Entry. I lost my phone and wallet.,theft,0.677,Sundarbans Entry
+R000195,S0036,U1727,29.945704,78.16422,2025-08-17T06:47:25,My bag was snatched near Haridwar Har-ki-Pauri. I lost my phone and wallet. Reported to local police but no help.,theft,0.763,Haridwar Har-ki-Pauri
+R000080,S0015,U7462,18.921054,72.834494,2025-07-22T19:15:36,"Fake guide scammed me at Gateway of India, Mumbai promising discount tours.",scam,0.427,"Gateway of India, Mumbai"
+R000307,S0055,U7438,8.736864,76.715879,2025-08-08T23:42:56,"Saw a suspicious person lurking near Varkala Beach, Kerala for hours. Witnessed by many tourists.",suspicious_person,0.697,"Varkala Beach, Kerala"
+R000443,S0082,U9434,27.175905,78.040678,2025-07-13T02:20:41,"Auto driver refused meter and behaved aggressively near Taj Mahal, Agra.",unsafe_transport,0.516,"Taj Mahal, Agra"
+R000605,S0112,U6367,27.586741,91.864025,2025-08-19T19:30:06,Verbal harassment at Tawang when I was walking alone.,harassment,0.658,Tawang
+R000151,S0028,U4665,19.097558,72.827159,2025-08-24T21:21:26,"Boat operator was reckless near Juhu Beach, Mumbai and it felt unsafe.",unsafe_transport,0.542,"Juhu Beach, Mumbai"
+R000576,S0106,U8269,27.618366,93.830056,2025-08-13T15:31:27,Pickpocketing at Ziro Valley — they took my wallet during the crowd. I was alone at that time.,theft,0.827,Ziro Valley
+R000631,S0117,U7562,27.338989,88.606629,2025-07-21T00:32:57,Boat operator was reckless near Gangtok MG Marg and it felt unsafe.,unsafe_transport,0.593,Gangtok MG Marg
+R000415,S0075,U9464,15.54654,73.755376,2025-09-13T10:50:54,Auto driver refused meter and behaved aggressively near Goa - Calangute.,unsafe_transport,0.37,Goa - Calangute
+R000097,S0018,U4994,19.100181,72.828154,2025-07-18T00:25:53,"Fake guide scammed me at Juhu Beach, Mumbai promising discount tours.",scam,0.518,"Juhu Beach, Mumbai"
+R000430,S0078,U1248,8.486925,76.936221,2025-09-02T01:47:29,"Minor road accident near Kovalam, Trivandrum. No ambulance available immediately.",accident,0.929,"Kovalam, Trivandrum"
+R000657,S0122,U6373,10.09007,77.058464,2025-09-13T13:34:41,Lost my wallet and ID near Munnar after crowding.,lost,0.519,Munnar
+R000228,S0040,U1007,26.912176,75.787496,2025-09-06T03:18:11,"Someone stole my backpack at Pink City, Jaipur while I was on my phone.",theft,0.68,"Pink City, Jaipur"
+R000181,S0033,U3152,27.174982,78.041768,2025-07-14T03:29:12,"Someone stole my backpack at Taj Mahal, Agra while I was on my phone.",theft,0.799,"Taj Mahal, Agra"
+R000606,S0112,U6367,27.586661,91.865687,2025-07-29T02:51:28,Eve-teasing incident near Tawang— women should avoid the area at night.,harassment,0.645,Tawang
+R000573,S0106,U8269,27.616042,93.827722,2025-09-22T22:28:18,"Someone stole my backpack at Ziro Valley while I was on my phone. Lost valuables worth approx. INR 15,000.",theft,0.698,Ziro Valley
+R000380,S0070,U7930,19.054055,72.840155,2025-08-23T04:52:21,"Auto driver refused meter and behaved aggressively near Bandra, Mumbai. Happened at night.",unsafe_transport,0.469,"Bandra, Mumbai"
+R000074,S0014,U2115,13.00921,80.267719,2025-07-22T01:18:30,"My bag was snatched near Besant Nagar, Chennai. I lost my phone and wallet.",theft,0.729,"Besant Nagar, Chennai"
+R000395,S0072,U3011,8.087858,77.538905,2025-08-12T15:14:52,Someone had severe allergic reaction near Kanyakumari.,medical_emergency,0.893,Kanyakumari
+R000356,S0064,U3806,26.848297,80.946222,2025-07-21T11:40:11,Fake guide scammed me at Lucknow Hazratganj promising discount tours. Happened at night.,scam,0.542,Lucknow Hazratganj
+R000112,S0021,U9129,8.737627,76.716063,2025-07-19T01:06:30,"Boat operator was reckless near Varkala Beach, Kerala and it felt unsafe.",unsafe_transport,0.546,"Varkala Beach, Kerala"
+R000309,S0055,U7438,8.737051,76.717249,2025-07-27T20:55:25,"Boat operator was reckless near Varkala Beach, Kerala and it felt unsafe.",unsafe_transport,0.628,"Varkala Beach, Kerala"
+R000621,S0115,U2945,18.521103,73.85634,2025-07-03T00:44:06,Auto driver refused meter and behaved aggressively near Pune FC road area.,unsafe_transport,0.351,Pune FC road area
+R000599,S0111,U8790,22.544724,88.343083,2025-08-23T16:47:39,Auto driver refused meter and behaved aggressively near Kolkata Victoria Memorial area.,unsafe_transport,0.52,Kolkata Victoria Memorial area
+R000405,S0073,U7459,11.623035,92.726387,2025-07-13T04:19:55,Taxi driver tried to drive off-route near Andaman Port Blair. Happened at night.,unsafe_transport,0.595,Andaman Port Blair
+R000590,S0109,U3227,28.525318,77.183887,2025-08-02T21:21:08,"Taxi driver tried to drive off-route near Qutub Minar, Delhi. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.376,"Qutub Minar, Delhi"
+R000416,S0076,U7808,26.84701,80.946437,2025-08-21T00:33:19,I got scammed by a taxi driver around Lucknow Hazratganj. They overcharged and threatened me.,scam,0.464,Lucknow Hazratganj
+R000049,S0010,U2739,28.632763,77.218949,2025-09-19T20:45:35,"Saw a suspicious person lurking near Connaught Place, Delhi for hours. Reported to local police but no help.",suspicious_person,0.682,"Connaught Place, Delhi"
+R000600,S0111,U8790,22.544477,88.345265,2025-09-03T02:30:43,I faced harassment near Kolkata Victoria Memorial area. People were catcalling and it felt unsafe.,harassment,0.585,Kolkata Victoria Memorial area
+R000316,S0056,U4081,27.586142,91.8641,2025-07-30T00:11:12,Saw a suspicious person lurking near Tawang for hours.,suspicious_person,0.59,Tawang
+R000669,S0124,U1734,19.887383,86.093509,2025-07-29T22:35:15,Verbal harassment at Konark Sun Temple area when I was walking alone. Took place during peak hours.,harassment,0.662,Konark Sun Temple area
+R000353,S0063,U6043,8.089834,77.537861,2025-09-14T04:58:11,Someone was following me near Kanyakumari— very suspicious.,suspicious_person,0.544,Kanyakumari
+R000137,S0026,U3267,30.733344,76.779416,2025-07-16T17:06:21,Phone stolen at Chandigarh Sector 17. Be careful around the market.,theft,0.68,Chandigarh Sector 17
+R000156,S0029,U8229,25.310691,82.974718,2025-09-10T14:52:22,Someone stole my backpack at Varanasi Dashashwamedh Ghat while I was on my phone.,theft,0.762,Varanasi Dashashwamedh Ghat
+R000119,S0022,U1650,26.576106,93.170913,2025-07-14T00:30:36,I got scammed by a taxi driver around Kaziranga Park. They overcharged and threatened me.,scam,0.357,Kaziranga Park
+R000495,S0092,U9608,11.407282,76.695746,2025-07-21T11:28:37,My bag was snatched near Ooty. I lost my phone and wallet.,theft,0.766,Ooty
+R000428,S0078,U1248,8.487063,76.935765,2025-07-30T13:41:17,"Eve-teasing incident near Kovalam, Trivandrum— women should avoid the area at night.",harassment,0.734,"Kovalam, Trivandrum"
+R000310,S0056,U4081,27.586558,91.864613,2025-07-29T17:28:55,Public infrastructure vandalized at Tawang. Took place during peak hours.,vandalism,0.268,Tawang
+R000225,S0040,U1007,26.912352,75.787547,2025-08-26T10:29:49,"Auto driver refused meter and behaved aggressively near Pink City, Jaipur.",unsafe_transport,0.449,"Pink City, Jaipur"
+R000116,S0021,U9129,8.736476,76.716833,2025-07-10T16:40:00,"I faced harassment near Varkala Beach, Kerala. People were catcalling and it felt unsafe.",harassment,0.482,"Varkala Beach, Kerala"
+R000376,S0068,U5907,12.976113,77.592913,2025-09-14T04:45:43,"Someone stole my backpack at Cubbon Park, Bengaluru while I was on my phone.",theft,0.567,"Cubbon Park, Bengaluru"
+R000212,S0038,U5326,30.086987,78.265801,2025-09-11T14:57:35,Boat operator was reckless near Rishikesh Laxman Jhula and it felt unsafe. Happened at night.,unsafe_transport,0.367,Rishikesh Laxman Jhula
+R000528,S0097,U3159,24.576319,73.679874,2025-09-26T20:50:09,Lost my wallet and ID near Udaipur Lake Pichola after crowding.,lost,0.353,Udaipur Lake Pichola
+R000285,S0051,U9641,27.586191,91.864317,2025-08-09T09:02:03,"Verbal harassment at Tawang when I was walking alone. Lost valuables worth approx. INR 15,000.",harassment,0.472,Tawang
+R000575,S0106,U8269,27.616765,93.829753,2025-08-08T13:12:21,Auto driver refused meter and behaved aggressively near Ziro Valley. Witnessed by many tourists.,unsafe_transport,0.484,Ziro Valley
+R000198,S0037,U6869,26.846917,80.946996,2025-07-20T17:56:26,"Physical assault happened near Lucknow Hazratganj during the night. Lost valuables worth approx. INR 15,000.",assault,0.835,Lucknow Hazratganj
+R000665,S0123,U1709,26.847929,80.945848,2025-09-15T10:39:45,Pickpocketing at Lucknow Hazratganj — they took my wallet during the crowd.,theft,0.617,Lucknow Hazratganj
+R000093,S0017,U7707,30.733047,76.780603,2025-09-06T23:34:45,Auto driver refused meter and behaved aggressively near Chandigarh Sector 17.,unsafe_transport,0.353,Chandigarh Sector 17
+R000224,S0040,U1007,26.91204,75.787083,2025-07-04T19:04:59,"Left my bag on a bench near Pink City, Jaipur and couldn't find it. Lost valuables worth approx. INR 15,000.",lost,0.401,"Pink City, Jaipur"
+R000219,S0039,U3694,12.976907,77.592247,2025-08-25T01:06:45,"Boat operator was reckless near Cubbon Park, Bengaluru and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.553,"Cubbon Park, Bengaluru"
+R000394,S0072,U3011,8.08816,77.538425,2025-08-14T23:31:55,Saw a suspicious person lurking near Kanyakumari for hours. Reported to local police but no help.,suspicious_person,0.56,Kanyakumari
+R000248,S0044,U3277,28.63288,77.21981,2025-09-23T21:42:07,"I was attacked near Connaught Place, Delhi. Got hurt and need police help.",assault,0.889,"Connaught Place, Delhi"
+R000453,S0085,U7418,28.525833,77.18411,2025-07-14T05:35:31,"Someone tried a credit-card scam near Qutub Minar, Delhi. I was alone at that time.",scam,0.397,"Qutub Minar, Delhi"
+R000567,S0104,U8722,26.911861,75.784723,2025-07-15T16:10:21,"Fake guide scammed me at Pink City, Jaipur promising discount tours. Witnessed by many tourists.",scam,0.58,"Pink City, Jaipur"
+R000138,S0026,U3267,30.734359,76.778608,2025-08-09T14:48:28,Physical assault happened near Chandigarh Sector 17 during the night. Took place during peak hours.,assault,0.934,Chandigarh Sector 17
+R000529,S0098,U4358,30.733092,76.78006,2025-09-18T15:52:05,Verbal harassment at Chandigarh Sector 17 when I was walking alone.,harassment,0.515,Chandigarh Sector 17
+R000215,S0039,U3694,12.975963,77.593141,2025-08-23T14:33:47,"Verbal harassment at Cubbon Park, Bengaluru when I was walking alone. Lost valuables worth approx. INR 15,000.",harassment,0.463,"Cubbon Park, Bengaluru"
+R000637,S0118,U8913,8.088529,77.538013,2025-07-20T18:00:40,Someone tried a credit-card scam near Kanyakumari.,scam,0.51,Kanyakumari
+R000481,S0090,U2452,28.524815,77.185483,2025-07-11T01:09:09,"Someone was following me near Qutub Minar, Delhi— very suspicious.",suspicious_person,0.681,"Qutub Minar, Delhi"
+R000278,S0050,U4405,19.886933,86.094374,2025-09-18T04:03:03,Fake guide scammed me at Konark Sun Temple area promising discount tours.,scam,0.647,Konark Sun Temple area
+R000185,S0034,U9008,27.585737,91.862919,2025-09-23T12:17:34,Someone was following me near Tawang— very suspicious.,suspicious_person,0.51,Tawang
+R000553,S0102,U6890,12.975621,77.604234,2025-08-23T11:13:34,"My bag was snatched near Bengaluru MG Road. I lost my phone and wallet. Lost valuables worth approx. INR 15,000.",theft,0.845,Bengaluru MG Road
+R000333,S0058,U3742,24.576294,73.680268,2025-08-24T11:24:49,Someone tried a credit-card scam near Udaipur Lake Pichola. I was alone at that time.,scam,0.518,Udaipur Lake Pichola
+R000087,S0015,U7462,18.921931,72.835395,2025-08-29T00:10:45,"Someone was following me near Gateway of India, Mumbai— very suspicious. Witnessed by many tourists.",suspicious_person,0.456,"Gateway of India, Mumbai"
+R000489,S0091,U6159,19.814754,85.831844,2025-09-10T18:07:32,Bike collided near Puri Jagannath Temple and rider is badly hurt.,accident,0.864,Puri Jagannath Temple
+R000653,S0121,U5998,11.623634,92.726585,2025-07-08T18:35:01,I faced harassment near Andaman Port Blair. People were catcalling and it felt unsafe. Reported to local police but no help.,harassment,0.535,Andaman Port Blair
+R000507,S0094,U2800,8.0884,77.536978,2025-07-19T06:13:16,Property damage near Kanyakumari late at night.,vandalism,0.421,Kanyakumari
+R000314,S0056,U4081,27.58595,91.864043,2025-08-15T17:45:20,Person fainted near Tawang and there was delay in help.,medical_emergency,0.9,Tawang
+R000488,S0091,U6159,19.814361,85.831914,2025-08-29T05:05:59,Auto driver refused meter and behaved aggressively near Puri Jagannath Temple. Reported to local police but no help.,unsafe_transport,0.424,Puri Jagannath Temple
+R000667,S0124,U1734,19.887054,86.094352,2025-08-16T00:11:13,Vandalism noticed near Konark Sun Temple area. Statues/graffiti and broken benches.,vandalism,0.167,Konark Sun Temple area
+R000409,S0075,U9464,15.545877,73.754536,2025-08-31T07:22:18,Someone stole my backpack at Goa - Calangute while I was on my phone. Reported to local police but no help.,theft,0.655,Goa - Calangute
+R000466,S0087,U6938,26.924722,75.825179,2025-09-14T22:27:02,"Eve-teasing incident near Hawa Mahal, Jaipur— women should avoid the area at night.",harassment,0.471,"Hawa Mahal, Jaipur"
+R000435,S0080,U3272,33.984018,75.240004,2025-08-26T14:49:20,I got scammed by a taxi driver around Amarnath base area (approx). They overcharged and threatened me.,scam,0.428,Amarnath base area (approx)
+R000017,S0004,U1964,28.524319,77.185571,2025-09-27T07:36:25,"Phone stolen at Qutub Minar, Delhi. Be careful around the market.",theft,0.768,"Qutub Minar, Delhi"
+R000608,S0112,U6367,27.585997,91.864012,2025-07-31T18:08:42,Taxi driver tried to drive off-route near Tawang.,unsafe_transport,0.557,Tawang
+R000190,S0035,U5346,34.084224,74.796843,2025-08-16T03:45:23,I faced harassment near Srinagar Dal Lake. People were catcalling and it felt unsafe.,harassment,0.527,Srinagar Dal Lake
+R000519,S0096,U9927,18.921786,72.834404,2025-08-05T09:23:02,"Auto driver refused meter and behaved aggressively near Gateway of India, Mumbai.",unsafe_transport,0.396,"Gateway of India, Mumbai"
+R000384,S0071,U7120,19.053101,72.841467,2025-07-30T07:01:54,"I got scammed by a taxi driver around Bandra, Mumbai. They overcharged and threatened me.",scam,0.514,"Bandra, Mumbai"
+R000355,S0064,U3806,26.848406,80.947597,2025-09-18T13:28:29,Someone tried a credit-card scam near Lucknow Hazratganj.,scam,0.627,Lucknow Hazratganj
+R000245,S0043,U2857,22.544198,88.342685,2025-07-26T22:27:06,Lost my wallet and ID near Kolkata Victoria Memorial area after crowding.,lost,0.372,Kolkata Victoria Memorial area
+R000549,S0101,U6525,11.933559,79.830477,2025-07-07T13:12:49,Minor road accident near Pondicherry Promenade. No ambulance available immediately.,accident,0.896,Pondicherry Promenade
+R000344,S0061,U6540,11.406208,76.695093,2025-07-24T18:54:08,I misplaced my passport at Ooty. Please help locate. Happened at night.,lost,0.276,Ooty
+R000582,S0107,U9200,26.297258,73.017831,2025-08-28T15:43:29,Property damage near Jodhpur Mehrangarh late at night.,vandalism,0.211,Jodhpur Mehrangarh
+R000164,S0030,U1722,26.923765,75.826753,2025-09-12T03:24:47,"Pickpocketing at Hawa Mahal, Jaipur — they took my wallet during the crowd.",theft,0.775,"Hawa Mahal, Jaipur"
+R000318,S0056,U4081,27.586185,91.862393,2025-09-22T11:41:28,Taxi driver tried to drive off-route near Tawang.,unsafe_transport,0.567,Tawang
+R000534,S0098,U4358,30.733663,76.778924,2025-08-14T15:31:17,Auto driver refused meter and behaved aggressively near Chandigarh Sector 17.,unsafe_transport,0.44,Chandigarh Sector 17
+R000670,S0124,U1734,19.886804,86.095702,2025-08-22T23:17:50,Verbal harassment at Konark Sun Temple area when I was walking alone.,harassment,0.557,Konark Sun Temple area
+R000141,S0027,U5709,19.098769,72.827045,2025-07-05T03:39:00,"I misplaced my passport at Juhu Beach, Mumbai. Please help locate.",lost,0.25,"Juhu Beach, Mumbai"
+R000261,S0047,U5782,25.594127,85.137821,2025-07-27T01:24:36,Lost my wallet and ID near Patna Gandhi Maidan after crowding.,lost,0.36,Patna Gandhi Maidan
+R000255,S0045,U3994,25.59402,85.137091,2025-09-16T00:54:02,Public infrastructure vandalized at Patna Gandhi Maidan.,vandalism,0.393,Patna Gandhi Maidan
+R000236,S0041,U5990,32.243512,77.188824,2025-09-08T01:09:19,Someone was following me near Manali Mall— very suspicious.,suspicious_person,0.642,Manali Mall
+R000560,S0103,U1433,18.520881,73.855928,2025-08-11T04:52:33,Verbal harassment at Pune FC road area when I was walking alone.,harassment,0.533,Pune FC road area
+R000339,S0060,U3819,30.733585,76.779327,2025-08-26T19:44:13,Vandalism noticed near Chandigarh Sector 17. Statues/graffiti and broken benches. Happened at night.,vandalism,0.225,Chandigarh Sector 17
+R000103,S0019,U5908,26.297672,73.01779,2025-09-26T11:01:41,Taxi driver tried to drive off-route near Jodhpur Mehrangarh.,unsafe_transport,0.61,Jodhpur Mehrangarh
+R000077,S0014,U2115,13.00986,80.26854,2025-07-21T18:23:41,"Eve-teasing incident near Besant Nagar, Chennai— women should avoid the area at night.",harassment,0.472,"Besant Nagar, Chennai"
+R000085,S0015,U7462,18.921928,72.835153,2025-07-22T04:15:08,"I faced harassment near Gateway of India, Mumbai. People were catcalling and it felt unsafe.",harassment,0.595,"Gateway of India, Mumbai"
+R000065,S0012,U7883,13.048098,80.283012,2025-07-30T22:19:50,"I was attacked near Marina Beach, Chennai. Got hurt and need police help.",assault,1.0,"Marina Beach, Chennai"
+R000335,S0059,U5186,13.049358,80.283352,2025-07-24T00:50:00,"Someone stole my backpack at Marina Beach, Chennai while I was on my phone. Witnessed by many tourists.",theft,0.721,"Marina Beach, Chennai"
+R000412,S0075,U9464,15.546401,73.756904,2025-07-01T23:19:54,Someone tried a credit-card scam near Goa - Calangute.,scam,0.399,Goa - Calangute
+R000562,S0103,U1433,18.521029,73.858193,2025-07-16T10:37:02,Physical assault happened near Pune FC road area during the night. Witnessed by many tourists.,assault,1.0,Pune FC road area
+R000117,S0021,U9129,8.73682,76.716468,2025-09-22T21:52:45,"Eve-teasing incident near Varkala Beach, Kerala— women should avoid the area at night.",harassment,0.556,"Varkala Beach, Kerala"
+R000378,S0069,U5611,28.632443,77.219084,2025-07-27T00:22:28,"Eve-teasing incident near Connaught Place, Delhi— women should avoid the area at night.",harassment,0.75,"Connaught Place, Delhi"
+R000090,S0017,U7707,30.733503,76.779239,2025-09-10T03:25:54,I misplaced my passport at Chandigarh Sector 17. Please help locate.,lost,0.421,Chandigarh Sector 17
+R000627,S0116,U5244,28.52399,77.185665,2025-09-20T16:40:56,"Pickpocketing at Qutub Minar, Delhi — they took my wallet during the crowd.",theft,0.608,"Qutub Minar, Delhi"
+R000452,S0085,U7418,28.523374,77.18412,2025-07-31T19:52:37,"Group of men assaulted me close to Qutub Minar, Delhi.",assault,0.85,"Qutub Minar, Delhi"
+R000479,S0090,U2452,28.523042,77.18492,2025-08-23T15:57:12,"I misplaced my passport at Qutub Minar, Delhi. Please help locate.",lost,0.482,"Qutub Minar, Delhi"
+R000497,S0093,U2027,19.886643,86.094543,2025-07-17T21:48:21,"Someone stole my backpack at Konark Sun Temple area while I was on my phone. Lost valuables worth approx. INR 15,000.",theft,0.551,Konark Sun Temple area
+R000510,S0095,U1647,17.36188,78.474795,2025-08-03T12:23:05,Someone had severe allergic reaction near Hyderabad Charminar.,medical_emergency,1.0,Hyderabad Charminar
+R000640,S0119,U7713,22.30881,88.768069,2025-08-09T11:39:46,I faced harassment near Sundarbans Entry. People were catcalling and it felt unsafe. I was alone at that time.,harassment,0.679,Sundarbans Entry
+R000126,S0023,U1531,28.632371,77.219756,2025-07-08T17:27:02,"My bag was snatched near Connaught Place, Delhi. I lost my phone and wallet. Took place during peak hours.",theft,0.831,"Connaught Place, Delhi"
+R000672,S0124,U1734,19.887011,86.094541,2025-08-21T13:03:14,Auto driver refused meter and behaved aggressively near Konark Sun Temple area.,unsafe_transport,0.463,Konark Sun Temple area
+R000483,S0091,U6159,19.813861,85.830936,2025-08-05T15:39:06,Pickpocketing at Puri Jagannath Temple — they took my wallet during the crowd. Reported to local police but no help.,theft,0.835,Puri Jagannath Temple
+R000698,S0130,U4779,19.886624,86.094968,2025-07-17T17:15:29,Taxi driver tried to drive off-route near Konark Sun Temple area.,unsafe_transport,0.377,Konark Sun Temple area
+R000197,S0036,U1727,29.945901,78.164587,2025-08-02T15:41:40,Eve-teasing incident near Haridwar Har-ki-Pauri— women should avoid the area at night.,harassment,0.629,Haridwar Har-ki-Pauri
+R000202,S0037,U6869,26.846808,80.946855,2025-08-28T08:23:07,Lost my wallet and ID near Lucknow Hazratganj after crowding. Reported to local police but no help.,lost,0.464,Lucknow Hazratganj
+R000106,S0020,U2597,32.218924,76.325278,2025-08-14T04:20:00,I faced harassment near Dharamshala. People were catcalling and it felt unsafe.,harassment,0.698,Dharamshala
+R000008,S0002,U1399,27.616778,93.830545,2025-08-08T02:32:39,Auto driver refused meter and behaved aggressively near Ziro Valley.,unsafe_transport,0.648,Ziro Valley
+R000666,S0124,U1734,19.886418,86.094596,2025-08-16T03:03:54,Bike collided near Konark Sun Temple area and rider is badly hurt.,accident,0.923,Konark Sun Temple area
+R000071,S0013,U8994,34.083637,74.795584,2025-08-06T05:58:02,Taxi driver tried to drive off-route near Srinagar Dal Lake.,unsafe_transport,0.353,Srinagar Dal Lake
+R000098,S0018,U4994,19.099237,72.826743,2025-09-14T12:48:29,"Eve-teasing incident near Juhu Beach, Mumbai— women should avoid the area at night.",harassment,0.6,"Juhu Beach, Mumbai"
+R000568,S0104,U8722,26.912399,75.787268,2025-07-01T04:01:14,"Fake guide scammed me at Pink City, Jaipur promising discount tours.",scam,0.383,"Pink City, Jaipur"
+R000493,S0092,U9608,11.408173,76.693603,2025-07-13T13:52:04,Boat operator was reckless near Ooty and it felt unsafe. Witnessed by many tourists.,unsafe_transport,0.42,Ooty
+R000007,S0002,U1399,27.615763,93.829898,2025-07-20T18:04:36,I misplaced my passport at Ziro Valley. Please help locate. Happened at night.,lost,0.354,Ziro Valley
+R000533,S0098,U4358,30.733618,76.778646,2025-08-03T04:10:40,Someone stole my backpack at Chandigarh Sector 17 while I was on my phone.,theft,0.741,Chandigarh Sector 17
+R000684,S0127,U7414,28.63202,77.219805,2025-08-17T19:17:48,"Verbal harassment at Connaught Place, Delhi when I was walking alone.",harassment,0.701,"Connaught Place, Delhi"
+R000433,S0079,U4415,22.544841,88.342578,2025-09-07T01:17:13,Vandalism noticed near Kolkata Victoria Memorial area. Statues/graffiti and broken benches.,vandalism,0.382,Kolkata Victoria Memorial area
+R000069,S0013,U8994,34.084143,74.798133,2025-07-02T13:36:50,I faced harassment near Srinagar Dal Lake. People were catcalling and it felt unsafe.,harassment,0.47,Srinagar Dal Lake
+R000368,S0066,U1938,31.104028,77.172877,2025-08-24T09:28:16,Person fainted near Shimla Mall and there was delay in help.,medical_emergency,0.828,Shimla Mall
+R000111,S0021,U9129,8.737885,76.715879,2025-09-20T02:49:18,"Boat operator was reckless near Varkala Beach, Kerala and it felt unsafe.",unsafe_transport,0.389,"Varkala Beach, Kerala"
+R000446,S0083,U9158,32.243379,77.189804,2025-08-27T01:36:43,Verbal harassment at Manali Mall when I was walking alone.,harassment,0.492,Manali Mall
+R000023,S0005,U4960,27.617159,93.828257,2025-08-31T05:18:07,Minor road accident near Ziro Valley. No ambulance available immediately. Happened at night.,accident,0.792,Ziro Valley
+R000134,S0026,U3267,30.733316,76.780109,2025-08-31T21:07:56,Pickpocketing at Chandigarh Sector 17 — they took my wallet during the crowd. Witnessed by many tourists.,theft,0.662,Chandigarh Sector 17
+R000291,S0052,U2721,9.96675,76.241601,2025-07-05T08:51:38,"Property damage near Fort Kochi, Kochi late at night.",vandalism,0.326,"Fort Kochi, Kochi"
+R000326,S0057,U1628,18.922003,72.834594,2025-09-21T10:18:41,"Auto driver refused meter and behaved aggressively near Gateway of India, Mumbai.",unsafe_transport,0.477,"Gateway of India, Mumbai"
+R000624,S0116,U5244,28.524995,77.185489,2025-07-03T23:58:48,"Someone was following me near Qutub Minar, Delhi— very suspicious.",suspicious_person,0.647,"Qutub Minar, Delhi"
+R000688,S0128,U8614,22.58384,88.345334,2025-09-23T00:04:34,"Verbal harassment at Howrah Bridge area, Kolkata when I was walking alone.",harassment,0.589,"Howrah Bridge area, Kolkata"
+R000104,S0019,U5908,26.298093,73.019326,2025-09-03T08:33:41,Auto driver refused meter and behaved aggressively near Jodhpur Mehrangarh.,unsafe_transport,0.543,Jodhpur Mehrangarh
+R000639,S0119,U7713,22.308883,88.768902,2025-08-26T02:12:08,"Medical emergency at Sundarbans Entry — we couldn't find first aid. Lost valuables worth approx. INR 15,000.",medical_emergency,0.924,Sundarbans Entry
+R000518,S0096,U9927,18.922504,72.836128,2025-08-23T08:56:01,"I slipped and got injured at Gateway of India, Mumbai. Need medical help.",accident,0.995,"Gateway of India, Mumbai"
+R000693,S0129,U2896,22.308359,88.7687,2025-08-18T12:39:39,Auto driver refused meter and behaved aggressively near Sundarbans Entry. Happened at night.,unsafe_transport,0.464,Sundarbans Entry
+R000517,S0096,U9927,18.922093,72.834811,2025-09-05T16:01:36,"Boat operator was reckless near Gateway of India, Mumbai and it felt unsafe.",unsafe_transport,0.511,"Gateway of India, Mumbai"
+R000246,S0043,U2857,22.54493,88.342285,2025-08-05T05:54:30,Someone was following me near Kolkata Victoria Memorial area— very suspicious.,suspicious_person,0.416,Kolkata Victoria Memorial area
+R000114,S0021,U9129,8.737669,76.715926,2025-08-18T01:36:18,"Auto driver refused meter and behaved aggressively near Varkala Beach, Kerala.",unsafe_transport,0.553,"Varkala Beach, Kerala"
+R000477,S0090,U2452,28.525629,77.185692,2025-07-23T01:25:04,"Someone stole my backpack at Qutub Minar, Delhi while I was on my phone.",theft,0.784,"Qutub Minar, Delhi"
+R000689,S0129,U2896,22.307364,88.768516,2025-07-31T02:02:36,Verbal harassment at Sundarbans Entry when I was walking alone.,harassment,0.62,Sundarbans Entry
+R000056,S0011,U2699,12.974973,77.59298,2025-09-17T09:35:37,"Verbal harassment at Cubbon Park, Bengaluru when I was walking alone.",harassment,0.474,"Cubbon Park, Bengaluru"
+R000232,S0041,U5990,32.24466,77.190723,2025-07-09T02:30:37,Someone tried a credit-card scam near Manali Mall.,scam,0.487,Manali Mall
+R000615,S0113,U3419,34.15239,77.577416,2025-09-21T14:30:34,Group of men assaulted me close to Leh Market.,assault,0.934,Leh Market
+R000149,S0028,U4665,19.099087,72.82622,2025-07-02T01:52:49,"Fake guide scammed me at Juhu Beach, Mumbai promising discount tours.",scam,0.521,"Juhu Beach, Mumbai"
+R000226,S0040,U1007,26.912894,75.788113,2025-08-03T14:34:51,"Verbal harassment at Pink City, Jaipur when I was walking alone.",harassment,0.476,"Pink City, Jaipur"
+R000173,S0031,U6017,22.307205,88.770178,2025-09-17T14:35:24,Someone tried a credit-card scam near Sundarbans Entry.,scam,0.353,Sundarbans Entry
+R000135,S0026,U3267,30.73287,76.778992,2025-07-12T04:24:20,I got scammed by a taxi driver around Chandigarh Sector 17. They overcharged and threatened me.,scam,0.595,Chandigarh Sector 17
+R000032,S0007,U7234,8.486166,76.936505,2025-07-16T17:56:59,"Verbal harassment at Kovalam, Trivandrum when I was walking alone.",harassment,0.711,"Kovalam, Trivandrum"
+R000319,S0057,U1628,18.921849,72.834741,2025-09-10T20:08:05,"Group of men assaulted me close to Gateway of India, Mumbai.",assault,0.836,"Gateway of India, Mumbai"
+R000038,S0008,U2101,11.40646,76.695375,2025-07-26T17:29:54,Eve-teasing incident near Ooty— women should avoid the area at night.,harassment,0.481,Ooty
+R000009,S0002,U1399,27.616894,93.829656,2025-09-03T08:30:21,I got scammed by a taxi driver around Ziro Valley. They overcharged and threatened me.,scam,0.589,Ziro Valley
+R000420,S0076,U7808,26.847081,80.94744,2025-08-30T00:15:38,Fake guide scammed me at Lucknow Hazratganj promising discount tours. I was alone at that time.,scam,0.585,Lucknow Hazratganj
+R000616,S0113,U3419,34.151951,77.577849,2025-09-13T09:42:13,Phone stolen at Leh Market. Be careful around the market.,theft,0.828,Leh Market
+R000451,S0084,U8077,27.618653,93.829807,2025-09-19T05:08:31,"Boat operator was reckless near Ziro Valley and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.441,Ziro Valley
+R000168,S0031,U6017,22.308604,88.769041,2025-08-23T20:23:54,I was attacked near Sundarbans Entry. Got hurt and need police help.,assault,0.859,Sundarbans Entry
+R000002,S0001,U5977,12.95097,77.585406,2025-09-13T07:51:59,"Taxi driver tried to drive off-route near Lalbagh, Bengaluru.",unsafe_transport,0.519,"Lalbagh, Bengaluru"
+R000522,S0097,U3159,24.576279,73.679682,2025-09-05T23:45:36,"Fake guide scammed me at Udaipur Lake Pichola promising discount tours. Lost valuables worth approx. INR 15,000.",scam,0.487,Udaipur Lake Pichola
+R000660,S0123,U1709,26.846959,80.947007,2025-09-09T05:07:00,Boat operator was reckless near Lucknow Hazratganj and it felt unsafe. Happened at night.,unsafe_transport,0.636,Lucknow Hazratganj
+R000332,S0058,U3742,24.576795,73.680295,2025-09-03T06:12:50,Fake guide scammed me at Udaipur Lake Pichola promising discount tours.,scam,0.535,Udaipur Lake Pichola
+R000304,S0054,U9587,24.575793,73.681095,2025-09-25T07:04:30,Taxi driver tried to drive off-route near Udaipur Lake Pichola.,unsafe_transport,0.41,Udaipur Lake Pichola
+R000300,S0054,U9587,24.575987,73.68028,2025-08-09T13:41:15,I got scammed by a taxi driver around Udaipur Lake Pichola. They overcharged and threatened me.,scam,0.457,Udaipur Lake Pichola
+R000655,S0121,U5998,11.624153,92.726249,2025-09-16T13:30:47,"Boat operator was reckless near Andaman Port Blair and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.599,Andaman Port Blair
+R000445,S0083,U9158,32.243404,77.188682,2025-09-18T15:17:08,Physical assault happened near Manali Mall during the night.,assault,0.941,Manali Mall
+R000413,S0075,U9464,15.546597,73.755685,2025-07-08T14:42:08,Eve-teasing incident near Goa - Calangute— women should avoid the area at night.,harassment,0.749,Goa - Calangute
+R000092,S0017,U7707,30.732555,76.780064,2025-07-03T05:28:49,Taxi driver tried to drive off-route near Chandigarh Sector 17.,unsafe_transport,0.579,Chandigarh Sector 17
+R000315,S0056,U4081,27.5861,91.864185,2025-08-25T00:23:14,"Boat operator was reckless near Tawang and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.351,Tawang
+R000601,S0111,U8790,22.545212,88.34186,2025-09-10T19:25:02,Boat operator was reckless near Kolkata Victoria Memorial area and it felt unsafe.,unsafe_transport,0.499,Kolkata Victoria Memorial area
+R000222,S0040,U1007,26.912905,75.787221,2025-07-16T01:27:59,"I got scammed by a taxi driver around Pink City, Jaipur. They overcharged and threatened me. I was alone at that time.",scam,0.362,"Pink City, Jaipur"
+R000284,S0051,U9641,27.5861,91.864068,2025-09-03T02:54:31,Minor road accident near Tawang. No ambulance available immediately.,accident,0.845,Tawang
+R000320,S0057,U1628,18.921516,72.834623,2025-08-04T04:22:52,"Public infrastructure vandalized at Gateway of India, Mumbai. Took place during peak hours.",vandalism,0.352,"Gateway of India, Mumbai"
+R000392,S0072,U3011,8.088343,77.538633,2025-07-20T13:29:33,Eve-teasing incident near Kanyakumari— women should avoid the area at night. Reported to local police but no help.,harassment,0.697,Kanyakumari
+R000521,S0097,U3159,24.575598,73.679714,2025-07-28T19:53:47,Auto driver refused meter and behaved aggressively near Udaipur Lake Pichola.,unsafe_transport,0.549,Udaipur Lake Pichola
+R000511,S0095,U1647,17.361419,78.474566,2025-09-09T03:08:27,Auto driver refused meter and behaved aggressively near Hyderabad Charminar.,unsafe_transport,0.529,Hyderabad Charminar
+R000346,S0061,U6540,11.406922,76.695115,2025-08-15T19:13:20,Lost my wallet and ID near Ooty after crowding. I was alone at that time.,lost,0.303,Ooty
+R000520,S0096,U9927,18.920484,72.83476,2025-08-28T03:22:38,"Taxi driver tried to drive off-route near Gateway of India, Mumbai. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.57,"Gateway of India, Mumbai"
+R000115,S0021,U9129,8.738576,76.716694,2025-09-26T20:14:58,"Minor road accident near Varkala Beach, Kerala. No ambulance available immediately.",accident,0.747,"Varkala Beach, Kerala"
+R000290,S0052,U2721,9.966693,76.241884,2025-07-06T10:05:01,"Auto driver refused meter and behaved aggressively near Fort Kochi, Kochi. Happened at night.",unsafe_transport,0.372,"Fort Kochi, Kochi"
+R000266,S0048,U5691,9.497762,76.33876,2025-09-25T21:44:05,Taxi driver tried to drive off-route near Alleppey Backwaters. Witnessed by many tourists.,unsafe_transport,0.412,Alleppey Backwaters
+R000646,S0120,U3268,27.585822,91.864014,2025-09-01T03:46:17,Boat operator was reckless near Tawang and it felt unsafe.,unsafe_transport,0.625,Tawang
+R000145,S0027,U5709,19.098644,72.826469,2025-08-25T17:15:46,"I got scammed by a taxi driver around Juhu Beach, Mumbai. They overcharged and threatened me.",scam,0.482,"Juhu Beach, Mumbai"
+R000434,S0079,U4415,22.544744,88.342961,2025-09-03T16:02:45,Saw a suspicious person lurking near Kolkata Victoria Memorial area for hours. Reported to local police but no help.,suspicious_person,0.699,Kolkata Victoria Memorial area
+R000559,S0103,U1433,18.52251,73.856343,2025-07-08T03:24:51,"Physical assault happened near Pune FC road area during the night. Lost valuables worth approx. INR 15,000.",assault,1.0,Pune FC road area
+R000003,S0001,U5977,12.950846,77.584973,2025-08-16T20:37:30,"Phone stolen at Lalbagh, Bengaluru. Be careful around the market.",theft,0.772,"Lalbagh, Bengaluru"
+R000289,S0052,U2721,9.966785,76.241964,2025-07-18T18:14:56,"Verbal harassment at Fort Kochi, Kochi when I was walking alone.",harassment,0.719,"Fort Kochi, Kochi"
+R000566,S0104,U8722,26.912351,75.787242,2025-07-13T02:37:05,"Taxi driver tried to drive off-route near Pink City, Jaipur.",unsafe_transport,0.553,"Pink City, Jaipur"
+R000685,S0127,U7414,28.631654,77.218129,2025-09-24T08:13:44,"I misplaced my passport at Connaught Place, Delhi. Please help locate.",lost,0.291,"Connaught Place, Delhi"
+R000194,S0035,U5346,34.084491,74.797574,2025-08-08T13:37:48,Boat operator was reckless near Srinagar Dal Lake and it felt unsafe.,unsafe_transport,0.607,Srinagar Dal Lake
+R000591,S0109,U3227,28.524488,77.185321,2025-08-21T08:06:17,"Verbal harassment at Qutub Minar, Delhi when I was walking alone. Happened at night.",harassment,0.48,"Qutub Minar, Delhi"
+R000280,S0050,U4405,19.888815,86.095327,2025-09-21T01:24:33,Verbal harassment at Konark Sun Temple area when I was walking alone.,harassment,0.53,Konark Sun Temple area
+R000191,S0035,U5346,34.084628,74.795727,2025-08-10T08:23:35,Verbal harassment at Srinagar Dal Lake when I was walking alone.,harassment,0.697,Srinagar Dal Lake
+R000014,S0003,U6641,18.52071,73.8568,2025-08-19T00:47:47,Saw a suspicious person lurking near Pune FC road area for hours.,suspicious_person,0.694,Pune FC road area
+R000595,S0110,U7374,29.945723,78.164114,2025-07-07T12:29:51,Boat operator was reckless near Haridwar Har-ki-Pauri and it felt unsafe. Reported to local police but no help.,unsafe_transport,0.492,Haridwar Har-ki-Pauri
+R000696,S0130,U4779,19.888394,86.093523,2025-08-30T03:51:02,Vandalism noticed near Konark Sun Temple area. Statues/graffiti and broken benches. Happened at night.,vandalism,0.317,Konark Sun Temple area
+R000370,S0066,U1938,31.104813,77.17332,2025-07-17T16:29:20,Fake guide scammed me at Shimla Mall promising discount tours.,scam,0.642,Shimla Mall
+R000317,S0056,U4081,27.585693,91.864136,2025-08-02T04:41:19,Eve-teasing incident near Tawang— women should avoid the area at night.,harassment,0.57,Tawang
+R000598,S0110,U7374,29.945819,78.163281,2025-08-10T08:00:30,Verbal harassment at Haridwar Har-ki-Pauri when I was walking alone.,harassment,0.516,Haridwar Har-ki-Pauri
+R000221,S0040,U1007,26.912468,75.786995,2025-09-24T17:53:20,"Pickpocketing at Pink City, Jaipur — they took my wallet during the crowd.",theft,0.813,"Pink City, Jaipur"
+R000515,S0096,U9927,18.922458,72.83508,2025-07-26T14:30:01,"Physical assault happened near Gateway of India, Mumbai during the night.",assault,1.0,"Gateway of India, Mumbai"
+R000379,S0070,U7930,19.056008,72.839731,2025-08-12T04:13:20,"I faced harassment near Bandra, Mumbai. People were catcalling and it felt unsafe.",harassment,0.689,"Bandra, Mumbai"
+R000239,S0042,U4783,9.498162,76.340391,2025-09-08T18:12:17,Verbal harassment at Alleppey Backwaters when I was walking alone.,harassment,0.673,Alleppey Backwaters
+R000078,S0014,U2115,13.009074,80.267289,2025-09-16T21:57:10,"Property damage near Besant Nagar, Chennai late at night.",vandalism,0.448,"Besant Nagar, Chennai"
+R000538,S0099,U8855,28.523882,77.186657,2025-09-08T09:05:16,"Verbal harassment at Qutub Minar, Delhi when I was walking alone.",harassment,0.589,"Qutub Minar, Delhi"
+R000351,S0063,U6043,8.08962,77.539199,2025-08-21T14:52:37,Medical emergency at Kanyakumari — we couldn't find first aid. Witnessed by many tourists.,medical_emergency,0.775,Kanyakumari
+R000579,S0107,U9200,26.296413,73.018205,2025-07-29T22:13:46,Verbal harassment at Jodhpur Mehrangarh when I was walking alone.,harassment,0.697,Jodhpur Mehrangarh
+R000680,S0126,U2172,8.737614,76.715947,2025-07-30T20:17:45,"I was attacked near Varkala Beach, Kerala. Got hurt and need police help.",assault,1.0,"Varkala Beach, Kerala"
+R000152,S0028,U4665,19.098766,72.826641,2025-08-30T14:36:38,"Lost my wallet and ID near Juhu Beach, Mumbai after crowding.",lost,0.349,"Juhu Beach, Mumbai"
+R000231,S0041,U5990,32.241454,77.189278,2025-07-20T11:15:09,Taxi driver tried to drive off-route near Manali Mall.,unsafe_transport,0.507,Manali Mall
+R000029,S0006,U4810,27.176374,78.042281,2025-09-22T19:00:57,"Taxi driver tried to drive off-route near Taj Mahal, Agra.",unsafe_transport,0.418,"Taj Mahal, Agra"
+R000021,S0005,U4960,27.61713,93.828164,2025-07-11T09:27:52,Public infrastructure vandalized at Ziro Valley.,vandalism,0.304,Ziro Valley
+R000058,S0011,U2699,12.976054,77.59316,2025-08-21T18:15:43,"Saw a suspicious person lurking near Cubbon Park, Bengaluru for hours. Lost valuables worth approx. INR 15,000.",suspicious_person,0.462,"Cubbon Park, Bengaluru"
+R000101,S0018,U4994,19.098052,72.826126,2025-08-03T08:17:19,"I slipped and got injured at Juhu Beach, Mumbai. Need medical help.",accident,0.71,"Juhu Beach, Mumbai"
+R000330,S0058,U3742,24.575795,73.680308,2025-08-27T01:03:35,Boat operator was reckless near Udaipur Lake Pichola and it felt unsafe.,unsafe_transport,0.494,Udaipur Lake Pichola
+R000324,S0057,U1628,18.922095,72.834327,2025-08-25T06:09:14,"Fake guide scammed me at Gateway of India, Mumbai promising discount tours. Took place during peak hours.",scam,0.636,"Gateway of India, Mumbai"
+R000148,S0028,U4665,19.098546,72.82682,2025-08-08T04:51:13,"Boat operator was reckless near Juhu Beach, Mumbai and it felt unsafe.",unsafe_transport,0.43,"Juhu Beach, Mumbai"
+R000292,S0052,U2721,9.966723,76.241679,2025-07-01T14:43:45,"Someone was following me near Fort Kochi, Kochi— very suspicious.",suspicious_person,0.579,"Fort Kochi, Kochi"
+R000070,S0013,U8994,34.083294,74.797749,2025-07-17T22:23:28,Verbal harassment at Srinagar Dal Lake when I was walking alone.,harassment,0.675,Srinagar Dal Lake
+R000338,S0059,U5186,13.049102,80.282304,2025-07-22T06:04:08,"Boat operator was reckless near Marina Beach, Chennai and it felt unsafe. Lost valuables worth approx. INR 15,000.",unsafe_transport,0.433,"Marina Beach, Chennai"
+R000546,S0100,U5027,26.923985,75.826637,2025-09-16T21:03:13,"My bag was snatched near Hawa Mahal, Jaipur. I lost my phone and wallet.",theft,0.67,"Hawa Mahal, Jaipur"
+R000348,S0061,U6540,11.407026,76.694989,2025-07-25T00:43:08,Verbal harassment at Ooty when I was walking alone.,harassment,0.635,Ooty
+R000189,S0034,U9008,27.586066,91.865297,2025-07-19T21:17:26,I faced harassment near Tawang. People were catcalling and it felt unsafe. Witnessed by many tourists.,harassment,0.541,Tawang
+R000638,S0119,U7713,22.309707,88.767403,2025-08-31T02:22:48,Minor road accident near Sundarbans Entry. No ambulance available immediately.,accident,0.988,Sundarbans Entry
+R000564,S0104,U8722,26.913095,75.786613,2025-09-15T09:14:15,"My bag was snatched near Pink City, Jaipur. I lost my phone and wallet.",theft,0.681,"Pink City, Jaipur"
+R000593,S0109,U3227,28.52461,77.184513,2025-07-02T15:00:00,"Phone stolen at Qutub Minar, Delhi. Be careful around the market.",theft,0.61,"Qutub Minar, Delhi"
+R000592,S0109,U3227,28.525247,77.185325,2025-07-20T22:38:09,"I faced harassment near Qutub Minar, Delhi. People were catcalling and it felt unsafe.",harassment,0.667,"Qutub Minar, Delhi"
+R000047,S0010,U2739,28.63241,77.220549,2025-09-01T17:04:33,"I misplaced my passport at Connaught Place, Delhi. Please help locate.",lost,0.52,"Connaught Place, Delhi"
+R000283,S0051,U9641,27.58418,91.864855,2025-08-05T07:04:28,Group acting strange near Tawang. Could be a threat. I was alone at that time.,suspicious_person,0.622,Tawang
+R000262,S0047,U5782,25.595503,85.137243,2025-09-13T05:26:00,Property damage near Patna Gandhi Maidan late at night.,vandalism,0.281,Patna Gandhi Maidan
+R000473,S0089,U4665,26.296824,73.018109,2025-09-17T14:59:03,I got scammed by a taxi driver around Jodhpur Mehrangarh. They overcharged and threatened me. Took place during peak hours.,scam,0.525,Jodhpur Mehrangarh
+R000306,S0055,U7438,8.737595,76.716168,2025-09-15T13:09:57,"Fake guide scammed me at Varkala Beach, Kerala promising discount tours. I was alone at that time.",scam,0.438,"Varkala Beach, Kerala"
+R000027,S0006,U4810,27.175166,78.042234,2025-08-11T20:45:49,"Bike collided near Taj Mahal, Agra and rider is badly hurt.",accident,0.78,"Taj Mahal, Agra"
+R000391,S0071,U7120,19.055016,72.840471,2025-09-06T01:58:32,"Boat operator was reckless near Bandra, Mumbai and it felt unsafe.",unsafe_transport,0.571,"Bandra, Mumbai"
+R000513,S0095,U1647,17.360018,78.475547,2025-07-15T16:44:45,I misplaced my passport at Hyderabad Charminar. Please help locate.,lost,0.474,Hyderabad Charminar
+R000211,S0038,U5326,30.085964,78.266645,2025-09-25T21:24:24,I faced harassment near Rishikesh Laxman Jhula. People were catcalling and it felt unsafe.,harassment,0.605,Rishikesh Laxman Jhula
+R000025,S0005,U4960,27.616889,93.829527,2025-07-25T02:22:52,Someone had severe allergic reaction near Ziro Valley.,medical_emergency,0.961,Ziro Valley
+R000004,S0001,U5977,12.950756,77.584735,2025-09-16T20:46:54,"I faced harassment near Lalbagh, Bengaluru. People were catcalling and it felt unsafe. Took place during peak hours.",harassment,0.686,"Lalbagh, Bengaluru"
+R000371,S0067,U3070,26.916156,70.906198,2025-08-09T03:58:15,I misplaced my passport at Jaisalmer Fort. Please help locate.,lost,0.503,Jaisalmer Fort
+R000055,S0011,U2699,12.976637,77.593266,2025-08-09T18:29:30,"Group of men assaulted me close to Cubbon Park, Bengaluru.",assault,1.0,"Cubbon Park, Bengaluru"
+R000438,S0080,U3272,33.986236,75.241625,2025-07-04T17:50:09,Pickpocketing at Amarnath base area (approx) — they took my wallet during the crowd.,theft,0.703,Amarnath base area (approx)
+R000259,S0046,U2121,22.308197,88.768744,2025-09-17T08:13:18,Group of men assaulted me close to Sundarbans Entry.,assault,0.842,Sundarbans Entry
+R000240,S0042,U4783,9.498339,76.338962,2025-09-02T19:57:31,"I was attacked near Alleppey Backwaters. Got hurt and need police help. Lost valuables worth approx. INR 15,000.",assault,1.0,Alleppey Backwaters
+R000108,S0020,U2597,32.21894,76.323353,2025-07-20T23:10:28,Taxi driver tried to drive off-route near Dharamshala.,unsafe_transport,0.431,Dharamshala
+R000578,S0107,U9200,26.298082,73.018078,2025-07-27T09:18:43,Vandalism noticed near Jodhpur Mehrangarh. Statues/graffiti and broken benches.,vandalism,0.4,Jodhpur Mehrangarh
+R000498,S0093,U2027,19.886989,86.09444,2025-09-15T21:27:46,Eve-teasing incident near Konark Sun Temple area— women should avoid the area at night.,harassment,0.743,Konark Sun Temple area
+R000492,S0092,U9608,11.406507,76.694993,2025-08-08T15:03:08,"Pickpocketing at Ooty — they took my wallet during the crowd. Lost valuables worth approx. INR 15,000.",theft,0.668,Ooty
+R000679,S0126,U2172,8.73758,76.716066,2025-07-03T04:38:12,"Eve-teasing incident near Varkala Beach, Kerala— women should avoid the area at night. Reported to local police but no help.",harassment,0.614,"Varkala Beach, Kerala"
+R000139,S0027,U5709,19.097473,72.827076,2025-07-06T22:14:08,"Physical assault happened near Juhu Beach, Mumbai during the night.",assault,0.969,"Juhu Beach, Mumbai"
+R000208,S0038,U5326,30.086982,78.265624,2025-09-20T23:42:23,Group of men assaulted me close to Rishikesh Laxman Jhula.,assault,0.975,Rishikesh Laxman Jhula
