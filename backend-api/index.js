@@ -596,13 +596,33 @@ const responderSockets = new Map(); // socket.id -> responder metadata
 // Simple in-memory store for recent admin notifications (last 50)
 const adminNotifications = [];
 const port = Number(process.env.PORT) || 3001;
-const transporter = nodemailer.createTransport({
-  service: "gmail", // Or 'outlook', etc.
-  auth: {
-    user: process.env.EMAIL_USER, // Replace with your email
-    pass: process.env.EMAIL_PASS, // Replace with your generated App Password
-  },
-});
+let transporter = null;
+const emailUser = process.env.EMAIL_USER;
+const emailPass = process.env.EMAIL_PASS;
+if (emailUser && emailPass) {
+  transporter = nodemailer.createTransport({
+    service: "gmail", // Or 'outlook', etc.
+    auth: {
+      user: emailUser,
+      pass: emailPass,
+    },
+  });
+} else {
+  console.warn('[Email] EMAIL_USER/EMAIL_PASS not configured. Email notifications disabled.');
+}
+
+const sendMailSafely = async (mailOptions = {}) => {
+  if (!transporter) {
+    console.warn('[Email] Skipping email send because transporter is not configured.');
+    return;
+  }
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error('[Email] Failed to send email:', error.message || error);
+  }
+};
 const snoozedGroups = new Map(); // Tracks snoozed groups and their expiry time
 const alertResponses = new Map(); // Tracks active alert responses
 // Family auth and alerts tracking (sessions and alerts in-memory; OTPs now persisted in DB)
@@ -765,6 +785,7 @@ async function notifyEmergencyContacts({
   source = null,
 } = {}) {
   if (!passportId) return;
+
   try {
     const res = await db.pool.query(
       `SELECT name, emergency_contact, emergency_contact_1, emergency_contact_2,
@@ -772,20 +793,27 @@ async function notifyEmergencyContacts({
        FROM tourists WHERE passport_id = $1 LIMIT 1`,
       [passportId]
     );
+
     if (res.rows.length === 0) return;
+
     const row = res.rows[0];
     const touristName = row.name || passportId;
     const emails = Array.from(new Set([
       row.emergency_contact_email_1,
       row.emergency_contact_email_2,
     ].filter(Boolean)));
-    const phoneCandidates = [row.emergency_contact, row.emergency_contact_1, row.emergency_contact_2].filter(Boolean);
+    const phoneCandidates = [
+      row.emergency_contact,
+      row.emergency_contact_1,
+      row.emergency_contact_2,
+    ].filter(Boolean);
 
     const mapLink = (Number.isFinite(latitude) && Number.isFinite(longitude))
       ? `https://www.google.com/maps?q=${latitude},${longitude}`
       : null;
     const alertLabel = alertType === 'panic' ? 'Panic Alert' : 'Safety Alert';
     const triggeredAt = new Date().toISOString();
+
     const plainLines = [
       `${alertLabel} triggered by ${touristName}`,
       `Passport ID: ${passportId}`,
@@ -797,6 +825,7 @@ async function notifyEmergencyContacts({
       '',
       'This alert was sent automatically by Smart Tourist Safety.',
     ].filter(Boolean);
+
     const textBody = plainLines.join('\n');
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
@@ -811,19 +840,13 @@ async function notifyEmergencyContacts({
       </div>
     `;
 
-    await Promise.all(emails.map(async (to) => {
-      try {
-        await transporter.sendMail({
-          from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
-          to,
-          subject: `[${alertLabel}] ${touristName} needs assistance`,
-          text: textBody,
-          html: htmlBody,
-        });
-      } catch (err) {
-        console.warn('Failed to email emergency contact:', to, err && err.message);
-      }
-    }));
+    await Promise.all(emails.map((to) => sendMailSafely({
+      from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
+      to,
+      subject: `[${alertLabel}] ${touristName} needs assistance`,
+      text: textBody,
+      html: htmlBody,
+    })));
 
     if (twilioClient && twilioConfig.enable) {
       const normalized = phoneCandidates
@@ -1899,7 +1922,7 @@ app.post(
         }
 
         if (normalizedEmail) {
-          await transporter.sendMail({
+          await sendMailSafely({
             from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
             to: normalizedEmail,
             subject: 'Verify Your Women Safety Account',
@@ -1947,7 +1970,7 @@ app.post(
         "INSERT INTO tourists (name, passport_id, emergency_contact, email, verification_code, is_verified, service_type, id_type) VALUES ($1, $2, $3, $4, $5, false, $6, $7)",
         [name, identifier, sanitizedPhone, normalizedEmail, verificationCode, serviceType, resolvedIdType]
       );
-      await transporter.sendMail({
+      await sendMailSafely({
         from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
         to: normalizedEmail || email,
         subject: 'Verify Your Account',
@@ -2036,28 +2059,23 @@ app.post('/api/family/auth/request-otp', async (req, res) => {
       [email, passportId, name, otp, expiresAt]
     );
 
-    // Send OTP to the provided email
-    try {
-      await transporter.sendMail({
-        from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
-        to: rawEmail,
-        subject: 'Your Family Login OTP',
-        text: `Your One-Time Password is ${otp}. It expires in 5 minutes.`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #4fd1c5;">Family Access Request</h2>
-            <p>A family login request has been made for your emergency contact. Your OTP code is:</p>
-            <div style="background: #f8fafc; border: 2px dashed #4fd1c5; padding: 20px; text-align: center; margin: 20px 0;">
-              <h3 style="color: #1f2937; font-size: 24px; letter-spacing: 3px; margin: 0;">${otp}</h3>
-            </div>
-            <p>This code will expire in 5 minutes for security reasons.</p>
-            <p style="color: #6b7280; font-size: 14px;">If you didn't request family access, please contact support immediately.</p>
+    await sendMailSafely({
+      from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
+      to: rawEmail,
+      subject: 'Your Family Login OTP',
+      text: `Your One-Time Password is ${otp}. It expires in 5 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #4fd1c5;">Family Access Request</h2>
+          <p>A family login request has been made for your emergency contact. Your OTP code is:</p>
+          <div style="background: #f8fafc; border: 2px dashed #4fd1c5; padding: 20px; text-align: center; margin: 20px 0;">
+            <h3 style="color: #1f2937; font-size: 24px; letter-spacing: 3px; margin: 0;">${otp}</h3>
           </div>
-        `,
-      });
-    } catch (mailErr) {
-      console.warn('Failed to send family OTP email:', mailErr && mailErr.message);
-    }
+          <p>This code will expire in 5 minutes for security reasons.</p>
+          <p style="color: #6b7280; font-size: 14px;">If you didn't request family access, please contact support immediately.</p>
+        </div>
+      `,
+    });
 
     return res.json({ message: 'If this email is registered as an emergency contact, an OTP has been sent.' });
   } catch (e) {
@@ -2304,7 +2322,7 @@ app.post("/api/v1/auth/login", async (req, res) => {
         [otpCode, passportId]
       );
 
-      await transporter.sendMail({
+      await sendMailSafely({
         from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
         to: user.email,
         subject: "Your Login OTP Code",
@@ -2351,7 +2369,7 @@ app.post("/api/v1/auth/login", async (req, res) => {
       [otpCode, otpExpiry, womenUser.id]
     );
 
-    await transporter.sendMail({
+    await sendMailSafely({
       from: '"Women Safety - Smart Tourist" <smarttouristsystem@gmail.com>',
       to: womenUser.email,
       subject: "Your Women Safety Login OTP",
@@ -2983,6 +3001,327 @@ app.post("/api/v1/alert/panic", async (req, res) => {
     return res.status(500).send("Server error");
   }
 });
+
+// ==================== Hardware Panic Trigger API Endpoints ====================
+const hardwarePanicService = require('./hardwarePanicService');
+
+// Get hardware panic settings
+app.get('/api/v1/hardware-panic/settings', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    
+    let userId = null;
+    let userType = 'tourist';
+    
+    // Check if this is a women's safety user
+    const womenMatch = String(passportId || '').match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      userId = parseInt(womenMatch[1], 10);
+      userType = 'women';
+    }
+    
+    const settings = await hardwarePanicService.getHardwarePanicSettings({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType
+    });
+    
+    return res.json({ success: true, settings });
+  } catch (error) {
+    console.error('[Hardware Panic] Error getting settings:', error);
+    return res.status(500).json({ success: false, message: 'Failed to get settings' });
+  }
+});
+
+// Update hardware panic settings
+app.post('/api/v1/hardware-panic/settings', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    const settings = req.body;
+    
+    let userId = null;
+    let userType = 'tourist';
+    
+    const womenMatch = String(passportId || '').match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      userId = parseInt(womenMatch[1], 10);
+      userType = 'women';
+    }
+    
+    const updated = await hardwarePanicService.updateHardwarePanicSettings({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType,
+      settings
+    });
+    
+    return res.json({ success: true, settings: updated });
+  } catch (error) {
+    console.error('[Hardware Panic] Error updating settings:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update settings' });
+  }
+});
+
+// Handle hardware panic trigger
+app.post('/api/v1/hardware-panic/trigger', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    const {
+      triggerType,
+      triggerPattern,
+      triggerCount,
+      latitude,
+      longitude,
+      accuracy,
+      deviceInfo
+    } = req.body;
+    
+    if (!passportId) {
+      return res.status(400).json({ success: false, message: 'Authentication required' });
+    }
+    
+    if (!triggerType || !latitude || !longitude) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: triggerType, latitude, longitude' 
+      });
+    }
+    
+    let userId = null;
+    let userType = 'tourist';
+    
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      userId = parseInt(womenMatch[1], 10);
+      userType = 'women';
+    }
+    
+    // Get user settings to check if hardware panic is enabled
+    const settings = await hardwarePanicService.getHardwarePanicSettings({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType
+    });
+    
+    if (!settings.enabled) {
+      return res.json({ 
+        success: false, 
+        message: 'Hardware panic trigger is disabled in settings',
+        settingsDisabled: true
+      });
+    }
+    
+    // Record the trigger
+    const trigger = await hardwarePanicService.recordHardwareTrigger({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType,
+      triggerType,
+      triggerPattern,
+      triggerCount,
+      latitude,
+      longitude,
+      accuracy,
+      deviceInfo
+    });
+    
+    // Generate alert ID
+    const alertId = `HW-PANIC-${trigger.id}-${Date.now()}`;
+    
+    // Update trigger with alert ID
+    await hardwarePanicService.updateTriggerAlertStatus(trigger.id, alertId);
+    
+    // Record in alert history
+    await hardwarePanicService.recordAlertHistory({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType,
+      eventType: 'hardware_panic',
+      triggerSource: `hardware_${triggerType}`,
+      details: {
+        triggerId: trigger.id,
+        triggerPattern,
+        triggerCount,
+        deviceInfo
+      },
+      latitude,
+      longitude
+    });
+    
+    // Trigger actual panic alert using existing panic system
+    let services = null;
+    
+    if (userType === 'women' && userId) {
+      try {
+        await db.pool.query(
+          "UPDATE women_users SET status = 'distress', latitude = $1, longitude = $2, last_seen = NOW() WHERE id = $3",
+          [latitude, longitude, userId]
+        );
+      } catch (e) {
+        console.warn('[Hardware Panic] Women user update failed:', e && e.message);
+      }
+      
+      io.emit("panicAlert", { passport_id: passportId, status: "distress" });
+      
+      try {
+        services = await findNearbyServices(latitude, longitude);
+      } catch (svcErr) {
+        console.warn('[Hardware Panic] Nearby services lookup failed:', svcErr && svcErr.message);
+      }
+      
+      if (services) {
+        io.emit("emergencyResponseDispatched", {
+          passport_id: passportId,
+          message: `Hardware panic alert automatically sent to nearest services.`,
+          services,
+        });
+      }
+      
+      setCurrentAlert(passportId, { 
+        type: 'hardware_panic', 
+        startedAt: Date.now(), 
+        lat: latitude, 
+        lon: longitude, 
+        services, 
+        source: `hardware_${triggerType}`,
+        triggerId: trigger.id
+      });
+    } else {
+      // Tourist user
+      await db.pool.query(
+        "UPDATE tourists SET status = 'distress', latitude = $1, longitude = $2 WHERE passport_id = $3",
+        [latitude, longitude, passportId]
+      );
+      
+      io.emit("panicAlert", { passport_id: passportId, status: "distress" });
+      
+      console.log(`[Hardware Panic] Alert for ${passportId}. Finding nearby services...`);
+      
+      try {
+        services = await findNearbyServices(latitude, longitude);
+      } catch (svcErr) {
+        console.warn('[Hardware Panic] Nearby services lookup failed:', svcErr && svcErr.message);
+      }
+      
+      if (services) {
+        console.log("[Hardware Panic] Found services:", services);
+        io.emit("emergencyResponseDispatched", {
+          passport_id: passportId,
+          message: `Hardware panic alert automatically sent to nearest services.`,
+          services,
+        });
+        
+        try {
+          await db.pool.query(
+            `INSERT INTO alert_forwards(passport_id, alert_type, services) VALUES($1,$2,$3)
+             ON CONFLICT (passport_id, alert_type) DO UPDATE SET forwarded_at = now(), services = EXCLUDED.services`,
+            [passportId, 'distress', JSON.stringify(services || {})]
+          );
+        } catch (e) {
+          console.warn('[Hardware Panic] Failed to persist forward record', e && e.message);
+        }
+      }
+      
+      setCurrentAlert(passportId, { 
+        type: 'hardware_panic', 
+        startedAt: Date.now(), 
+        lat: latitude, 
+        lon: longitude, 
+        services, 
+        source: `hardware_${triggerType}`,
+        triggerId: trigger.id
+      });
+      
+      notifyEmergencyContacts({ 
+        passportId, 
+        latitude, 
+        longitude, 
+        alertType: 'panic', 
+        source: `hardware_${triggerType}` 
+      }).catch((err) => {
+        console.warn('[Hardware Panic] Emergency contact notification failed:', err && err.message);
+      });
+    }
+    
+    panicLocks.add(passportId);
+    liveLocationPrefs.set(passportId, true);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Hardware panic alert triggered successfully',
+      alertId,
+      triggerId: trigger.id,
+      services: services || undefined,
+      autoRecordAudio: settings.auto_record_audio,
+      autoShareLocation: settings.auto_share_location
+    });
+    
+  } catch (error) {
+    console.error('[Hardware Panic] Error triggering alert:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to trigger hardware panic alert' 
+    });
+  }
+});
+
+// Get hardware trigger history
+app.get('/api/v1/hardware-panic/history', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    const limit = parseInt(req.query.limit) || 50;
+    
+    let userId = null;
+    let userType = 'tourist';
+    
+    const womenMatch = String(passportId || '').match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      userId = parseInt(womenMatch[1], 10);
+      userType = 'women';
+    }
+    
+    const history = await hardwarePanicService.getHardwareTriggerHistory({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType,
+      limit
+    });
+    
+    return res.json({ success: true, history });
+  } catch (error) {
+    console.error('[Hardware Panic] Error getting history:', error);
+    return res.status(500).json({ success: false, message: 'Failed to get history' });
+  }
+});
+
+// Get hardware trigger statistics
+app.get('/api/v1/hardware-panic/stats', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    
+    let userId = null;
+    let userType = 'tourist';
+    
+    const womenMatch = String(passportId || '').match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      userId = parseInt(womenMatch[1], 10);
+      userType = 'women';
+    }
+    
+    const stats = await hardwarePanicService.getHardwareTriggerStats({
+      passportId: userType === 'tourist' ? passportId : null,
+      userId,
+      userType
+    });
+    
+    return res.json({ success: true, stats });
+  } catch (error) {
+    console.error('[Hardware Panic] Error getting stats:', error);
+    return res.status(500).json({ success: false, message: 'Failed to get stats' });
+  }
+});
+
+// ==================== End Hardware Panic Trigger API ====================
 
 app.post("/api/v1/alert/cancel", async (req, res) => {
   const passportId = resolvePassportId(req);

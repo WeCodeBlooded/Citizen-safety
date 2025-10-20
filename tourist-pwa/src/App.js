@@ -20,7 +20,9 @@ import ReportIncident from './components/ReportIncident';
 import ServiceRegistration from './components/ServiceRegistration';
 import WomenDashboard from './components/WomenDashboard';
 import WomenAuth from './components/WomenAuth';
+import HardwarePanicSettings from './components/HardwarePanicSettings';
 import offlineLocationTracker from "./utils/offlineLocationTracker";
+import HardwareButtonDetector from "./services/hardwareButtonDetector";
 
 // Use http for local development (no TLS) to avoid ERR_SSL_PROTOCOL_ERROR.
 // You can override the backend URL at runtime by setting localStorage.setItem('BACKEND_URL', '<your-backend>')
@@ -544,6 +546,13 @@ function App() {
   const [forwardedServices, setForwardedServices] = useState(null); // authorities to which current alert forwarded
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  
+  // Hardware Button Detector
+  const hardwareDetectorRef = useRef(null);
+  const [hardwarePanicSettings, setHardwarePanicSettings] = useState(null);
+  const [showHardwarePanicProgress, setShowHardwarePanicProgress] = useState(false);
+  const [hardwarePanicProgress, setHardwarePanicProgress] = useState(0);
+  
   // eslint-disable-next-line no-unused-vars
   const [safeRoute, setSafeRoute] = useState([]);
   // Navigation & map UI state
@@ -1091,6 +1100,139 @@ function App() {
       forceRefreshLocation();
     }
   }, [userToken, passportId, forceRefreshLocation]);
+
+  // Hardware Panic Trigger Handler
+  const handleHardwarePanicTrigger = React.useCallback(async (triggerData) => {
+    console.log('[Hardware Panic] Trigger detected:', triggerData);
+    
+    if (!userToken || !currentPositionRef.current || !passportId) {
+      console.warn('[Hardware Panic] Cannot trigger: user or location not available');
+      return;
+    }
+
+    const { latitude, longitude, accuracy } = currentPositionRef.current;
+
+    try {
+      setLoadingPanic(true);
+      
+      const response = await axios.post(
+        `${BACKEND_URL}/api/v1/hardware-panic/trigger`,
+        {
+          triggerType: triggerData.triggerType,
+          triggerPattern: triggerData.triggerPattern,
+          triggerCount: triggerData.triggerCount,
+          latitude,
+          longitude,
+          accuracy: accuracy || null,
+          deviceInfo: triggerData.deviceInfo
+        },
+        { withCredentials: true, headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+
+      if (response.data.success) {
+        setIsPanicMode(true);
+        setForwardedServices(response.data.services || null);
+        
+        // Auto-enable live location sharing
+        setIsLiveLocationEnabled(true);
+        try {
+          localStorage.setItem('liveLocationEnabled', 'true');
+        } catch {}
+
+        // Auto-start audio recording if enabled
+        if (response.data.autoRecordAudio && !isRecording) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            recordedChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                recordedChunksRef.current.push(event.data);
+              }
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+            console.log('[Hardware Panic] Audio recording started');
+          } catch (recErr) {
+            console.warn('[Hardware Panic] Failed to start audio recording:', recErr);
+          }
+        }
+
+        setAlertMessage(`🚨 Hardware panic alert sent! Alert ID: ${response.data.alertId}`);
+        setShowAlert(true);
+
+        // Emit socket event
+        if (socketRef.current) {
+          socketRef.current.emit("startPanicMode", { passportId });
+        }
+      } else if (response.data.settingsDisabled) {
+        setAlertMessage('Hardware panic trigger is disabled. Enable it in settings.');
+        setShowAlert(true);
+      }
+    } catch (error) {
+      console.error('[Hardware Panic] Error triggering alert:', error);
+      setErrorMessage('Failed to send hardware panic alert. Please try again.');
+    } finally {
+      setLoadingPanic(false);
+    }
+  }, [userToken, passportId, isRecording]);
+
+  // Initialize Hardware Button Detector
+  useEffect(() => {
+    if (!userToken || !passportId) return;
+
+    // Load hardware panic settings
+    const loadHardwareSettings = async () => {
+      try {
+        const response = await axios.get(
+          `${BACKEND_URL}/api/v1/hardware-panic/settings`,
+          { withCredentials: true, headers: { 'ngrok-skip-browser-warning': 'true' } }
+        );
+        
+        if (response.data.success && response.data.settings) {
+          setHardwarePanicSettings(response.data.settings);
+          
+          // Initialize detector with settings
+          if (response.data.settings.enabled && !hardwareDetectorRef.current) {
+            const detector = new HardwareButtonDetector({
+              ...response.data.settings,
+              onTrigger: handleHardwarePanicTrigger,
+              onPatternProgress: (progress) => {
+                setHardwarePanicProgress(progress.progress);
+                setShowHardwarePanicProgress(progress.count > 0);
+                
+                // Auto-hide progress indicator after 2 seconds of inactivity
+                setTimeout(() => {
+                  setShowHardwarePanicProgress(false);
+                  setHardwarePanicProgress(0);
+                }, 2000);
+              }
+            });
+            
+            detector.start();
+            hardwareDetectorRef.current = detector;
+            console.log('[Hardware Panic] Detector initialized and started');
+          }
+        }
+      } catch (error) {
+        console.error('[Hardware Panic] Failed to load settings:', error);
+      }
+    };
+
+    loadHardwareSettings();
+
+    // Cleanup on unmount
+    return () => {
+      if (hardwareDetectorRef.current) {
+        hardwareDetectorRef.current.stop();
+        hardwareDetectorRef.current = null;
+        console.log('[Hardware Panic] Detector stopped');
+      }
+    };
+  }, [userToken, passportId, handleHardwarePanicTrigger]);
 
   const handlePanic = async () => {
     setErrorMessage("");
@@ -2485,6 +2627,11 @@ function App() {
                   );
                 })()}
               </Route>
+              <Route path="/hardware-panic-settings">
+                <div className="card" style={{ marginTop: 20 }}>
+                  <HardwarePanicSettings passportId={passportId} />
+                </div>
+              </Route>
               <Route path="/dashboard/:svc">
                 <section className="card hero-card">
                   <div className="hero-top hero-flex">
@@ -2790,6 +2937,36 @@ function App() {
             </button>
 
             <div style={{ marginTop: 16 }}>
+              {/* Hardware Panic Progress Indicator */}
+              {showHardwarePanicProgress && (
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                  borderRadius: '8px',
+                  border: '2px solid #fbbf24'
+                }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400e', marginBottom: '6px' }}>
+                    🔘 Hardware Panic Pattern Detected
+                  </div>
+                  <div style={{
+                    width: '100%',
+                    height: '6px',
+                    background: '#fed7aa',
+                    borderRadius: '3px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${hardwarePanicProgress}%`,
+                      height: '100%',
+                      background: '#f59e0b',
+                      transition: 'width 0.3s ease',
+                      borderRadius: '3px'
+                    }} />
+                  </div>
+                </div>
+              )}
+              
               {isPanicMode ? (
                 <button
                   onClick={handleCancelPanic}

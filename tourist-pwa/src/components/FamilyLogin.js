@@ -110,7 +110,7 @@ function FamilyLogin({ onSuccess, onBack, serviceType, setServiceType, fetchFami
     const theme = serviceType || 'general_safety';
     return (
       <div className={`auth-screen has-brand theme-${theme}`}>
-        <div className="auth-brand">Secure Safar</div>
+  <div className="auth-brand">SurakshaChakra</div>
         <div className="auth-subtag">Family access - securely view your loved one's safety status.</div>
         
         <form className="auth-card" onSubmit={requestOtp} noValidate>
@@ -151,7 +151,7 @@ function FamilyLogin({ onSuccess, onBack, serviceType, setServiceType, fetchFami
 
   return (
     <div className={`auth-screen has-brand theme-${serviceType || 'general_safety'}`}>
-      <div className="auth-brand">Secure Safar</div>
+  <div className="auth-brand">SurakshaChakra</div>
       <div className="auth-subtag">Verify family access for {email}</div>
       
       <form className="auth-card" onSubmit={verifyOtp} noValidate>

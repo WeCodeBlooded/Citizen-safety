@@ -111,7 +111,7 @@ export default function RegisterForm({ onRegistered, onSwitchToLogin }) {
 
   return (
   <div className="auth-screen has-brand">
-      <div className="auth-brand">Secure Safar</div>
+    <div className="auth-brand">SurakshaChakra</div>
       <div className="auth-subtag">Discover safely. Stay connected. Travel smart.</div>
 
       {!registered ? (

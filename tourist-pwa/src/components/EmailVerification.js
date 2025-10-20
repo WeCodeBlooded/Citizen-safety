@@ -10,7 +10,7 @@ export default function EmailVerification({ email, passportId, code, setCode, on
 
   return (
   <div className="auth-screen has-brand">
-      <div className="auth-brand">Secure Safar</div>
+    <div className="auth-brand">SurakshaChakra</div>
       <div className="auth-subtag">Finish signup — verify your identity securely.</div>
       <form className="auth-card" onSubmit={handleSubmit} noValidate>
         <h2 className="auth-title">Verify Your Email</h2>

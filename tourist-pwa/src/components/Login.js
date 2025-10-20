@@ -30,7 +30,7 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
     const theme = serviceType || 'tourist_safety';
     return (
       <div className={`auth-screen has-brand theme-${theme}`}>
-        <div className="auth-brand">Secure Safar</div>
+  <div className="auth-brand">SurakshaChakra</div>
         <div className="auth-subtag">Secure your journey. Rejoin your safety dashboard.</div>
         
         <form className="auth-card" onSubmit={handleLoginSubmit} noValidate>
@@ -76,7 +76,7 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
     const theme = serviceType || 'tourist_safety';
     return (
       <div className={`auth-screen has-brand theme-${theme}`}>
-        <div className="auth-brand">Secure Safar</div>
+  <div className="auth-brand">SurakshaChakra</div>
         <div className="auth-subtag">Enter the code sent to your registered email.</div>
         
         <form className="auth-card" onSubmit={handleOtpSubmit} noValidate>

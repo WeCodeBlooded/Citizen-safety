@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('./db');
 const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 
 let emergencyNotifier = null;
 
@@ -37,6 +38,167 @@ const normalizeEmail = (input) => {
   if (!value || !value.includes('@')) return '';
   return value;
 };
+
+const normalizeLanguageCode = (input) => {
+  if (!input && input !== 0) return '';
+  const value = String(input).trim().toLowerCase();
+  if (!value) return '';
+  const separatorIndex = value.indexOf('-');
+  if (separatorIndex > 0) {
+    return value.slice(0, separatorIndex);
+  }
+  return value.length > 3 ? value.slice(0, 3) : value;
+};
+
+const parseTags = (input) => {
+  if (!input && input !== 0) return [];
+  if (Array.isArray(input)) {
+    return input
+      .map((tag) => String(tag || '').trim())
+      .filter((tag) => tag.length > 0)
+      .slice(0, 8);
+  }
+  const value = String(input).trim();
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0)
+    .slice(0, 8);
+};
+
+const POLICE_PORTALS = [
+  {
+    name: 'National Police Helpline 112',
+    description: 'Immediate assistance for emergencies across India.',
+    url: 'tel:112',
+    contact: '112',
+    type: 'phone',
+  },
+  {
+    name: 'Women Helpline 1091',
+    description: 'Dedicated helpline for women safety support.',
+    url: 'tel:1091',
+    contact: '1091',
+    type: 'phone',
+  },
+  {
+    name: 'National Cyber Crime Portal',
+    description: 'Report cyber harassment, blackmailing, or online stalking.',
+    url: 'https://www.cybercrime.gov.in/',
+    contact: null,
+    type: 'web',
+  },
+  {
+    name: 'Delhi Police Women Safety',
+    description: 'e-FIR and complaint tracking for Delhi region.',
+    url: 'https://dpwomensafety.in/',
+    contact: null,
+    type: 'web',
+  },
+  {
+    name: 'Emergency SMS 1091 / 1095',
+    description: 'Send SMS with location to the dedicated helpline numbers.',
+    url: 'sms:1091',
+    contact: '1091 / 1095',
+    type: 'sms',
+  },
+];
+
+async function generateReferenceNumber() {
+  const prefix = 'WR';
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const candidate = `${prefix}-${token}`;
+    const existing = await pool.query(
+      'SELECT 1 FROM women_reports WHERE reference_number = $1 LIMIT 1',
+      [candidate]
+    );
+    if (!existing.rows?.length) {
+      return candidate;
+    }
+  }
+  return `${prefix}-${Date.now()}`;
+}
+
+async function appendReportUpdate({ reportId, status, note = null, metadata = null }) {
+  const metadataJson = metadata ? JSON.stringify(metadata) : null;
+  const result = await pool.query(
+    `INSERT INTO women_report_updates (report_id, status, note, metadata, created_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     RETURNING id, report_id, status, note, metadata, created_at`,
+    [reportId, status, note || null, metadataJson]
+  );
+  await pool.query(
+    `UPDATE women_reports
+     SET status = $1,
+         last_status_update = NOW(),
+         updated_at = NOW()
+     WHERE id = $2`,
+    [status, reportId]
+  );
+  return result.rows[0];
+}
+
+const mapSelfDefenseGuide = (row) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  languageCode: row.language_code,
+  languageLabel: row.language_label || (row.language_code ? row.language_code.toUpperCase() : ''),
+  region: row.region,
+  mediaType: row.media_type,
+  mediaUrl: row.media_url,
+  infographicUrl: row.infographic_url,
+  thumbnailUrl: row.thumbnail_url,
+  transcriptUrl: row.transcript_url,
+  durationSeconds: row.duration_seconds,
+  tags: Array.isArray(row.tags) ? row.tags.map((tag) => String(tag)) : [],
+  priority: row.priority,
+  updatedAt: row.updated_at,
+});
+
+const DEFAULT_SELF_DEFENSE_LIMIT = 12;
+const MAX_SELF_DEFENSE_LIMIT = 50;
+
+async function fetchSelfDefenseGuides({ languageCode, region, mediaType, limit }) {
+  const effectiveLanguage = normalizeLanguageCode(languageCode) || 'en';
+  const effectiveLimit = Math.min(Math.max(Number(limit) || DEFAULT_SELF_DEFENSE_LIMIT, 1), MAX_SELF_DEFENSE_LIMIT);
+
+  const conditions = ['is_active = true', 'language_code = $1'];
+  const params = [effectiveLanguage];
+  let placeholderIndex = params.length + 1;
+
+  let mediaTypeClause = '';
+  if (mediaType) {
+    mediaTypeClause = ` AND LOWER(media_type) = $${placeholderIndex}`;
+    params.push(String(mediaType).toLowerCase());
+    placeholderIndex += 1;
+  }
+
+  let orderClause = 'priority DESC, created_at DESC';
+  if (region) {
+    const regionPlaceholder = placeholderIndex;
+    params.push(String(region).trim());
+    placeholderIndex += 1;
+    orderClause = `CASE WHEN LOWER(region) = LOWER($${regionPlaceholder}) THEN 0 WHEN region IS NULL OR region = '' THEN 1 ELSE 2 END, priority DESC, created_at DESC`;
+  }
+
+  const limitPlaceholder = placeholderIndex;
+  params.push(effectiveLimit);
+
+  const query = `
+    SELECT id, title, description, language_code, language_label, region, media_type, media_url,
+           infographic_url, thumbnail_url, transcript_url, duration_seconds, tags, priority, updated_at
+    FROM women_self_defense_guides
+    WHERE ${conditions.join(' AND ')}${mediaTypeClause}
+    ORDER BY ${orderClause}
+    LIMIT $${limitPlaceholder};
+  `;
+
+  const result = await pool.query(query, params);
+  return result.rows.map(mapSelfDefenseGuide);
+}
 
 // Extract user identifier from request (mobile or aadhaar)
 const extractUserId = (req) => {
@@ -842,16 +1004,65 @@ router.post('/report', async (req, res) => {
   }
   const anonymous = Boolean(req.body?.anonymous);
   const coords = normalizeCoords(req.body?.location);
-  const status = req.body?.status || 'submitted';
+  const status = (req.body?.status || 'submitted').toLowerCase();
+  const category = (req.body?.category || '').trim() || null;
+  const policeStation = (req.body?.policeStation || req.body?.police_station || '').trim() || null;
+  const externalRefUrl = (req.body?.externalRefUrl || req.body?.external_ref_url || '').trim() || null;
+  const occurredAt = req.body?.occurredAt || req.body?.occurred_at || null;
+  const locationDetails = (req.body?.locationDetails || req.body?.location_details || '').trim();
 
   try {
-    const result = await pool.query(
-  `INSERT INTO women_reports (user_id, description, anonymous, status, location, created_at)
-   VALUES ($1, $2, $3, $4, $5, NOW())
-   RETURNING id, description, anonymous, status, created_at`,
-      [user.id, description, anonymous, status, coords ? JSON.stringify(coords) : null]
+    const referenceNumber = await generateReferenceNumber();
+    const insertResult = await pool.query(
+      `INSERT INTO women_reports (
+         user_id, description, anonymous, status, category, police_station,
+         reference_number, external_ref_url, location, last_status_update,
+         created_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW(), NOW())
+       RETURNING id, description, anonymous, status, category, police_station,
+                 reference_number, external_ref_url, location, last_status_update,
+                 created_at, updated_at`,
+      [
+        user.id,
+        description,
+        anonymous,
+        status,
+        category,
+        policeStation,
+        referenceNumber,
+        externalRefUrl,
+        coords ? JSON.stringify(coords) : null,
+      ]
     );
-    return res.status(201).json({ report: result.rows[0] });
+
+    const report = insertResult.rows[0];
+
+    const metadata = {
+      occurredAt: occurredAt || null,
+      submittedBy: anonymous ? 'anonymous-user' : user.email || user.mobile_number || user.aadhaar_number || user.id,
+      locationDetails: locationDetails || null,
+      coordinates: coords || null,
+    };
+    const noteParts = ['Report registered by user via Women Safety dashboard.'];
+    if (locationDetails) {
+      noteParts.push(`Location context: ${locationDetails}`);
+    }
+    if (coords) {
+      const latText = Number.isFinite(coords.latitude) ? coords.latitude.toFixed(4) : null;
+      const lonText = Number.isFinite(coords.longitude) ? coords.longitude.toFixed(4) : null;
+      if (latText && lonText) {
+        noteParts.push(`Submitted coordinates: ${latText}, ${lonText}`);
+      }
+    }
+    await appendReportUpdate({
+      reportId: report.id,
+      status,
+      note: noteParts.join(' '),
+      metadata,
+    });
+
+    return res.status(201).json({ report });
   } catch (error) {
     console.error('[womenService] report insert failed:', error);
     return res.status(500).json({ error: 'Failed to submit report.' });
@@ -873,18 +1084,148 @@ router.get('/reports', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `SELECT id, description, anonymous, status, created_at
+    const reportsResult = await pool.query(
+      `SELECT id, description, anonymous, status, category, police_station, reference_number,
+              external_ref_url, location, last_status_update, created_at, updated_at
        FROM women_reports
        WHERE user_id = $1
        ORDER BY created_at DESC
        LIMIT 20`,
       [user.id]
     );
-    return res.json({ reports: result.rows });
+
+    const reports = reportsResult.rows;
+    const reportIds = reports.map((report) => report.id);
+    let updatesByReport = {};
+
+    if (reportIds.length > 0) {
+      const updatesResult = await pool.query(
+        `SELECT report_id, status, note, metadata, created_at
+         FROM women_report_updates
+         WHERE report_id = ANY($1::int[])
+         ORDER BY created_at ASC`,
+        [reportIds]
+      );
+
+      updatesByReport = updatesResult.rows.reduce((accumulator, update) => {
+        if (!accumulator[update.report_id]) {
+          accumulator[update.report_id] = [];
+        }
+        accumulator[update.report_id].push({
+          status: update.status,
+          note: update.note,
+          metadata: update.metadata,
+          createdAt: update.created_at,
+        });
+        return accumulator;
+      }, {});
+    }
+
+    const response = reports.map((report) => ({
+      ...report,
+      updates: updatesByReport[report.id] || [],
+    }));
+
+    return res.json({ reports: response });
   } catch (error) {
     console.error('[womenService] fetch reports failed:', error);
     return res.status(500).json({ error: 'Failed to load reports.' });
+  }
+});
+
+router.get('/reports/resources', (req, res) => {
+  return res.json({ resources: POLICE_PORTALS });
+});
+
+router.get('/reports/track/:referenceNumber', async (req, res) => {
+  const referenceNumber = String(req.params.referenceNumber || '').trim().toUpperCase();
+  if (!referenceNumber) {
+    return res.status(400).json({ error: 'Reference number is required.' });
+  }
+
+  try {
+    const reportResult = await pool.query(
+      `SELECT id, description, anonymous, status, category, police_station, reference_number,
+              external_ref_url, location, last_status_update, created_at, updated_at
+       FROM women_reports
+       WHERE reference_number = $1
+       LIMIT 1`,
+      [referenceNumber]
+    );
+
+    if (!reportResult.rows?.length) {
+      return res.status(404).json({ error: 'Report not found.' });
+    }
+
+    const report = reportResult.rows[0];
+    const updatesResult = await pool.query(
+      `SELECT status, note, metadata, created_at
+       FROM women_report_updates
+       WHERE report_id = $1
+       ORDER BY created_at ASC`,
+      [report.id]
+    );
+
+    return res.json({
+      report: {
+        ...report,
+        updates: updatesResult.rows.map((update) => ({
+          status: update.status,
+          note: update.note,
+          metadata: update.metadata,
+          createdAt: update.created_at,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('[womenService] track report failed:', error);
+    return res.status(500).json({ error: 'Failed to track report status.' });
+  }
+});
+
+router.post('/reports/:referenceNumber/status', async (req, res) => {
+  if (process.env.WOMEN_REPORT_ADMIN_KEY) {
+    const providedKey = req.body?.adminKey || req.headers['x-admin-key'];
+    if (providedKey !== process.env.WOMEN_REPORT_ADMIN_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  }
+
+  const referenceNumber = String(req.params.referenceNumber || '').trim().toUpperCase();
+  if (!referenceNumber) {
+    return res.status(400).json({ error: 'Reference number is required.' });
+  }
+
+  const status = String(req.body?.status || '').trim();
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required.' });
+  }
+
+  const note = (req.body?.note || '').trim() || null;
+  const metadata = typeof req.body?.metadata === 'object' && req.body.metadata !== null
+    ? req.body.metadata
+    : null;
+
+  try {
+    const reportResult = await pool.query(
+      'SELECT id FROM women_reports WHERE reference_number = $1 LIMIT 1',
+      [referenceNumber]
+    );
+
+    if (!reportResult.rows?.length) {
+      return res.status(404).json({ error: 'Report not found.' });
+    }
+
+    const reportId = reportResult.rows[0].id;
+    const update = await appendReportUpdate({ reportId, status, note, metadata });
+
+    return res.json({
+      success: true,
+      update,
+    });
+  } catch (error) {
+    console.error('[womenService] update report status failed:', error);
+    return res.status(500).json({ error: 'Failed to update report status.' });
   }
 });
 
@@ -913,13 +1254,43 @@ router.post('/feedback', async (req, res) => {
   }
 
   const comment = (req.body?.comment || req.body?.feedback || '').trim();
+  const coords = normalizeCoords(req.body?.location) || normalizeCoords(req.body);
+  const tags = parseTags(req.body?.tags);
+  const timeOfDay = (req.body?.timeOfDay || req.body?.time_of_day || '').trim() || null;
+  const routeName = (req.body?.routeName || req.body?.route_name || '').trim() || null;
+  const route = req.body?.route || null;
+  const routeStart = route?.start ? normalizeCoords(route.start) : null;
+  const routeEnd = route?.end ? normalizeCoords(route.end) : null;
+  const explicitPositive = req.body?.isPositive;
+  const isPositive = typeof explicitPositive === 'boolean' ? explicitPositive : rating >= 4;
+  let safetyLevel = 'mixed';
+  if (rating >= 4) safetyLevel = 'safe';
+  if (rating <= 2) safetyLevel = 'unsafe';
 
   try {
     const result = await pool.query(
-      `INSERT INTO women_feedback (user_id, area, rating, comment, created_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       RETURNING id, area, rating, comment, created_at`,
-      [user.id, area, rating, comment || null]
+      `INSERT INTO women_feedback (
+         user_id, area, rating, comment, latitude, longitude, time_of_day, tags,
+         is_positive, route_name, route_start, route_end, safety_level, created_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+       RETURNING id, area, rating, comment, latitude, longitude, time_of_day,
+                 tags, is_positive, route_name, route_start, route_end, safety_level, created_at`,
+      [
+        user.id,
+        area,
+        rating,
+        comment || null,
+        coords?.latitude ?? null,
+        coords?.longitude ?? null,
+        timeOfDay,
+        tags.length ? tags : null,
+        isPositive,
+        routeName,
+        routeStart ? JSON.stringify(routeStart) : null,
+        routeEnd ? JSON.stringify(routeEnd) : null,
+        safetyLevel,
+      ]
     );
     return res.status(201).json({ feedback: result.rows[0] });
   } catch (error) {
@@ -939,11 +1310,41 @@ router.get('/feedback', async (req, res) => {
   });
 
   try {
-    const summary = await pool.query(
-      `SELECT area, ROUND(AVG(rating)::numeric, 2) AS average_rating, COUNT(*) AS submissions
+    const summaryResult = await pool.query(
+      `SELECT area,
+              ROUND(AVG(rating)::numeric, 2) AS average_rating,
+              COUNT(*) AS submissions,
+              SUM(CASE WHEN is_positive THEN 1 ELSE 0 END) AS positive_count,
+              SUM(CASE WHEN NOT is_positive THEN 1 ELSE 0 END) AS negative_count
        FROM women_feedback
-       WHERE area IS NOT NULL AND rating IS NOT NULL
+       WHERE area IS NOT NULL AND area <> ''
        GROUP BY area
+       ORDER BY average_rating DESC, submissions DESC
+       LIMIT 20`
+    );
+
+    const hotspotResult = await pool.query(
+      `SELECT area,
+              safety_level,
+              latitude,
+              longitude,
+              COUNT(*) AS reports,
+              ROUND(AVG(rating)::numeric, 2) AS average_rating
+       FROM women_feedback
+       WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+       GROUP BY area, safety_level, latitude, longitude
+       ORDER BY reports DESC
+       LIMIT 30`
+    );
+
+    const routesResult = await pool.query(
+      `SELECT route_name,
+              ROUND(AVG(rating)::numeric, 2) AS average_rating,
+              COUNT(*) AS submissions,
+              MAX(created_at) AS last_reported
+       FROM women_feedback
+       WHERE route_name IS NOT NULL AND route_name <> ''
+       GROUP BY route_name
        ORDER BY average_rating DESC, submissions DESC
        LIMIT 20`
     );
@@ -951,7 +1352,7 @@ router.get('/feedback', async (req, res) => {
     let recent = [];
     if (user) {
       const recentRes = await pool.query(
-        `SELECT area, rating, comment, created_at
+        `SELECT area, rating, comment, created_at, safety_level, route_name, tags, is_positive, latitude, longitude
          FROM women_feedback
          WHERE user_id = $1
          ORDER BY created_at DESC
@@ -961,30 +1362,59 @@ router.get('/feedback', async (req, res) => {
       recent = recentRes.rows;
     }
 
-    return res.json({ summary: summary.rows, recent });
+    return res.json({
+      summary: summaryResult.rows,
+      hotspots: hotspotResult.rows,
+      routes: routesResult.rows,
+      recent,
+    });
   } catch (error) {
     console.error('[womenService] fetch feedback failed:', error);
     return res.status(500).json({ error: 'Failed to load community feedback.' });
   }
 });
 
-router.get('/selfdefense', (req, res) => {
-  return res.json([
-    {
-      title: 'Stay alert in crowded spaces',
-      description: 'Keep your belongings close, identify safe exits, and trust your instincts.',
-      video_url: 'https://www.youtube.com/embed/X9v9Z6w4sNQ',
-    },
-    {
-      title: 'Voice as a defense tool',
-      description: 'Use firm commands to create distance and draw attention to the situation.',
-      video_url: 'https://www.youtube.com/embed/PdLKbTIPpls',
-    },
-    {
-      title: 'Pressure point basics',
-      description: 'Target nose, eyes, and knees to disengage and create a window to escape.',
-    },
-  ]);
+router.get('/selfdefense', async (req, res) => {
+  try {
+    const languageParam = normalizeLanguageCode(
+      req.query?.language || req.query?.lang || req.query?.language_code || req.query?.locale
+    );
+    const regionParam = req.query?.region ? String(req.query.region).trim() : '';
+    const requestedLimit = Number.parseInt(req.query?.limit, 10);
+    const mediaTypeParam = req.query?.type ? String(req.query.type).toLowerCase().trim() : '';
+    const allowedMediaTypes = new Set(['video', 'infographic', 'audio', 'article', 'pdf']);
+    const mediaType = allowedMediaTypes.has(mediaTypeParam) ? mediaTypeParam : null;
+
+    const languagesToTry = [...new Set([languageParam || '', 'en'])].filter(Boolean);
+    const guides = [];
+    const seenIds = new Set();
+    const limit = Math.min(
+      Math.max(Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_SELF_DEFENSE_LIMIT, 1),
+      MAX_SELF_DEFENSE_LIMIT
+    );
+
+    for (const code of languagesToTry) {
+      if (guides.length >= limit) break;
+      const results = await fetchSelfDefenseGuides({
+        languageCode: code,
+        region: regionParam,
+        mediaType,
+        limit: limit - guides.length,
+      });
+      for (const guide of results) {
+        if (!seenIds.has(guide.id)) {
+          guides.push(guide);
+          seenIds.add(guide.id);
+        }
+        if (guides.length >= limit) break;
+      }
+    }
+
+    return res.json(guides);
+  } catch (error) {
+    console.error('[womenService] fetch self defense guides failed:', error);
+    return res.status(500).json({ error: 'Failed to load self-defense guides.' });
+  }
 });
 
 // Fake call / silent alert endpoint
@@ -1069,7 +1499,7 @@ router.post('/fake-event', async (req, res) => {
                     Time: ${new Date().toLocaleString()}
                   </p>
                   <p style="font-size: 13px; color: #999; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                    This is an automated alert from Secure Safar Women Safety System.
+                    This is an automated alert from SurakshaChakra Women Safety System.
                   </p>
                 </div>
               </div>
