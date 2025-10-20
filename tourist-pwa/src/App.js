@@ -2364,18 +2364,6 @@ function App() {
             }}
           />
         ) : null}
-        {/* quick access to incident reporting even before login */}
-        <div style={{ textAlign: 'center', marginTop: 24 }}>
-          <div style={{ display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap', marginBottom:8 }}>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=women_safety')}>Women Safety</button>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=street_animal')}>Street Animal</button>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=tourist_safety')}>Tourist Safety</button>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=fire')}>Fire</button>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=medical')}>Medical</button>
-            <button className="secondary-button" onClick={() => go('/report-incident?cat=police')}>Police</button>
-          </div>
-          <button className="secondary-button" onClick={() => go('/report-incident')}>Report an Incident</button>
-        </div>
       </div>
     );
   }
