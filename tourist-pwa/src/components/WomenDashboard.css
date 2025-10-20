@@ -637,6 +637,84 @@
   }
 }
 
+/* Event History Styles */
+.event-history-list {
+  margin-top: 1.5rem;
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.history-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.history-table th,
+.history-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.history-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+.history-table tbody tr:hover {
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.event-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.badge-primary {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.badge-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.status-default {
+  background: rgba(156, 163, 175, 0.1);
+  color: #6b7280;
+}
+
 @media (max-width: 640px) {
   .women-dashboard-bg {
     padding: 18px;
@@ -650,5 +728,14 @@
   .helpline-card,
   .women-section-3d {
     border-radius: 20px;
+  }
+
+  .history-table {
+    font-size: 0.9rem;
+  }
+
+  .history-table th,
+  .history-table td {
+    padding: 8px 12px;
   }
 }

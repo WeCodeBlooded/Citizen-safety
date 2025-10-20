@@ -206,6 +206,20 @@ class OfflineLocationTracker {
   }
 
   /**
+   * Set identity without starting geolocation tracking.
+   * Accepts the same input shapes as startTracking (passportId, WOMEN-<id>, or user object)
+   */
+  setIdentity(identityInput) {
+    const resolved = normalizeIdentity(identityInput);
+    if (!resolved) {
+      console.warn('[OfflineTracker] setIdentity called with invalid input');
+      return;
+    }
+    this.identity = resolved;
+    console.log('[OfflineTracker] Identity set to', this.identity);
+  }
+
+  /**
    * Initialize IndexedDB for offline storage
    */
   async initDB() {

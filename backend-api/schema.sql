@@ -1,3 +1,14 @@
+-- Women Safety: Fake Call / Escape Events
+CREATE TABLE IF NOT EXISTS women_fake_events (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES women_users(id) ON DELETE CASCADE,
+    event_type VARCHAR(30) NOT NULL, -- 'fake_call' | 'silent_alert'
+    status VARCHAR(20) DEFAULT 'triggered', -- 'triggered' | 'cancelled' | 'completed'
+    details TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_women_fake_events_user ON women_fake_events(user_id);
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 
@@ -264,5 +275,54 @@ CREATE TABLE IF NOT EXISTS women_location_history (
 
 CREATE INDEX IF NOT EXISTS idx_women_location_history_user_id ON women_location_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_women_location_history_created_at ON women_location_history(created_at DESC);
+
+-- Trusted Circle feature for all service types
+CREATE TABLE IF NOT EXISTS trusted_circles (
+    id SERIAL PRIMARY KEY,
+    owner_passport_id VARCHAR(50) NOT NULL,
+    owner_type VARCHAR(50) DEFAULT 'tourist', -- tourist | women | citizen
+    circle_name VARCHAR(100) DEFAULT 'My Trusted Circle',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(owner_passport_id, circle_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_circles_owner ON trusted_circles(owner_passport_id);
+
+CREATE TABLE IF NOT EXISTS trusted_circle_members (
+    id SERIAL PRIMARY KEY,
+    circle_id INTEGER REFERENCES trusted_circles(id) ON DELETE CASCADE,
+    member_name VARCHAR(100) NOT NULL,
+    member_email VARCHAR(255),
+    member_phone VARCHAR(100),
+    relationship VARCHAR(50),
+    can_view_location BOOLEAN DEFAULT true,
+    can_receive_sos BOOLEAN DEFAULT true,
+    status VARCHAR(30) DEFAULT 'pending', -- pending | accepted | rejected | blocked
+    invited_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMPTZ,
+    access_token VARCHAR(100), -- For family members to access location
+    last_notified TIMESTAMPTZ,
+    UNIQUE(circle_id, member_email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_members_circle ON trusted_circle_members(circle_id);
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_members_email ON trusted_circle_members(member_email);
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_members_token ON trusted_circle_members(access_token);
+
+-- Trusted circle location sharing log
+CREATE TABLE IF NOT EXISTS trusted_circle_shares (
+    id SERIAL PRIMARY KEY,
+    circle_id INTEGER REFERENCES trusted_circles(id) ON DELETE CASCADE,
+    member_id INTEGER REFERENCES trusted_circle_members(id) ON DELETE CASCADE,
+    shared_latitude DOUBLE PRECISION,
+    shared_longitude DOUBLE PRECISION,
+    share_type VARCHAR(30) DEFAULT 'location', -- location | sos | alert
+    shared_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_shares_circle ON trusted_circle_shares(circle_id);
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_shares_member ON trusted_circle_shares(member_id);
+CREATE INDEX IF NOT EXISTS idx_trusted_circle_shares_at ON trusted_circle_shares(shared_at DESC);
 
 \echo '✅ Database schema created successfully!'

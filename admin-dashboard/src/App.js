@@ -84,6 +84,7 @@ function App() {
   const [recordings, setRecordings] = useState([]);
   const [audioUrls, setAudioUrls] = useState({});
   const [adminNotifications, setAdminNotifications] = useState([]);
+  const [womenStreams, setWomenStreams] = useState({}); // sessionId -> { segments: [{url,...}], ended }
   
   const [dislocationAlert, setDislocationAlert] = useState(null);
   const [isDislocationDialogOpen, setIsDislocationDialogOpen] = useState(false);
@@ -190,18 +191,31 @@ function App() {
   const socketRef = useRef(null);
 
   useEffect(() => {
+    const responderSecret = process.env.REACT_APP_RESPONDER_SECRET;
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
+      auth: {
+        clientType: 'responder',
+        responderSecret: responderSecret
+      }
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('Connected to WebSocket server!');
+      console.log('Connected to WebSocket server as responder');
       
       const storedAdminName = localStorage.getItem('adminName') || `Admin-${Math.floor(Math.random()*1000)}`;
       localStorage.setItem('adminName', storedAdminName);
       socket.emit('identifyAdmin', storedAdminName);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] connect_error:', err && (err.message || err));
+      const reason = err && err.data && err.data.reason;
+      if (reason === 'invalid_responder_token') {
+        alert('Responder authentication failed. Check REACT_APP_RESPONDER_SECRET and server secret.');
+      }
     });
 
     socket.on('adminListUpdate', (admins) => {
@@ -221,6 +235,28 @@ function App() {
     socket.on('adminNotificationsInit', (list) => {
       if (Array.isArray(list)) setAdminNotifications(list);
     });
+
+    // Women stream events
+    const onSeg = (payload) => {
+      if (!payload || !payload.sessionId || !payload.url) return;
+      setWomenStreams(prev => {
+        const next = { ...prev };
+        const s = next[payload.sessionId] || { segments: [], ended: false };
+        s.segments = [...s.segments, payload].sort((a,b) => (a.sequence ?? 1e9) - (b.sequence ?? 1e9));
+        next[payload.sessionId] = s;
+        return next;
+      });
+    };
+    const onEnd = ({ sessionId }) => {
+      setWomenStreams(prev => {
+        const next = { ...prev };
+        if (!next[sessionId]) next[sessionId] = { segments: [], ended: true };
+        else next[sessionId].ended = true;
+        return next;
+      });
+    };
+    socket.on('womenStreamSegment', onSeg);
+    socket.on('womenStreamEnded', onEnd);
 
     const handleUpdate = (updateData) => {
       setTourists((prevTourists) =>
@@ -268,6 +304,8 @@ function App() {
       socket.off('adminNotification');
       socket.off('adminNotificationAdmins');
       socket.off('adminNotificationsInit');
+      socket.off('womenStreamSegment', onSeg);
+      socket.off('womenStreamEnded', onEnd);
       socket.disconnect();
     };
   }, []);
@@ -464,6 +502,34 @@ function App() {
     
     return u;
   };
+
+  const WomenStreamPanel = () => {
+    const sessions = Object.keys(womenStreams).sort((a,b)=>Number(a)-Number(b));
+    if (!sessions.length) return null;
+    return (
+      <div style={{ marginTop: 16 }}>
+        <h3>Live Streams (Women Safety)</h3>
+        {sessions.map((sid) => {
+          const s = womenStreams[sid];
+          return (
+            <div key={sid} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong>Session #{sid}</strong>
+                <span style={{ fontSize: 12, color: s.ended ? '#ef4444' : '#10b981' }}>{s.ended ? 'Ended' : 'Live'}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8, marginTop: 8 }}>
+                {s.segments.map((seg, idx) => (
+                  <video key={`${seg.url}-${idx}`} src={`${BACKEND_URL}${seg.url}`} controls style={{ width: '100%', background: '#000', borderRadius: 6 }} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ... later inside JSX return, append panel near top-level content
 
   
   const fetchAndPrepareRecording = async (rec) => {
@@ -816,6 +882,11 @@ function App() {
           <Button size="small" variant="outlined" onClick={handleRenameAdmin}>Rename</Button>
         </Box>
       </Popover>
+
+      {/* Women live stream panel */}
+      <div style={{ padding: 16 }}>
+        <WomenStreamPanel />
+      </div>
 
       {}
       {editAuthorityDialog.open && (

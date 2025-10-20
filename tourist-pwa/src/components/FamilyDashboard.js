@@ -87,6 +87,7 @@ const FamilyDashboard = () => {
   const trackedPassport = localStorage.getItem('FAMILY_TOURIST_PASSPORT') || '';
   const [data, setData] = useState(null); // { tourist, group }
   const [alerts, setAlerts] = useState({ standard: [], panic: [], resolved: [] });
+  const [womenStreams, setWomenStreams] = useState({}); // { [sessionId]: { segments:[], ended: bool, passportId } }
   const [locationName, setLocationName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -262,6 +263,30 @@ const FamilyDashboard = () => {
     socket.on('familyAlertUpdate', (payload) => handleAlertUpdate(payload));
     socket.on('familyAlertResolved', (payload) => handleAlertResolved(payload));
 
+    // Women stream targeted events
+    socket.on('familyWomenStreamStarted', (payload) => {
+      if (!payload || !payload.sessionId) return;
+      setWomenStreams((prev) => ({
+        ...prev,
+        [payload.sessionId]: { segments: [], ended: false, passportId: payload.passportId }
+      }));
+    });
+    socket.on('familyWomenStreamSegment', (seg) => {
+      if (!seg || !seg.sessionId) return;
+      setWomenStreams((prev) => {
+        const cur = prev[seg.sessionId] || { segments: [], ended: false, passportId: seg.passportId };
+        const nextSegs = [...cur.segments, seg].sort((a,b) => (a.sequence||0)-(b.sequence||0));
+        return { ...prev, [seg.sessionId]: { ...cur, segments: nextSegs } };
+      });
+    });
+    socket.on('familyWomenStreamEnded', (payload) => {
+      if (!payload || !payload.sessionId) return;
+      setWomenStreams((prev) => ({
+        ...prev,
+        [payload.sessionId]: { ...(prev[payload.sessionId]||{ segments:[] }), ended: true, passportId: payload.passportId }
+      }));
+    });
+
     socket.on('disconnect', () => {
       socketRef.current = null;
     });
@@ -272,10 +297,41 @@ const FamilyDashboard = () => {
       socket.off('familyLocationUpdate');
       socket.off('familyAlertUpdate');
       socket.off('familyAlertResolved');
+      socket.off('familyWomenStreamStarted');
+      socket.off('familyWomenStreamSegment');
+      socket.off('familyWomenStreamEnded');
       socket.disconnect();
       socketRef.current = null;
     };
   }, [token, applySnapshot, handleAlertUpdate, handleAlertResolved]);
+
+  // Preload any recent sessions and their segments when token changes
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const headersAuth = { Authorization: `Bearer ${token}` };
+    const preload = async () => {
+      try {
+        const sessRes = await axios.get(`${BACKEND_URL}/api/family/women/stream/sessions`, { headers: headersAuth });
+        const sessions = Array.isArray(sessRes.data?.sessions) ? sessRes.data.sessions : [];
+        const next = {};
+        for (const s of sessions) {
+          next[s.id] = { segments: [], ended: !!s.ended_at, passportId: s.passport_id || s.passportId };
+          try {
+            const segRes = await axios.get(`${BACKEND_URL}/api/women/stream/${s.id}/segments`, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+            const segs = Array.isArray(segRes.data?.segments) ? segRes.data.segments : [];
+            next[s.id].segments = segs.sort((a,b) => (a.sequence||0)-(b.sequence||0)).map((sg) => ({
+              ...sg,
+              url: sg.url && sg.url.startsWith('http') ? sg.url : `${BACKEND_URL}${sg.url}`,
+            }));
+          } catch { /* ignore */ }
+        }
+        if (!cancelled) setWomenStreams(next);
+      } catch { /* ignore */ }
+    };
+    preload();
+    return () => { cancelled = true; };
+  }, [token]);
 
   // (Removed explicit auto recenter toggle & manual control; AutoCenter handles it automatically)
 
@@ -367,6 +423,27 @@ const FamilyDashboard = () => {
               <div className="muted">No resolved alerts yet</div>
             )}
           </section>
+        </div>
+        <div className="card" style={{ padding: 18 }}>
+          <h3 style={{ marginTop:0 }}>Live Stream</h3>
+          {Object.keys(womenStreams).length === 0 && (
+            <div className="muted">No active streams</div>
+          )}
+          {Object.entries(womenStreams).map(([sid, v]) => (
+            <div key={sid} style={{ marginBottom: 12 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div>Session #{sid} {v.ended ? '(ended)' : '(live)'}</div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:8, marginTop:8 }}>
+                {v.segments.map((s) => {
+                  const src = s.url && s.url.startsWith('http') ? s.url : `${BACKEND_URL}${s.url}`;
+                  return (
+                    <video key={`${sid}-${s.sequence}`} src={src} controls style={{ width:'100%', borderRadius:6, background:'#000' }} />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

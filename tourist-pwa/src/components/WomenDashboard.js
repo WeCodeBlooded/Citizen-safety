@@ -3,6 +3,9 @@ import axios from 'axios';
 import Map from '../Map';
 import offlineLocationTracker from '../utils/offlineLocationTracker';
 import './WomenDashboard.css';
+import WomenContacts from '../women/WomenContacts';
+import StreamRecorder from '../women/StreamRecorder';
+import FakeCallOverlay from './FakeCallOverlay';
 
 const resolveBackendUrl = () => {
   const FALLBACK = (typeof window !== 'undefined' && window.location.hostname === 'localhost')
@@ -35,7 +38,7 @@ const NATIONAL_HELPLINES = [
   { name: 'Cyber Crime', number: '1930' },
 ];
 
-export default function WomenDashboard({ user = {}, location = null }) {
+const WomenDashboard = ({ user = {}, location = null }) => {
   // SOS logic removed as per request
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState('home');
@@ -51,6 +54,14 @@ export default function WomenDashboard({ user = {}, location = null }) {
   const [selfDefenseError, setSelfDefenseError] = useState('');
   const [offlineStats, setOfflineStats] = useState({ pendingLocations: 0, pendingSOS: 0, pendingPanic: 0, pendingPanicRecordings: 0 });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showStream, setShowStream] = useState(false);
+  const [escapeLoading, setEscapeLoading] = useState(false);
+  const [escapeStatus, setEscapeStatus] = useState('');
+  const [showFakeCall, setShowFakeCall] = useState(false);
+  const [silentAlertLoading, setSilentAlertLoading] = useState(false);
+  const [silentAlertStatus, setSilentAlertStatus] = useState('');
+  const [eventHistory, setEventHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Build a comprehensive identity payload for tracking
   const userIdentity = useMemo(() => {
@@ -106,6 +117,105 @@ export default function WomenDashboard({ user = {}, location = null }) {
     };
   }, [userIdentity]);
 
+  // One-click fake call trigger
+  const triggerFakeCall = async () => {
+    // Use email or Aadhaar number for women users (no passport ID)
+    const identifier = userIdentity?.email || userIdentity?.aadhaarNumber;
+    if (!identifier) {
+      setEscapeStatus('Email or Aadhaar not found');
+      return;
+    }
+    setEscapeLoading(true);
+    setEscapeStatus('');
+    try {
+      await axios.post(`${BACKEND_URL}/api/women/fake-event`, { 
+        email: userIdentity.email,
+        aadhaarNumber: userIdentity.aadhaarNumber,
+        event_type: 'fake_call' 
+      }, {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+        withCredentials: true,
+      });
+      setEscapeStatus('Fake call triggered');
+      // Show realistic fake call overlay instead of browser alert
+      setShowFakeCall(true);
+    } catch (e) {
+      console.error('[WomenDashboard] Fake call error:', e);
+      setEscapeStatus('Failed to trigger');
+    } finally {
+      setEscapeLoading(false);
+    }
+  };
+
+  // Handle fake call answer
+  const handleFakeCallAnswer = () => {
+    setShowFakeCall(false);
+    setEscapeStatus('Call answered');
+    // Optional: Log answer event to backend
+  };
+
+  // Handle fake call decline
+  const handleFakeCallDecline = () => {
+    setShowFakeCall(false);
+    setEscapeStatus('Call declined');
+    // Optional: Log decline event to backend
+  };
+
+  // Silent Alert trigger - sends alert to emergency contacts without any visible notification
+  const triggerSilentAlert = async () => {
+    const identifier = userIdentity?.email || userIdentity?.aadhaarNumber;
+    if (!identifier) {
+      setSilentAlertStatus('Email or Aadhaar not found');
+      return;
+    }
+    setSilentAlertLoading(true);
+    setSilentAlertStatus('');
+    try {
+      await axios.post(`${BACKEND_URL}/api/women/fake-event`, {
+        email: userIdentity.email,
+        aadhaarNumber: userIdentity.aadhaarNumber,
+        event_type: 'silent_alert'
+      }, {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+        withCredentials: true,
+      });
+      setSilentAlertStatus('Silent alert sent');
+      // Auto-clear status after 3 seconds
+      setTimeout(() => setSilentAlertStatus(''), 3000);
+    } catch (e) {
+      console.error('[WomenDashboard] Silent alert error:', e);
+      setSilentAlertStatus('Failed to send alert');
+    } finally {
+      setSilentAlertLoading(false);
+    }
+  };
+
+  // Fetch event history
+  const fetchEventHistory = async () => {
+    const identifier = userIdentity?.email || userIdentity?.aadhaarNumber;
+    if (!identifier) {
+      console.warn('[WomenDashboard] No identifier for fetching event history');
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const response = await axios.get(`${BACKEND_URL}/api/women/fake-events`, {
+        params: {
+          email: userIdentity.email,
+          aadhaarNumber: userIdentity.aadhaarNumber
+        },
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+        withCredentials: true,
+      });
+      setEventHistory(response.data.events || []);
+    } catch (e) {
+      console.error('[WomenDashboard] Failed to fetch event history:', e);
+      setEventHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const resolvedLocation = useMemo(() => {
     if (!location) return {};
     if (typeof location === 'string') {
@@ -116,31 +226,20 @@ export default function WomenDashboard({ user = {}, location = null }) {
       const city = location.city || location.town || location.locality || '';
       return { ...location, address, city };
     }
+    // Fallback to empty object if type is unknown
     return {};
   }, [location]);
 
+  // Try to derive a map position from the provided location (if any)
   const mapPosition = useMemo(() => {
-    if (!location || typeof location !== 'object') return null;
-    const candidateLat =
-      location.latitude ?? location.lat ?? location.coords?.latitude ?? null;
-    const candidateLon =
-      location.longitude ?? location.lon ?? location.coords?.longitude ?? null;
-
-    console.log('[WomenDashboard] mapPosition candidates:', { candidateLat, candidateLon, location });
-
-    if (candidateLat === null || candidateLat === undefined || candidateLon === null || candidateLon === undefined) {
-      return null;
+    if (location && typeof location === 'object') {
+      const lat = location.latitude ?? location.lat ?? location.coords?.latitude;
+      const lng = location.longitude ?? location.lng ?? location.coords?.longitude;
+      if (typeof lat === 'number' && typeof lng === 'number') {
+        return { latitude: lat, longitude: lng };
+      }
     }
-
-    const latitude = Number(candidateLat);
-    const longitude = Number(candidateLon);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      console.warn('[WomenDashboard] Invalid coordinates:', { latitude, longitude });
-      return null;
-    }
-
-    console.log('[WomenDashboard] Resolved mapPosition:', { latitude, longitude });
-    return { latitude, longitude };
+    return null;
   }, [location]);
 
   const locationDescriptor = resolvedLocation.city || resolvedLocation.address || '';
@@ -152,17 +251,6 @@ export default function WomenDashboard({ user = {}, location = null }) {
   }, [locationDescriptor]);
 
   const locationPayload = useMemo(() => {
-    if (mapPosition) {
-      return {
-        latitude: mapPosition.latitude,
-        longitude: mapPosition.longitude,
-        accuracy:
-          resolvedLocation.accuracy ??
-          resolvedLocation.coords?.accuracy ??
-          null,
-        address: resolvedLocation.address || null,
-      };
-    }
     if (resolvedLocation.address) {
       return resolvedLocation.address;
     }
@@ -170,13 +258,18 @@ export default function WomenDashboard({ user = {}, location = null }) {
       return location;
     }
     return null;
-  }, [location, mapPosition, resolvedLocation]);
+  }, [location, resolvedLocation]);
 
   const handleNavigate = (page) => {
     setActivePage(page);
     setSidebarOpen(false);
     setReportStatus('');
     setFeedbackStatus('');
+    
+    // Auto-fetch event history when navigating to history page
+    if (page === 'history') {
+      fetchEventHistory();
+    }
   };
 
   const handleReportSubmit = async (event) => {
@@ -186,7 +279,6 @@ export default function WomenDashboard({ user = {}, location = null }) {
       setReportStatus('Please describe the incident before submitting.');
       return;
     }
-
     setReportLoading(true);
     setReportStatus('');
 
@@ -313,6 +405,7 @@ export default function WomenDashboard({ user = {}, location = null }) {
             </p>
           </div>
         </div>
+  
       )}
 
       <section className="welcome-card">
@@ -336,6 +429,20 @@ export default function WomenDashboard({ user = {}, location = null }) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="stream-card">
+        <div className="stream-card-header">
+          <h3>Live Stream to Family</h3>
+          <button className="stream-toggle" onClick={() => setShowStream((s) => !s)}>
+            {showStream ? 'Hide' : 'Start'}
+          </button>
+        </div>
+        {showStream && (
+          <div className="stream-recorder-wrapper">
+            <StreamRecorder currentUser={user} />
+          </div>
+        )}
       </section>
 
       <section className="women-map-card">
@@ -375,15 +482,10 @@ export default function WomenDashboard({ user = {}, location = null }) {
   const renderContacts = () => (
     <div className="women-section-3d">
       <h2>Emergency Contacts</h2>
-      <p>If you feel unsafe, reach out immediately. These national helplines are available 24/7.</p>
-      <div className="contacts-grid">
-        {NATIONAL_HELPLINES.map((helpline) => (
-          <div className="contact-card" key={helpline.number}>
-            <h4>{helpline.name}</h4>
-            <a href={`tel:${helpline.number}`}>{helpline.number}</a>
-            <span>Tap to call</span>
-          </div>
-        ))}
+      <p>Manage your trusted contacts and access national helplines 24/7.</p>
+      
+      <div className="contacts-manager">
+        <WomenContacts email={userIdentity?.email} aadhaarNumber={userIdentity?.aadhaarNumber} />
       </div>
     </div>
   );
@@ -497,6 +599,61 @@ export default function WomenDashboard({ user = {}, location = null }) {
     </div>
   );
 
+  const renderHistory = () => (
+    <div className="women-section-3d">
+      <h2>Event History</h2>
+      <p>View your recent fake call and silent alert events.</p>
+
+      {historyLoading && (
+        <div className="status-message info">Loading event history...</div>
+      )}
+
+      {!historyLoading && eventHistory.length === 0 && (
+        <div className="status-message info">No events recorded yet. Try triggering a fake call or silent alert.</div>
+      )}
+
+      {!historyLoading && eventHistory.length > 0 && (
+        <div className="event-history-list">
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th>Event Type</th>
+                <th>Date & Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventHistory.map((event, index) => (
+                <tr key={event.id || index}>
+                  <td>
+                    <span className={`event-badge ${event.event_type === 'fake_call' ? 'badge-primary' : 'badge-danger'}`}>
+                      {event.event_type === 'fake_call' ? '📞 Fake Call' : '🚨 Silent Alert'}
+                    </span>
+                  </td>
+                  <td>{new Date(event.created_at).toLocaleString()}</td>
+                  <td>
+                    <span className={`status-badge ${event.status === 'triggered' ? 'status-success' : 'status-default'}`}>
+                      {event.status || 'triggered'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <button
+        className="btn btn-secondary"
+        onClick={fetchEventHistory}
+        disabled={historyLoading}
+        style={{ marginTop: '1rem' }}
+      >
+        {historyLoading ? 'Refreshing...' : 'Load History'}
+      </button>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activePage) {
       case 'contacts':
@@ -507,6 +664,8 @@ export default function WomenDashboard({ user = {}, location = null }) {
         return renderFeedback();
       case 'selfdefense':
         return renderSelfDefense();
+      case 'history':
+        return renderHistory();
       case 'home':
       default:
         return renderHome();
@@ -560,14 +719,57 @@ export default function WomenDashboard({ user = {}, location = null }) {
             <li className={activePage === 'selfdefense' ? 'active' : ''} onClick={() => handleNavigate('selfdefense')}>
               Self-defense Guides
             </li>
+            <li className={activePage === 'history' ? 'active' : ''} onClick={() => handleNavigate('history')}>
+              Event History
+            </li>
           </ul>
-          <div style={{ margin: '32px 0 0 0', textAlign: 'center' }}>
-            {/* SOS button removed as per request */}
+          <div className="card_sidebar" style={{ margin: '16px 0 0 0', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={triggerFakeCall}
+              disabled={escapeLoading}
+              title="Trigger a fake incoming call"
+              style={{ marginBottom: '12px' }}
+            >
+              {escapeLoading ? 'Triggering…' : 'One‑Click Fake Call'}
+            </button>
+            {escapeStatus && (
+              <div style={{ marginTop: 8, fontSize: '0.85rem', opacity: 0.85 }}>{escapeStatus}</div>
+            )}
+            
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={triggerSilentAlert}
+              disabled={silentAlertLoading}
+              title="Send silent alert to emergency contacts"
+              style={{ marginTop: '8px', backgroundColor: '#dc3545', borderColor: '#dc3545' }}
+            >
+              {silentAlertLoading ? 'Sending…' : 'Silent Alert'}
+            </button>
+            {silentAlertStatus && (
+              <div style={{ marginTop: 8, fontSize: '0.85rem', opacity: 0.85, color: silentAlertStatus.includes('Failed') ? '#dc3545' : '#10b981' }}>
+                {silentAlertStatus}
+              </div>
+            )}
           </div>
         </aside>
 
         <main className="women-dashboard-content">{renderContent()}</main>
       </div>
+
+      {/* Fake Call Overlay */}
+      {showFakeCall && (
+        <FakeCallOverlay
+          onAnswer={handleFakeCallAnswer}
+          onDecline={handleFakeCallDecline}
+          callerName="Mom"
+          callerNumber="+91 98765 43210"
+        />
+      )}
     </div>
   );
 }
+
+export default WomenDashboard;

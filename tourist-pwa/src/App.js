@@ -304,14 +304,55 @@ function App() {
     try { window.dispatchEvent(new CustomEvent('profile-image-updated', { detail: url })); } catch {}
   };
 
-  const fetchSidebarAvatar = React.useCallback(async (pid) => {
+  const fetchSidebarAvatar = React.useCallback(async (pid, svcType = null) => {
     const p = pid;
-    if (!p) return;
-    console.log(`[fetchSidebarAvatar] Fetching for passportId: ${p}`);
+    // svcType must be passed as parameter since serviceType is defined later in code
+    const currentServiceType = svcType;
+    
+    console.log(`[fetchSidebarAvatar] Fetching for serviceType: ${currentServiceType}`);
+    
     try {
+      const params = {};
+      
+      // Check if this is a women user
+      if (currentServiceType === 'women_safety') {
+        const womenUserStr = localStorage.getItem('WOMEN_USER');
+        if (womenUserStr) {
+          try {
+            const womenUserData = JSON.parse(womenUserStr);
+            if (womenUserData.email) {
+              params.email = womenUserData.email;
+              console.log(`[fetchSidebarAvatar] Using email for women user: ${womenUserData.email}`);
+            }
+            if (womenUserData.aadhaarNumber || womenUserData.aadhaar_number) {
+              params.aadhaarNumber = womenUserData.aadhaarNumber || womenUserData.aadhaar_number;
+              console.log(`[fetchSidebarAvatar] Using aadhaarNumber for women user`);
+            }
+          } catch (parseErr) {
+            console.error('[fetchSidebarAvatar] Failed to parse women user data:', parseErr);
+          }
+        }
+        
+        // If no women user identifiers found, use default avatar
+        if (!params.email && !params.aadhaarNumber) {
+          console.warn('[fetchSidebarAvatar] No women user identifiers found, using default avatar');
+          setSidebarProfileImageUrl(DEFAULT_AVATAR);
+          return;
+        }
+      } else {
+        // Tourist user - use passportId
+        if (!p) {
+          console.warn('[fetchSidebarAvatar] No passportId provided for tourist user');
+          setSidebarProfileImageUrl(DEFAULT_AVATAR);
+          return;
+        }
+        params.passportId = p;
+        console.log(`[fetchSidebarAvatar] Using passportId for tourist user: ${p}`);
+      }
+      
       const res = await axios.get(`${BACKEND_URL}/api/user/profile-image`, {
         withCredentials: true,
-        params: { passportId: p },
+        params,
         headers: { 'ngrok-skip-browser-warning': 'true' },
       });
       console.log('[fetchSidebarAvatar] Response:', res.data);
@@ -350,13 +391,45 @@ function App() {
     setSidebarProfileImageUploading(true);
     try {
       const fd = new FormData();
-      if (passportId) {
-        fd.append('passportId', passportId);
+      
+      // Check if this is a women user (serviceType === 'women_safety')
+      if (serviceType === 'women_safety') {
+        // Get women user data from localStorage
+        const womenUserStr = localStorage.getItem('WOMEN_USER');
+        if (womenUserStr) {
+          try {
+            const womenUserData = JSON.parse(womenUserStr);
+            if (womenUserData.email) {
+              fd.append('email', womenUserData.email);
+              console.log('[onSidebarProfileImageChange] Using email for women user:', womenUserData.email);
+            }
+            if (womenUserData.aadhaarNumber || womenUserData.aadhaar_number) {
+              fd.append('aadhaarNumber', womenUserData.aadhaarNumber || womenUserData.aadhaar_number);
+              console.log('[onSidebarProfileImageChange] Using aadhaarNumber for women user');
+            }
+          } catch (parseErr) {
+            console.error('[onSidebarProfileImageChange] Failed to parse women user data:', parseErr);
+          }
+        }
+        
+        // Verify we have at least email or aadhaarNumber
+        if (!fd.has('email') && !fd.has('aadhaarNumber')) {
+          alert("Email or Aadhaar number is required for women users to upload profile image.");
+          setSidebarProfileImageUploading(false);
+          return;
+        }
       } else {
-        alert("passportId is required to upload profile image.");
-        setSidebarProfileImageUploading(false);
-        return;
+        // Tourist user - use passportId
+        if (passportId) {
+          fd.append('passportId', passportId);
+          console.log('[onSidebarProfileImageChange] Using passportId for tourist user');
+        } else {
+          alert("Passport ID is required to upload profile image.");
+          setSidebarProfileImageUploading(false);
+          return;
+        }
       }
+      
       fd.append('profileImage', file);
       console.log('[onSidebarProfileImageChange] Posting image to backend...');
       const res = await axios.post(`${BACKEND_URL}/api/user/profile-image`, fd, {
@@ -381,7 +454,8 @@ function App() {
       }
     } catch (err) {
       console.error('[onSidebarProfileImageChange] Upload failed:', err);
-      alert("Failed to upload image.");
+      const errorMsg = err?.response?.data?.error || err?.response?.data?.message || "Failed to upload image.";
+      alert(errorMsg);
     }
     console.log('[onSidebarProfileImageChange] Setting uploading state to false.');
     setSidebarProfileImageUploading(false);
@@ -407,6 +481,30 @@ function App() {
   const [code, setCode] = useState("");
   const [otp, setOtp] = useState("");
   const [userToken, setUserToken] = useState(null);
+  useEffect(() => {
+    if (!userToken || !passportId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/v1/location/sharing`, {
+          params: { passportId },
+          withCredentials: true,
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+        });
+        if (cancelled) return;
+        if (typeof res.data?.enabled === 'boolean') {
+          setIsLiveLocationEnabled(res.data.enabled);
+          try { localStorage.setItem('liveLocationEnabled', String(res.data.enabled)); } catch {}
+        }
+        if (typeof res.data?.locked === 'boolean') {
+          setIsPanicMode(res.data.locked);
+        }
+      } catch (e) {
+  console.warn('[location-sharing] Failed to fetch preference:', e?.message || e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userToken, passportId]);
   const [sessionChecking, setSessionChecking] = useState(true);
   const [serviceType, setServiceType] = useState(() => {
     try { return localStorage.getItem('SERVICE_TYPE') || ''; } catch { return ''; }
@@ -451,6 +549,14 @@ function App() {
   // Navigation & map UI state
   const [realTimeTracking, setRealTimeTracking] = useState(false);
   const [isMapEnlarged, setIsMapEnlarged] = useState(false);
+  // Live location sharing control
+  const [isLiveLocationEnabled, setIsLiveLocationEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('liveLocationEnabled');
+      return saved === null ? true : saved === 'true'; // default ON
+    } catch { return true; }
+  });
+  const [locationSharingStatus, setLocationSharingStatus] = useState('idle'); // idle | sending | syncing | offline | error
   // Dislocation alert suppression: proximity + local snooze
   const DISLOCATION_PROXIMITY_OK_KM = 0.3; // treat as together within 300m
   const DISLOCATION_SNOOZE_MS = 2 * 60 * 1000; // 2 minutes default snooze to match backend 'yes'
@@ -471,6 +577,59 @@ function App() {
   };
   const snoozeGroup = (groupName, ms = DISLOCATION_SNOOZE_MS) => {
     try { localStorage.setItem(getSnoozeKey(groupName), String(Date.now() + ms)); } catch {}
+  };
+
+  // Toggle live location sharing
+  const toggleLiveLocation = () => {
+    if (isPanicMode) return;
+    const previousState = isLiveLocationEnabled;
+    const newState = !previousState;
+    setIsLiveLocationEnabled(newState);
+    try { localStorage.setItem('liveLocationEnabled', String(newState)); } catch {}
+
+    (async () => {
+      const pid = passportIdRef.current;
+      if (!pid) {
+        setIsLiveLocationEnabled(previousState);
+        try { localStorage.setItem('liveLocationEnabled', String(previousState)); } catch {}
+        return;
+      }
+      try {
+        const res = await axios.post(`${BACKEND_URL}/api/v1/location/sharing`, {
+          passportId: pid,
+          enabled: newState,
+        }, { withCredentials: true, headers: { 'ngrok-skip-browser-warning': 'true' } });
+        if (typeof res.data?.enabled === 'boolean') {
+          setIsLiveLocationEnabled(res.data.enabled);
+          try { localStorage.setItem('liveLocationEnabled', String(res.data.enabled)); } catch {}
+        }
+        if (typeof res.data?.locked === 'boolean') {
+          setIsPanicMode(res.data.locked);
+        }
+      } catch (err) {
+        console.error('Failed to persist live location preference:', err?.message || err);
+        setIsLiveLocationEnabled(previousState);
+        try { localStorage.setItem('liveLocationEnabled', String(previousState)); } catch {}
+      }
+    })();
+
+    if (newState) {
+      setLocationSharingStatus('idle');
+      if (currentPositionRef.current && passportIdRef.current) {
+        const { latitude, longitude, accuracy } = currentPositionRef.current;
+        try {
+          offlineLocationTracker.setIdentity(passportIdRef.current);
+          offlineLocationTracker.storeLocation({ latitude, longitude, accuracy, source: 'manual-enable' });
+          if (navigator.onLine) {
+            offlineLocationTracker.syncPendingData();
+          }
+        } catch (err) {
+          console.error('Failed to queue immediate location sync:', err);
+        }
+      }
+    } else {
+      setLocationSharingStatus('idle');
+    }
   };
 
   useEffect(() => {
@@ -776,9 +935,11 @@ function App() {
       }
       if (verifiedUserType === 'women' && womenUser) {
         try { localStorage.setItem('WOMEN_USER', JSON.stringify(womenUser)); } catch {}
+        // Fetch women user avatar
+        try { await fetchSidebarAvatar(null, 'women_safety'); } catch {}
       }
       if (verifiedUserType !== 'women') {
-        try { await fetchSidebarAvatar(newPid); } catch {}
+        try { await fetchSidebarAvatar(newPid, svc); } catch {}
       }
     } catch (error) {
       setErrorMessage(error.response?.data?.message || "OTP verification failed.");
@@ -797,15 +958,24 @@ function App() {
     } catch (error) {
       console.error("Error notifying server of logout:", error);
     } finally {
-  setUserToken(null);
-  setLoggedInUserName("");
+      // Clear all user state
+      setUserToken(null);
+      setLoggedInUserName("");
       setPassportId("");
       setEmail("");
-  setOtp("");
+      setOtp("");
       setGroupInfo(null);
       setPendingInvites([]);
       setErrorMessage("");
       setAuthState("login");
+      
+      // Clear women user from localStorage
+      try {
+        localStorage.removeItem('WOMEN_USER');
+        localStorage.removeItem('SERVICE_TYPE');
+      } catch (err) {
+        console.warn('[Logout] Error clearing localStorage:', err);
+      }
     }
   };
 
@@ -877,8 +1047,32 @@ function App() {
           setCurrentPosition({ latitude, longitude });
           currentPositionRef.current = { latitude, longitude, accuracy };
           fetchLocationName(latitude, longitude);
-          // push immediate update
-          try { axios.post(`${BACKEND_URL}/api/v1/location`, { latitude, longitude, accuracy, passportId: passportIdRef.current }, { headers: { 'ngrok-skip-browser-warning': 'true' } }); } catch {}
+          // push immediate update via offline tracker (no await in sync callback)
+          if (isLiveLocationEnabled || isPanicMode) {
+            try {
+              setLocationSharingStatus('sending');
+              offlineLocationTracker.setIdentity(passportIdRef.current);
+              offlineLocationTracker.storeLocation({
+                latitude,
+                longitude,
+                accuracy,
+                source: 'force-refresh'
+              });
+              if (navigator.onLine) {
+                setLocationSharingStatus('syncing');
+                offlineLocationTracker.syncPendingData().then(() => {
+                  setLocationSharingStatus('idle');
+                }).catch(() => {
+                  setLocationSharingStatus('error');
+                });
+              } else {
+                setLocationSharingStatus('offline');
+              }
+            } catch (err) {
+              console.error('Location sharing error:', err);
+              setLocationSharingStatus('error');
+            }
+          }
         },
         (err) => {
           console.error('[forceRefreshLocation] getCurrentPosition error', err, { attempt: attemptNo, highAccuracy });
@@ -888,7 +1082,7 @@ function App() {
       );
     };
     attempt(true, 1);
-  }, [fetchLocationName]);
+  }, [fetchLocationName, isLiveLocationEnabled, isPanicMode]);
 
   // Trigger a precise location refresh once both passportId and userToken are available
   useEffect(() => {
@@ -939,6 +1133,17 @@ function App() {
         const id = await offlineLocationTracker.storePanicAlert(queuedPayload);
         setQueuedOfflinePanicId(id);
         setIsPanicMode(true);
+        try {
+          setIsLiveLocationEnabled(true);
+          localStorage.setItem('liveLocationEnabled', 'true');
+        } catch {}
+        const pid = passportIdRef.current || panicRecord.passportId;
+        if (pid) {
+          axios.post(`${BACKEND_URL}/api/v1/location/sharing`, {
+            passportId: pid,
+            enabled: true,
+          }, { withCredentials: true, headers: { 'ngrok-skip-browser-warning': 'true' } }).catch(() => {});
+        }
         setAlertMessage(message);
         setShowAlert(true);
         return { success: true, id };
@@ -956,7 +1161,7 @@ function App() {
     if (!isNavigatorOnline) {
       const { success } = await queuePanicOffline("You're offline. SOS alert queued and will auto-send once you're back online.");
       if (!success) {
-        setIsPanicMode(false);
+  setIsPanicMode(false);
         setLoadingPanic(false);
         return;
       }
@@ -973,6 +1178,14 @@ function App() {
         setAlertMessage("Panic signal sent! Help is on the way.");
         setShowAlert(true);
         setIsPanicMode(true);
+        try {
+          setIsLiveLocationEnabled(true);
+          localStorage.setItem('liveLocationEnabled', 'true');
+        } catch {}
+        axios.post(`${BACKEND_URL}/api/v1/location/sharing`, {
+          passportId: passportIdRef.current || panicRecord.passportId,
+          enabled: true,
+        }, { withCredentials: true, headers: { 'ngrok-skip-browser-warning': 'true' } }).catch(() => {});
         panicInitiated = true;
 
         if (socketRef.current) {
@@ -1238,6 +1451,28 @@ function App() {
   useEffect(() => {
     const restoreSession = async () => {
       setSessionChecking(true);
+      
+      // First, check if we have a women user in localStorage
+      try {
+        const womenUserStr = localStorage.getItem('WOMEN_USER');
+        if (womenUserStr) {
+          const womenUserData = JSON.parse(womenUserStr);
+          if (womenUserData && womenUserData.email) {
+            // Restore women user session
+            setLoggedInUserName(womenUserData.name || womenUserData.email);
+            setUserToken("session");
+            setServiceType('women_safety');
+            try { localStorage.setItem('SERVICE_TYPE', 'women_safety'); } catch {}
+            console.log('[Session] Restored women user session:', womenUserData.email);
+            setSessionChecking(false);
+            return; // Don't check regular auth endpoint for women users
+          }
+        }
+      } catch (err) {
+        console.warn('[Session] Error restoring women user:', err);
+      }
+      
+      // If not a women user, try regular session restore
       try {
         const res = await axios.get(`${BACKEND_URL}/api/v1/auth/me`, {
           withCredentials: true,
@@ -1255,7 +1490,8 @@ function App() {
             try { localStorage.setItem('SERVICE_TYPE', svc); } catch {}
           }
           // Fetch sidebar avatar immediately after session restore
-          try { await fetchSidebarAvatar(res.data.passportId); } catch {}
+          const svcTypeForAvatar = res.data.serviceType || res.data.service_type;
+          try { await fetchSidebarAvatar(res.data.passportId, svcTypeForAvatar); } catch {}
         }
       } catch (err) {
         // Not authenticated or error - keep user on auth flow
@@ -1270,13 +1506,18 @@ function App() {
     restoreSession();
   }, [fetchSidebarAvatar]);
 
-  // As an extra guard, when userToken becomes available and we have a passportId,
+  // As an extra guard, when userToken becomes available and we have a passportId or women user,
   // ensure the sidebar avatar is loaded (covers edge timing after reloads)
   useEffect(() => {
-    if (userToken && passportId && (!sidebarProfileImageUrl || sidebarProfileImageUrl.includes('default-avatar'))) {
-      fetchSidebarAvatar(passportId);
+    if (userToken && (!sidebarProfileImageUrl || sidebarProfileImageUrl.includes('default-avatar'))) {
+      // Check if tourist user or women user
+      if (serviceType === 'women_safety') {
+        fetchSidebarAvatar(null, 'women_safety');
+      } else if (passportId) {
+        fetchSidebarAvatar(passportId, serviceType);
+      }
     }
-  }, [userToken, passportId, sidebarProfileImageUrl, fetchSidebarAvatar]);
+  }, [userToken, passportId, serviceType, sidebarProfileImageUrl, fetchSidebarAvatar]);
 
   useEffect(() => {
     const fetchSafetyScore = async () => {
@@ -1311,16 +1552,32 @@ function App() {
   }, [userToken, fetchGroupInfo]);
 
   useEffect(() => {
-  if (!userToken) return;
-  const socket = io(BACKEND_URL, {
-    transports: ['websocket', 'polling'],
-    withCredentials: true,
-  });
-  socketRef.current = socket;
+    if (!userToken || !passportId) {
+      if (socketRef.current) {
+        try { socketRef.current.disconnect(); } catch (_) {}
+        socketRef.current = null;
+      }
+      return;
+    }
 
-    socket.on("connect", () => {
-      console.log("Connected to WebSocket server!");
-  if (passportId) socket.emit("identify", passportId);
+    const clientType = serviceType === 'women_safety' ? 'women' : 'tourist';
+    const socket = io(BACKEND_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      auth: {
+        clientType,
+        passportId,
+      },
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('Connected to WebSocket server!');
+      socket.emit('identify', passportId);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[socket] connect_error:', err?.message || err);
     });
 
     socket.on("dislocationAlert", (alertData) => {
@@ -1447,17 +1704,28 @@ function App() {
     });
 
     // Helper to send location to backend (used by watcher and heartbeat)
-    const sendLocationUpdate = async (latitude, longitude, accuracy) => {
+    const sendLocationUpdate = (latitude, longitude, accuracy) => {
       const pidLive = passportIdRef.current;
-      if (!pidLive) return; // server expects passportId
+      if (!pidLive) return; // require identity
+      // During panic mode, always send regardless of user toggle
+      if (!isPanicMode && !isLiveLocationEnabled) return;
       try {
-        await axios.post(
-          `${BACKEND_URL}/api/v1/location`,
-          { latitude, longitude, accuracy, passportId: pidLive },
-          { headers: { "ngrok-skip-browser-warning": "true" } }
-        );
+        setLocationSharingStatus('sending');
+        offlineLocationTracker.setIdentity(pidLive);
+        offlineLocationTracker.storeLocation({ latitude, longitude, accuracy, source: 'watch' });
+        if (navigator.onLine) {
+          setLocationSharingStatus('syncing');
+          offlineLocationTracker.syncPendingData().then(() => {
+            setLocationSharingStatus('idle');
+          }).catch(() => {
+            setLocationSharingStatus('error');
+          });
+        } else {
+          setLocationSharingStatus('offline');
+        }
       } catch (err) {
-        console.error("Failed to send location:", err?.message || err);
+        console.error("Failed to queue location:", err?.message || err);
+        setLocationSharingStatus('error');
       }
     };
 
@@ -1501,10 +1769,10 @@ function App() {
     // Heartbeat: ensure backend receives the user's last-known location even when it doesn't change
     const HEARTBEAT_MS = 30000; // 30s
     const heartbeatId = setInterval(() => {
-  const pos = currentPositionRef.current;
+      const pos = currentPositionRef.current;
       if (pos && pos.latitude != null && pos.longitude != null) {
-    // fire-and-forget (don't re-filter heartbeat reuse)
-    sendLocationUpdate(pos.latitude, pos.longitude, pos.accuracy);
+        // queue the last-known position; sync if online
+        sendLocationUpdate(pos.latitude, pos.longitude, pos.accuracy);
         return;
       }
 
@@ -1532,9 +1800,102 @@ function App() {
       clearInterval(heartbeatId);
       if (socketRef.current) socketRef.current.disconnect();
     };
-  // passportId is intentionally excluded here; we re-emit identify in a separate effect
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- socket/geolocation lifecycle managed manually
+  }, [userToken, passportId, serviceType]);
+
+  // Geolocation tracking for women users (no passportId, uses email/aadhaar)
+  useEffect(() => {
+    if (serviceType !== 'women_safety' || !userToken) return;
+
+    console.log('[Women Geolocation] Starting location tracking for women user');
+
+    // Helper to update position with smoothing
+    const maybeUpdateWomenPosition = (lat, lng, acc) => {
+      const prev = currentPositionRef.current;
+      if (!prev) {
+        const newPos = { latitude: lat, longitude: lng, accuracy: acc };
+        setCurrentPosition(newPos);
+        currentPositionRef.current = newPos;
+        return true;
+      }
+      const dist = Math.sqrt((lat - prev.latitude) ** 2 + (lng - prev.longitude) ** 2);
+      if (dist < 0.0001 && Math.abs(acc - (prev.accuracy || 0)) < 5) return false;
+      const smoothLat = prev.latitude * 0.3 + lat * 0.7;
+      const smoothLon = prev.longitude * 0.3 + lng * 0.7;
+      const newPos = { latitude: smoothLat, longitude: smoothLon, accuracy: acc };
+      setCurrentPosition(newPos);
+      currentPositionRef.current = newPos;
+      return true;
+    };
+
+    // Initial position
+    if (navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          console.log('[Women Geolocation] Initial position:', { latitude, longitude, accuracy });
+          maybeUpdateWomenPosition(latitude, longitude, accuracy);
+          fetchLocationName(latitude, longitude);
+        },
+        (err) => console.warn('[Women Geolocation] Initial getCurrentPosition error', err),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    // Watch position continuously
+    let watchId = null;
+    if (navigator.geolocation && typeof navigator.geolocation.watchPosition === 'function') {
+      try {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            console.log('[Women Geolocation] Position update:', { latitude, longitude, accuracy });
+            if (maybeUpdateWomenPosition(latitude, longitude, accuracy)) {
+              fetchLocationName(latitude, longitude);
+            }
+          },
+          (error) => console.error('[Women Geolocation] watchPosition error:', error),
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+        );
+      } catch (err) {
+        console.warn('[Women Geolocation] watchPosition failed:', err);
+      }
+    }
+
+    // Heartbeat to ensure continuous location updates
+    const heartbeatId = setInterval(() => {
+      const pos = currentPositionRef.current;
+      if (pos && pos.latitude != null && pos.longitude != null) {
+        console.log('[Women Geolocation] Heartbeat with existing position:', pos);
+        return;
+      }
+
+      // Try to get position if we don't have one
+      if (navigator.geolocation && typeof navigator.geolocation.getCurrentPosition === 'function') {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            console.log('[Women Geolocation] Heartbeat position:', { latitude, longitude, accuracy });
+            if (maybeUpdateWomenPosition(latitude, longitude, accuracy)) {
+              fetchLocationName(latitude, longitude);
+            }
+          },
+          (err) => console.error('[Women Geolocation] Heartbeat getCurrentPosition failed', err),
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+      }
+    }, 30000); // 30 seconds
+
+    return () => {
+      console.log('[Women Geolocation] Cleaning up location tracking');
+      try {
+        if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      } catch (e) {
+        console.warn('[Women Geolocation] Error clearing watch:', e);
+      }
+      clearInterval(heartbeatId);
+    };
+  }, [userToken, serviceType, fetchLocationName]);
 
   // Fetch persisted forwarded services (if any) once passportId & token are ready
   useEffect(() => {
@@ -1934,7 +2295,24 @@ function App() {
               title="My Profile"
             >
               <div className="pf-avatar navbar-avatar" aria-label="Profile avatar">{initials}</div>
-              <div className="navbar-passport-id">{passportId}</div>
+              <div className="navbar-passport-id">{
+                (() => {
+                  const svc = (serviceType || '').toLowerCase();
+                  if (svc === 'women_safety') {
+                    // Prefer loggedInUserName; fallback to WOMEN_USER from localStorage
+                    let name = (loggedInUserName || '').trim();
+                    if (!name) {
+                      try {
+                        const raw = localStorage.getItem('WOMEN_USER');
+                        if (raw) name = (JSON.parse(raw).name || '').trim();
+                      } catch {}
+                    }
+                    return name || 'My Profile';
+                  }
+                  // For other services keep existing behavior (passportId)
+                  return passportId;
+                })()
+              }</div>
             </button>
           </div>
         </header>
@@ -1989,25 +2367,121 @@ function App() {
                   
                   const userData = JSON.parse(womenUser);
                   return (
-                    <WomenDashboard 
-                      user={{ 
-                        name: userData.name, 
-                        id: userData.id,
-                        email: userData.email,
-                        mobileNumber: userData.mobileNumber,
-                        aadhaarNumber: userData.aadhaarNumber 
-                      }} 
-                      location={{
-                        address: locationName,
-                        latitude: currentPosition?.latitude,
-                        longitude: currentPosition?.longitude,
-                        coords: currentPosition ? {
-                          latitude: currentPosition.latitude,
-                          longitude: currentPosition.longitude,
-                          accuracy: currentPositionRef.current?.accuracy
-                        } : null
-                      }} 
-                    />
+                    <>
+                      {/* Live Location control panel for Women Safety dashboard */}
+                      <section className="card hero-card" style={{ marginTop: 0 }}>
+                        <div className="hero-top hero-flex">
+                          <div className="hero-info">
+                            <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
+                            {/* Live Location Toggle and Status */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '16px',
+                              flexWrap: 'wrap',
+                              marginBottom: '8px',
+                              padding: '12px',
+                              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                              borderRadius: '12px',
+                              border: '1px solid #bae6fd'
+                            }}>
+                              {/* Status indicator */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '0.9rem',
+                                fontWeight: 600,
+                                color: locationSharingStatus === 'error' ? '#dc2626' : 
+                                       locationSharingStatus === 'offline' ? '#f59e0b' :
+                                       locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
+                              }}>
+                                <div style={{
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  background: locationSharingStatus === 'error' ? '#dc2626' : 
+                                             locationSharingStatus === 'offline' ? '#f59e0b' :
+                                             locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
+                                  animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                                  boxShadow: '0 0 8px currentColor'
+                                }} />
+                                <span>
+                                  {locationSharingStatus === 'sending' ? 'Sending...' :
+                                   locationSharingStatus === 'syncing' ? 'Syncing...' :
+                                   locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                                   locationSharingStatus === 'error' ? 'Error' :
+                                   isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                                </span>
+                              </div>
+                              
+                              {/* Toggle switch with label */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                                  Live Sharing
+                                </span>
+                                <label style={{
+                                  position: 'relative',
+                                  display: 'inline-block',
+                                  width: '56px',
+                                  height: '32px',
+                                  cursor: 'pointer',
+                                  flexShrink: 0
+                                }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isLiveLocationEnabled}
+                                    onChange={toggleLiveLocation}
+                                    style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                                  />
+                                  <span style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
+                                    borderRadius: '32px',
+                                    transition: 'all 0.3s ease',
+                                    boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                                  }}>
+                                    <span style={{
+                                      position: 'absolute',
+                                      left: isLiveLocationEnabled ? '28px' : '4px',
+                                      top: '4px',
+                                      width: '24px',
+                                      height: '24px',
+                                      background: 'white',
+                                      borderRadius: '50%',
+                                      transition: 'left 0.3s ease',
+                                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                                    }} />
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                            <p className="muted">We track your location in real-time to keep you safe.</p>
+                          </div>
+                        </div>
+                      </section>
+
+                      <WomenDashboard 
+                        user={{ 
+                          name: userData.name, 
+                          id: userData.id,
+                          email: userData.email,
+                          mobileNumber: userData.mobileNumber,
+                          aadhaarNumber: userData.aadhaarNumber 
+                        }} 
+                        location={{
+                          address: locationName,
+                          latitude: currentPosition?.latitude,
+                          longitude: currentPosition?.longitude,
+                          coords: currentPosition ? {
+                            latitude: currentPosition.latitude,
+                            longitude: currentPosition.longitude,
+                            accuracy: currentPositionRef.current?.accuracy
+                          } : null
+                        }} 
+                      />
+                    </>
                   );
                 })()}
               </Route>
@@ -2015,7 +2489,91 @@ function App() {
                 <section className="card hero-card">
                   <div className="hero-top hero-flex">
                     <div className="hero-info">
-                      <h2>Live Location</h2>
+                      <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
+                      {/* Live Location Toggle and Status */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '16px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
+                        padding: '12px',
+                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                        borderRadius: '12px',
+                        border: '1px solid #bae6fd'
+                      }}>
+                        {/* Status indicator */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          color: locationSharingStatus === 'error' ? '#dc2626' : 
+                                 locationSharingStatus === 'offline' ? '#f59e0b' :
+                                 locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
+                        }}>
+                          <div style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: locationSharingStatus === 'error' ? '#dc2626' : 
+                                       locationSharingStatus === 'offline' ? '#f59e0b' :
+                                       locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
+                            animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                            boxShadow: '0 0 8px currentColor'
+                          }} />
+                          <span>
+                            {locationSharingStatus === 'sending' ? 'Sending...' :
+                             locationSharingStatus === 'syncing' ? 'Syncing...' :
+                             locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                             locationSharingStatus === 'error' ? 'Error' :
+                             isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                          </span>
+                        </div>
+                        
+                        {/* Toggle switch with label */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                            Live Sharing
+                          </span>
+                          <label style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            width: '56px',
+                            height: '32px',
+                            cursor: 'pointer',
+                            flexShrink: 0
+                          }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
+                            <input
+                              type="checkbox"
+                              checked={isLiveLocationEnabled}
+                              onChange={toggleLiveLocation}
+                              style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                            />
+                            <span style={{
+                              position: 'absolute',
+                              inset: 0,
+                              background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
+                              borderRadius: '32px',
+                              transition: 'all 0.3s ease',
+                              boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                            }}>
+                              <span style={{
+                                position: 'absolute',
+                                left: isLiveLocationEnabled ? '28px' : '4px',
+                                top: '4px',
+                                width: '24px',
+                                height: '24px',
+                                background: 'white',
+                                borderRadius: '50%',
+                                transition: 'left 0.3s ease',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                              }} />
+                            </span>
+                          </label>
+                        </div>
+                      </div>
                       <p className="muted">We track your location in real-time to keep you safe.</p>
                       <button
                         className="primary-button hero-find-route"
@@ -2207,20 +2765,22 @@ function App() {
             </div>
             {/* (removed duplicate sidebar profile image logic) */}
 
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-number">
-                  {groupInfo?.members?.length || 0}
+            {serviceType === 'tourist_safety' && (
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <div className="stat-number">
+                    {groupInfo?.members?.length || 0}
+                  </div>
+                  <div className="muted">Members</div>
                 </div>
-                <div className="muted">Members</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-number">
-                  {(pendingInvites || []).length}
+                <div className="stat-card">
+                  <div className="stat-number">
+                    {(pendingInvites || []).length}
+                  </div>
+                  <div className="muted">Invites</div>
                 </div>
-                <div className="muted">Invites</div>
               </div>
-            </div>
+            )}
 
             <button
               onClick={forceRefreshLocation}
@@ -2253,17 +2813,6 @@ function App() {
               {isRecording && (
                 <p className="recording-indicator">◉ Recording audio...</p>
               )}
-            </div>
-
-            <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Link to="/guidance" style={{ textDecoration: 'none' }}>
-                <button
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'linear-gradient(90deg,#10b981,#059669)', color:'#fff', fontWeight:600, border:'none', cursor:'pointer' }}
-                  type="button"
-                >
-                  Bus Destination Alert
-                </button>
-              </Link>
             </div>
 
             <div style={{ marginTop: 4 }}>

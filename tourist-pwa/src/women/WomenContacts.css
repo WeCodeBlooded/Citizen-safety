@@ -1,0 +1,331 @@
+/* Women Contacts Management Styling */
+
+.women-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1rem 0;
+}
+
+/* Contacts Section */
+.contacts-section {
+  background: linear-gradient(135deg, #ffffff 0%, #f9f3fc 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(180, 80, 180, 0.1);
+}
+
+.contacts-section h3 {
+  color: #7a2e7a;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 2rem;
+  color: #9966cc;
+  font-weight: 500;
+}
+
+.error-message {
+  background-color: #ffe6e6;
+  color: #cc0000;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #cc0000;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  font-style: italic;
+}
+
+/* Contacts List */
+.contacts-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border: 2px solid #e8d5f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(180, 80, 180, 0.06);
+}
+
+.contact-item:hover {
+  border-color: #c993e0;
+  box-shadow: 0 4px 16px rgba(180, 80, 180, 0.15);
+  transform: translateY(-2px);
+}
+
+.contact-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contact-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #7a2e7a;
+}
+
+.contact-relationship {
+  font-size: 0.9rem;
+  color: #9966cc;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.contact-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.contact-phone,
+.contact-email {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-remove {
+  background: linear-gradient(135deg, #ff6b9d 0%, #ff4081 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 64, 129, 0.2);
+}
+
+.btn-remove:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 64, 129, 0.3);
+}
+
+.btn-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Add Contact Form */
+.add-contact-form {
+  background: linear-gradient(135deg, #fef6ff 0%, #f0e8f8 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #e8d5f0;
+}
+
+.add-contact-form h4 {
+  color: #7a2e7a;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-input {
+  padding: 0.85rem;
+  border: 2px solid #e8d5f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #9966cc;
+  box-shadow: 0 0 0 3px rgba(153, 102, 204, 0.1);
+}
+
+.form-input::placeholder {
+  color: #aaa;
+}
+
+.btn-add {
+  width: 100%;
+  background: linear-gradient(135deg, #9966cc 0%, #7a2e7a 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.9rem 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(122, 46, 122, 0.2);
+}
+
+.btn-add:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(122, 46, 122, 0.3);
+}
+
+.btn-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Helplines Section */
+.helplines-section {
+  background: linear-gradient(135deg, #fff3f8 0%, #ffe8f5 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(255, 105, 180, 0.1);
+}
+
+.helplines-section h3 {
+  color: #d81b60;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.helplines-subtitle {
+  color: #666;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  font-style: italic;
+}
+
+.helplines-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.helpline-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border: 2px solid #ffd5e8;
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 105, 180, 0.06);
+}
+
+.helpline-item:hover {
+  border-color: #ffb3d9;
+  box-shadow: 0 4px 16px rgba(255, 105, 180, 0.15);
+  transform: translateY(-2px);
+}
+
+.helpline-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.helpline-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #d81b60;
+}
+
+.helpline-number {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #333;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+
+.btn-call {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 0.7rem 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
+  display: inline-block;
+}
+
+.btn-call:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-item,
+  .helpline-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .btn-remove,
+  .btn-call {
+    width: 100%;
+    text-align: center;
+  }
+
+  .contacts-section,
+  .helplines-section {
+    padding: 1.5rem;
+  }
+
+  .contact-details {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .contacts-section h3,
+  .helplines-section h3 {
+    font-size: 1.3rem;
+  }
+
+  .contact-name,
+  .helpline-name {
+    font-size: 1rem;
+  }
+
+  .helpline-number {
+    font-size: 1.1rem;
+  }
+}

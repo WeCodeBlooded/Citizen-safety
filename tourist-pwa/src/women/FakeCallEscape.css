@@ -1,0 +1,109 @@
+/* Fake Call / Escape Feature Styling */
+.fake-call-escape {
+  background: linear-gradient(135deg, #f8e1f4 0%, #e1f4f8 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(180, 80, 180, 0.12);
+  margin-bottom: 2rem;
+}
+
+.fake-call-escape h3 {
+  color: #7a2e7a;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.escape-actions {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.btn-fake-call {
+  background: linear-gradient(135deg, #ffb3d9 0%, #ff4081 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255, 64, 129, 0.15);
+  transition: all 0.3s ease;
+}
+
+.btn-fake-call:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 64, 129, 0.25);
+}
+
+.btn-fake-call:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-silent-alert {
+  background: linear-gradient(135deg, #b1e4f6 0%, #388e3c 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+  transition: all 0.3s ease;
+}
+
+.btn-silent-alert:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.25);
+}
+
+.btn-silent-alert:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.escape-status {
+  margin: 1rem 0;
+  color: #d81b60;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.recent-escapes {
+  margin-top: 1.5rem;
+}
+
+.recent-escapes h4 {
+  color: #7a2e7a;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.recent-escapes ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recent-escapes li {
+  background: #fff;
+  border: 2px solid #e8d5f0;
+  border-radius: 8px;
+  padding: 0.8rem 1.2rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.98rem;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(180, 80, 180, 0.06);
+}
+
+@media (max-width: 600px) {
+  .escape-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}

@@ -1,9 +1,11 @@
 // ...existing code...
+// ...existing code...
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const cookie = require("cookie");
 const { mintDigitalId, mintGroupId } = require("./blockchainService");
 const axios = require("axios");
 const cron = require("node-cron");
@@ -106,8 +108,85 @@ function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+const DEFAULT_SOCKET_ORIGIN_REGEX = /localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i;
+const rawSocketOrigins = (process.env.SOCKET_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const SOCKET_RESPONDER_SECRET = process.env.SOCKET_RESPONDER_SECRET ? String(process.env.SOCKET_RESPONDER_SECRET).trim() : null;
+
+const compiledOriginMatchers = rawSocketOrigins.map((entry) => {
+  if (!entry) return null;
+  if (entry === '*') return () => true;
+  if (entry.toLowerCase().startsWith('regex:')) {
+    try {
+      const rx = new RegExp(entry.slice(6));
+      return (origin) => !!origin && rx.test(origin);
+    } catch (e) {
+      console.warn('[socket-origin] invalid regex ignored:', entry, e && e.message);
+      return null;
+    }
+  }
+  if (entry.includes('*')) {
+    const escaped = entry.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    const rx = new RegExp(`^${escaped}$`, 'i');
+    return (origin) => !!origin && rx.test(origin);
+  }
+  const normalized = (() => {
+    try {
+      return new URL(entry).origin;
+    } catch {
+      return entry;
+    }
+  })();
+  return (origin) => {
+    if (!origin) return false;
+    try {
+      return new URL(origin).origin === normalized;
+    } catch {
+      return origin === normalized;
+    }
+  };
+}).filter(Boolean);
+
+function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (compiledOriginMatchers.length) {
+    return compiledOriginMatchers.some((matcher) => {
+      try { return matcher(origin); } catch { return false; }
+    });
+  }
+  return DEFAULT_SOCKET_ORIGIN_REGEX.test(origin);
+}
+
 const connectedTourists = {};
 const app = express();
+const liveLocationPrefs = new Map();
+const panicLocks = new Set();
+
+function resolvePassportId(req) {
+  try {
+    const body = req && req.body ? req.body : {};
+    const query = req && req.query ? req.query : {};
+    const cookies = req && req.cookies ? req.cookies : {};
+    if (body.passportId) return String(body.passportId).trim();
+    if (query.passportId) return String(query.passportId).trim();
+    if (cookies.passportId) return String(cookies.passportId).trim();
+    if (cookies.womenUserId) return `WOMEN-${String(cookies.womenUserId).trim()}`;
+  } catch (err) {
+    console.warn('[resolvePassportId] failed:', err && err.message);
+  }
+  return null;
+}
+
+function resolvePassportFromCookies(cookieHeader) {
+  if (!cookieHeader) return null;
+  try {
+    const parsed = cookie.parse(cookieHeader);
+    if (parsed.passportId) return String(parsed.passportId).trim();
+    if (parsed.womenUserId) return `WOMEN-${String(parsed.womenUserId).trim()}`;
+  } catch (err) {
+    console.warn('[socket-auth] cookie parse failed:', err && err.message);
+  }
+  return null;
+}
 
 // Ensure DB has expected columns/tables used by newer code and fix triggers
 async function ensureDatabaseShape() {
@@ -252,6 +331,34 @@ async function ensureDatabaseShape() {
     } catch (e) {
       console.warn('[DB] could not ensure incidents tables:', e && e.message);
     }
+
+    // Women streaming evidence tables
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS women_stream_sessions (
+          id SERIAL PRIMARY KEY,
+          passport_id VARCHAR(50) NOT NULL,
+          started_at TIMESTAMPTZ DEFAULT now(),
+          ended_at TIMESTAMPTZ,
+          status VARCHAR(20) DEFAULT 'active'
+        );
+        CREATE INDEX IF NOT EXISTS idx_women_stream_sessions_passport ON women_stream_sessions(passport_id);
+
+        CREATE TABLE IF NOT EXISTS women_media_segments (
+          id SERIAL PRIMARY KEY,
+          session_id INTEGER NOT NULL REFERENCES women_stream_sessions(id) ON DELETE CASCADE,
+          file_name TEXT NOT NULL,
+          url TEXT NOT NULL,
+          sequence INTEGER,
+          size_bytes BIGINT,
+          created_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_women_media_segments_session ON women_media_segments(session_id);
+      `);
+      console.log('[DB] women stream tables ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure women stream tables:', e && e.message);
+    }
   } catch (err) {
     console.warn('[DB] ensureDatabaseShape encountered errors:', err && err.message);
   }
@@ -260,11 +367,12 @@ async function ensureDatabaseShape() {
 // --- CORS: Must be first, before any static or route handlers ---
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      const allow = /localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i.test(origin);
-      if (allow) return callback(null, true);
-      return callback(null, true); // still allow all in dev (fallback)
+    origin(origin, callback) {
+      if (!origin || isOriginAllowed(origin)) return callback(null, true);
+      const err = new Error('Not allowed by CORS');
+      err.status = 403;
+      err.data = { origin };
+      return callback(err);
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "ngrok-skip-browser-warning", "Authorization"],
@@ -274,8 +382,11 @@ app.use(
 
 // CORS for static profile images
 app.use('/uploads/profile-images', (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", req.headers.origin || '*');
-  res.header("Access-Control-Allow-Credentials", "true");
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
   next();
 });
 // --- Profile Image Upload and Retrieval ---
@@ -284,32 +395,80 @@ try { if (!fs.existsSync(PROFILE_IMAGE_DIR)) fs.mkdirSync(PROFILE_IMAGE_DIR, { r
 const profileImageStorage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, PROFILE_IMAGE_DIR); },
   filename: function (req, file, cb) {
-    // Use passportId from session or body, fallback to uuid
+    // Use passportId (tourist) or email/aadhaarNumber (women) from session or body, fallback to uuid
     let safeBase = 'unknown';
     if (req.body.passportId) safeBase = String(req.body.passportId).replace(/[^a-zA-Z0-9_-]/g, '_');
     else if (req.family && req.family.passportId) safeBase = String(req.family.passportId).replace(/[^a-zA-Z0-9_-]/g, '_');
     else if (req.user && req.user.passportId) safeBase = String(req.user.passportId).replace(/[^a-zA-Z0-9_-]/g, '_');
+    else if (req.body.email) safeBase = String(req.body.email).replace(/[^a-zA-Z0-9_-]/g, '_');
+    else if (req.body.aadhaarNumber) safeBase = String(req.body.aadhaarNumber).replace(/[^a-zA-Z0-9_-]/g, '_');
     const ts = Date.now();
     cb(null, `${safeBase}-profile-${ts}${path.extname(file.originalname || '')}`);
   }
 });
 const profileImageUpload = multer({ storage: profileImageStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// POST /api/user/profile-image (upload profile image for current user)
+// POST /api/user/profile-image (upload profile image for current user - tourist or women)
 app.post('/api/user/profile-image', profileImageUpload.single('profileImage'), async (req, res) => {
   try {
-    const passportId = req.body.passportId || (req.family && req.family.passportId) || (req.user && req.user.passportId);
-    if (!passportId || !req.file) return res.status(400).json({ message: 'passportId and image file are required.' });
-    const imageUrl = `/uploads/profile-images/${req.file.filename}`;
-    // Save image URL to users table (or tourists if needed)
-    // Update tourists table according to schema (profile_picture_url column)
-    try {
-      await db.pool.query('UPDATE tourists SET profile_picture_url = $1 WHERE passport_id = $2', [imageUrl, passportId]);
-    } catch (dbErr) {
-      console.warn('Primary update (tourists.profile_picture_url) failed, trying users.profile_image:', dbErr && dbErr.message);
-      await db.pool.query('UPDATE users SET profile_image = $1 WHERE passport_id = $2', [imageUrl, passportId]);
+    if (!req.file) {
+      return res.status(400).json({ message: 'Image file is required.' });
     }
-    return res.status(200).json({ url: imageUrl });
+
+    const imageUrl = `/uploads/profile-images/${req.file.filename}`;
+    
+    // Try to identify user: tourist (passportId) or women (email/aadhaarNumber)
+    const passportId = req.body.passportId || (req.family && req.family.passportId) || (req.user && req.user.passportId);
+    const email = req.body.email || req.body.userEmail;
+    const aadhaarNumber = req.body.aadhaarNumber || req.body.aadhaar;
+    
+    // Handle tourist users (with passportId)
+    if (passportId) {
+      try {
+        await db.pool.query('UPDATE tourists SET profile_picture_url = $1 WHERE passport_id = $2', [imageUrl, passportId]);
+        console.log(`[Profile Image] Updated for tourist: ${passportId}`);
+        return res.status(200).json({ url: imageUrl, message: 'Profile image uploaded successfully.' });
+      } catch (dbErr) {
+        console.warn('Primary update (tourists.profile_picture_url) failed, trying users.profile_image:', dbErr && dbErr.message);
+        await db.pool.query('UPDATE users SET profile_image = $1 WHERE passport_id = $2', [imageUrl, passportId]);
+        console.log(`[Profile Image] Updated for user: ${passportId}`);
+        return res.status(200).json({ url: imageUrl, message: 'Profile image uploaded successfully.' });
+      }
+    }
+    
+    // Handle women users (with email or aadhaarNumber)
+    if (email || aadhaarNumber) {
+      try {
+        let updateQuery = '';
+        let queryParams = [];
+        
+        if (email) {
+          updateQuery = 'UPDATE women_users SET profile_picture_url = $1 WHERE email = $2';
+          queryParams = [imageUrl, email];
+        } else if (aadhaarNumber) {
+          updateQuery = 'UPDATE women_users SET profile_picture_url = $1 WHERE aadhaar_number = $2';
+          queryParams = [imageUrl, aadhaarNumber];
+        }
+        
+        const result = await db.pool.query(updateQuery, queryParams);
+        
+        if (result.rowCount === 0) {
+          return res.status(404).json({ message: 'User not found.' });
+        }
+        
+        console.log(`[Profile Image] Updated for women user: ${email || aadhaarNumber}`);
+        return res.status(200).json({ url: imageUrl, message: 'Profile image uploaded successfully.' });
+      } catch (dbErr) {
+        console.error('[Profile Image] Failed to update women user profile image:', dbErr);
+        return res.status(500).json({ message: 'Failed to save profile image to database.' });
+      }
+    }
+    
+    // No valid identifier provided
+    return res.status(400).json({ 
+      message: 'User identifier required. Provide passportId (for tourists) or email/aadhaarNumber (for women users).' 
+    });
+    
   } catch (e) {
     console.error('Failed to upload profile image:', e && e.message);
     return res.status(500).json({ message: 'Failed to upload image.' });
@@ -317,19 +476,47 @@ app.post('/api/user/profile-image', profileImageUpload.single('profileImage'), a
 });
 app.get('/api/user/profile-image', async (req, res) => {
   try {
-    // Use session or query param to get passportId
+    // Try to identify user: tourist (passportId) or women (email/aadhaarNumber)
     const passportId = (req.family && req.family.passportId) || req.query.passportId || req.user?.passportId;
-    if (!passportId) return res.json({ url: null });
+    const email = req.query.email || req.query.userEmail;
+    const aadhaarNumber = req.query.aadhaarNumber || req.query.aadhaar;
+    
     let url = null;
-    try {
-      // Prefer explicit profile picture URL
-      const result = await db.pool.query('SELECT profile_picture_url, passport_image_url FROM tourists WHERE passport_id = $1', [passportId]);
-      url = result.rows[0]?.profile_picture_url || result.rows[0]?.passport_image_url || null;
-    } catch (dbErr) {
-      console.warn('Primary select (tourists.profile_picture_url) failed, trying users.profile_image:', dbErr && dbErr.message);
-      const result2 = await db.pool.query('SELECT profile_image FROM users WHERE passport_id = $1', [passportId]);
-      url = result2.rows[0]?.profile_image || null;
+    
+    // Handle tourist users (with passportId)
+    if (passportId) {
+      try {
+        // Prefer explicit profile picture URL
+        const result = await db.pool.query('SELECT profile_picture_url, passport_image_url FROM tourists WHERE passport_id = $1', [passportId]);
+        url = result.rows[0]?.profile_picture_url || result.rows[0]?.passport_image_url || null;
+      } catch (dbErr) {
+        console.warn('Primary select (tourists.profile_picture_url) failed, trying users.profile_image:', dbErr && dbErr.message);
+        const result2 = await db.pool.query('SELECT profile_image FROM users WHERE passport_id = $1', [passportId]);
+        url = result2.rows[0]?.profile_image || null;
+      }
     }
+    
+    // Handle women users (with email or aadhaarNumber)
+    if (!url && (email || aadhaarNumber)) {
+      try {
+        let selectQuery = '';
+        let queryParams = [];
+        
+        if (email) {
+          selectQuery = 'SELECT profile_picture_url FROM women_users WHERE email = $1';
+          queryParams = [email];
+        } else if (aadhaarNumber) {
+          selectQuery = 'SELECT profile_picture_url FROM women_users WHERE aadhaar_number = $1';
+          queryParams = [aadhaarNumber];
+        }
+        
+        const result = await db.pool.query(selectQuery, queryParams);
+        url = result.rows[0]?.profile_picture_url || null;
+      } catch (dbErr) {
+        console.warn('[Profile Image] Failed to fetch women user profile image:', dbErr);
+      }
+    }
+    
     // Validate that the file exists on disk; if not, fall back to default avatar
     try {
       if (url && url.startsWith('/uploads/')) {
@@ -337,13 +524,15 @@ app.get('/api/user/profile-image', async (req, res) => {
         const rootPath = path.join(__dirname, '..', url);
         const exists = fs.existsSync(localPath) || fs.existsSync(rootPath);
         if (!exists) {
-          console.warn(`Profile image file missing for ${passportId}:`, url);
+          console.warn(`Profile image file missing:`, url);
           url = '/uploads/profile-images/default-avatar.png';
         }
       }
     } catch (_) {}
+    
     return res.json({ url });
   } catch (e) {
+    console.error('[Profile Image] Error fetching profile image:', e);
     return res.json({ url: null });
   }
 });
@@ -388,11 +577,11 @@ const server = http.createServer(app);
 // Socket.IO server with dynamic CORS mirroring logic similar to Express middleware
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const allow = /localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i.test(origin);
-      if (allow) return callback(null, true);
-      return callback(null, true); // dev fallback
+    origin(origin, callback) {
+      if (!origin || isOriginAllowed(origin)) return callback(null, true);
+      const err = new Error('CORS_ORIGIN_DENIED');
+      err.data = { origin };
+      return callback(err, false);
     },
     credentials: true,
     methods: ["GET", "POST"],
@@ -403,9 +592,10 @@ const io = new Server(server, {
 const userSockets = new Map();
 // Track connected admin dashboards (socket.id -> displayName)
 const adminSockets = new Map();
+const responderSockets = new Map(); // socket.id -> responder metadata
 // Simple in-memory store for recent admin notifications (last 50)
 const adminNotifications = [];
-const port = 3001;
+const port = Number(process.env.PORT) || 3001;
 const transporter = nodemailer.createTransport({
   service: "gmail", // Or 'outlook', etc.
   auth: {
@@ -747,34 +937,11 @@ const upload = multer({
 }).single("profilePicture");
 
 // Allow credentials (HTTP-only cookies) and echo origin to support various frontends (ngrok/local)
-// Allow credentials and handle ngrok URLs properly
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      // Allow localhost and ngrok URLs
-  if (/localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i.test(origin)) {
-        return callback(null, true);
-      }
-
-      // For other origins, you can either allow them or deny
-      return callback(null, true); // Allow all for development
-    },
-    credentials: true,
-    allowedHeaders: ["Content-Type", "ngrok-skip-browser-warning", "Authorization"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-  })
-);
-
-// Ensure OPTIONS preflight requests are handled by cors as well
-// Use '/*' to avoid path-to-regexp errors with a bare '*'
 // Fallback middleware: echo Origin and ensure credentialed CORS headers for all routes
 // This helps when requests come through proxies (ngrok) that require the exact Origin to be echoed
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && /localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i.test(origin)) {
+  if (origin && isOriginAllowed(origin)) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Credentials", "true");
     res.header(
@@ -933,6 +1100,87 @@ app.post('/api/user/profile', profileUpload.fields([
     const passportSecondaryUrl = filePath(files.passportSecondary);
     const visaDetailsUrl = filePath(files.visaDetails);
 
+    // Women Safety: If passportId indicates a women user (WOMEN-<id>), persist into women tables instead of tourists
+    const womenMatch = passportId && String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (!Number.isFinite(womenId)) return res.status(400).json({ message: 'Invalid women user id' });
+
+      // Compute completeness for women profile (basic fields + at least one emergency contact)
+      const baseComplete = [fullName, contactNumber, email].every(Boolean);
+      const hasAnyEmergency = Boolean(emergencyPhone1 || emergencyEmail1 || emergencyPhone2 || emergencyEmail2);
+      const profileComplete = baseComplete && hasAnyEmergency;
+
+      try {
+        // Update core fields in women_users
+        await db.pool.query(
+          `UPDATE women_users SET
+            name = COALESCE($1, name),
+            mobile_number = COALESCE($2, mobile_number),
+            email = COALESCE($3, email),
+            last_seen = NOW()
+           WHERE id = $4`,
+          [fullName || null, contactNumber || null, email || null, womenId]
+        );
+
+        // Refresh top two emergency contacts with priority 1 and 2
+        // Simpler approach: delete existing priority 1/2, then insert fresh values present in the form
+        await db.pool.query('DELETE FROM women_emergency_contacts WHERE user_id = $1 AND (priority = 1 OR priority = 2)', [womenId]);
+
+        const inserts = [];
+        if (emergencyPhone1) {
+          inserts.push(db.pool.query(
+            `INSERT INTO women_emergency_contacts (user_id, name, mobile_number, email, relationship, priority)
+             VALUES ($1, $2, $3, $4, $5, 1)`,
+            [womenId, 'Primary', emergencyPhone1 || null, emergencyEmail1 || null, 'family']
+          ));
+        }
+        if (emergencyPhone2) {
+          inserts.push(db.pool.query(
+            `INSERT INTO women_emergency_contacts (user_id, name, mobile_number, email, relationship, priority)
+             VALUES ($1, $2, $3, $4, $5, 2)`,
+            [womenId, 'Secondary', emergencyPhone2 || null, emergencyEmail2 || null, 'family']
+          ));
+        }
+        if (inserts.length) await Promise.all(inserts);
+
+        // Note: Women flow currently ignores uploaded passport/visa files; retained on disk for audit if needed
+        console.log('Saved women profile submission:', {
+          userId: womenId,
+          fullName, contactNumber, email,
+          emergencyPhone1, emergencyEmail1, emergencyPhone2, emergencyEmail2,
+          profileComplete,
+        });
+
+        // Fetch latest profile data to return
+        const userRes = await db.pool.query('SELECT id, name, mobile_number, email FROM women_users WHERE id = $1', [womenId]);
+        const userRow = userRes.rows[0] || {};
+        const contactsRes = await db.pool.query('SELECT name, mobile_number, email, relationship, priority FROM women_emergency_contacts WHERE user_id = $1 ORDER BY priority', [womenId]);
+        const contacts = contactsRes.rows || [];
+
+        return res.status(200).json({
+          message: 'Profile saved successfully!',
+          profileComplete,
+          profile: {
+            fullName: userRow.name || '',
+            contactNumber: userRow.mobile_number || '',
+            email: userRow.email || '',
+            passportId: `WOMEN-${womenId}`,
+            emergencyContacts: contacts.map(c => ({
+              name: c.name,
+              number: c.mobile_number,
+              email: c.email,
+              relationship: c.relationship,
+              priority: c.priority
+            }))
+          }
+        });
+      } catch (e) {
+        console.error('Failed to persist women profile:', e && e.message);
+        return res.status(500).json({ message: 'Failed to save profile.' });
+      }
+    }
+
     // Compute completeness (required fields + essential files)
     const requiredForComplete = [
       fullName, contactNumber, email, passportId, country, visaId, visaExpiry,
@@ -941,7 +1189,7 @@ app.post('/api/user/profile', profileUpload.fields([
     // We require at least main passport and visa details files to be present
     const profileComplete = requiredForComplete.every(Boolean) && (!!passportMainUrl || !!req.body.passportMainUrl) && (!!visaDetailsUrl || !!req.body.visaDetailsUrl);
 
-    // Persist full profile to tourists
+    // Persist full profile to tourists (default flow)
     try {
       // Update text fields first
       await db.pool.query(
@@ -1194,8 +1442,90 @@ const tryConvertToMp3 = (webmPath, mp3Path) => {
   });
 };
 
+io.use((socket, next) => {
+  try {
+    const origin = socket.handshake.headers?.origin;
+    if (origin && !isOriginAllowed(origin)) {
+      const err = new Error('CORS_ORIGIN_DENIED');
+      err.data = { origin };
+      return next(err);
+    }
+
+    const auth = socket.handshake.auth || {};
+    const query = socket.handshake.query || {};
+    const clientTypeRaw = auth.clientType || query.clientType || null;
+    const clientType = clientTypeRaw ? String(clientTypeRaw).toLowerCase() : null;
+  // Accept responder secret via multiple names for compatibility
+  const token = auth.responderSecret || auth.token || query.responderSecret || query.token || null;
+    const name = auth.name || query.name || null;
+
+    const cookiePassport = resolvePassportFromCookies(socket.handshake.headers?.cookie);
+    let passportId = auth.passportId || auth.passport || query.passportId || query.passport || cookiePassport || null;
+    if (passportId != null) passportId = String(passportId).trim();
+
+    if (clientType === 'women' && passportId && /^\d+$/.test(passportId)) {
+      passportId = `WOMEN-${passportId}`;
+    }
+
+    const isTouristClient = clientType === 'tourist' || clientType === 'women';
+    const isResponderClient = clientType === 'responder' || clientType === 'admin';
+    const isFamilyClient = clientType === 'family';
+
+    if (isResponderClient) {
+      if (SOCKET_RESPONDER_SECRET && SOCKET_RESPONDER_SECRET.length > 0) {
+        if (!token || token !== SOCKET_RESPONDER_SECRET) {
+          const err = new Error('UNAUTHORIZED');
+          err.data = { reason: 'invalid_responder_token' };
+          return next(err);
+        }
+      }
+      socket.data.clientType = 'responder';
+      if (name && String(name).trim()) {
+        socket.data.displayName = String(name).trim();
+      }
+      return next();
+    }
+
+    if (isTouristClient || clientType === 'legacy' || !clientType) {
+      if (!passportId) {
+        const err = new Error('UNAUTHORIZED');
+        err.data = { reason: 'missing_passport' };
+        return next(err);
+      }
+      socket.data.clientType = clientType === 'women' ? 'women' : 'tourist';
+      socket.data.passportId = passportId;
+      return next();
+    }
+
+    if (isFamilyClient) {
+      socket.data.clientType = 'family';
+      return next();
+    }
+
+    const err = new Error('UNAUTHORIZED');
+    err.data = { reason: 'unsupported_client_type', clientType };
+    return next(err);
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error('UNAUTHORIZED');
+    if (!err.data) err.data = { reason: 'socket_auth_internal' };
+    return next(err);
+  }
+});
+
 io.on("connection", (socket) => {
   console.log("A user connected with socket id:", socket.id);
+
+  const clientType = socket.data?.clientType;
+  const passportFromAuth = socket.data?.passportId;
+  if (passportFromAuth && (clientType === 'tourist' || clientType === 'women')) {
+    userSockets.set(passportFromAuth, socket);
+  }
+  if (clientType === 'responder') {
+    const displayName = socket.data?.displayName || `responder-${socket.id.slice(-4)}`;
+    responderSockets.set(socket.id, { name: displayName });
+    adminSockets.set(socket.id, displayName);
+    io.emit('adminListUpdate', Array.from(adminSockets.values()));
+  }
 
   socket.on("identify", (passportId) => {
     console.log(`Socket ${socket.id} identified as user ${passportId}`);
@@ -1251,6 +1581,9 @@ io.on("connection", (socket) => {
     if (adminSockets.has(socket.id)) {
       adminSockets.delete(socket.id);
       io.emit('adminListUpdate', Array.from(adminSockets.values()));
+    }
+    if (responderSockets.has(socket.id)) {
+      responderSockets.delete(socket.id);
     }
     unsubscribeFamilySocket(socket);
   });
@@ -1649,19 +1982,43 @@ app.post(
 // Step 1: request OTP for emergency email (store OTP in Postgres)
 app.post('/api/family/auth/request-otp', async (req, res) => {
   try {
-    const { email } = req.body || {};
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const rawEmail = req.body?.email;
+    if (!rawEmail || !String(rawEmail).trim()) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    const email = String(rawEmail).trim().toLowerCase();
 
+    let passportId = null;
+    let name = null;
     // Attempt to match this email to a tourist's emergency contact emails or main email
     const q = await db.pool.query(
       `SELECT passport_id, name FROM tourists 
-       WHERE email = $1 OR emergency_contact_email_1 = $1 OR emergency_contact_email_2 = $1 LIMIT 1`,
+       WHERE LOWER(email) = $1 OR LOWER(emergency_contact_email_1) = $1 OR LOWER(emergency_contact_email_2) = $1 LIMIT 1`,
       [email]
     );
-    if (q.rows.length === 0) {
-      return res.status(404).json({ message: 'No tourist found for this emergency email.' });
+    if (q.rows.length > 0) {
+      passportId = q.rows[0].passport_id;
+      name = q.rows[0].name;
+    } else {
+      const womenQ = await db.pool.query(
+        `SELECT wu.id, wu.name, wu.email AS user_email, c.email AS contact_email
+         FROM women_users wu
+         LEFT JOIN women_emergency_contacts c ON c.user_id = wu.id
+         WHERE LOWER(wu.email) = $1 OR LOWER(c.email) = $1
+         ORDER BY c.priority NULLS LAST, c.id
+         LIMIT 1`,
+        [email]
+      );
+      if (womenQ.rows.length) {
+        const row = womenQ.rows[0];
+        passportId = `WOMEN-${row.id}`;
+        name = row.name;
+      }
     }
-    const { passport_id: passportId, name } = q.rows[0];
+
+    if (!passportId) {
+      return res.status(404).json({ message: 'No traveller found for this emergency email.' });
+    }
 
     const otp = generateCode();
 
@@ -1683,7 +2040,7 @@ app.post('/api/family/auth/request-otp', async (req, res) => {
     try {
       await transporter.sendMail({
         from: '"Smart Tourist Safety" <smarttouristsystem@gmail.com>',
-        to: email,
+        to: rawEmail,
         subject: 'Your Family Login OTP',
         text: `Your One-Time Password is ${otp}. It expires in 5 minutes.`,
         html: `
@@ -1712,8 +2069,12 @@ app.post('/api/family/auth/request-otp', async (req, res) => {
 // Step 2: verify OTP from Postgres and return a session token; clear OTP after success
 app.post('/api/family/auth/verify-otp', async (req, res) => {
   try {
-    const { email, otp } = req.body || {};
-    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+    const rawEmail = req.body?.email;
+    const otp = req.body?.otp;
+    if (!rawEmail || !String(rawEmail).trim() || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+    const email = String(rawEmail).trim().toLowerCase();
     // Fetch OTP record from DB
     const r = await db.pool.query(
       `SELECT email, passport_id, tourist_name, otp_code, expires_at FROM family_otps WHERE email = $1`,
@@ -2124,64 +2485,51 @@ app.post("/api/v1/auth/verify-otp", async (req, res) => {
 });
 
 // Return current authenticated user from cookie
-app.get("/api/v1/auth/me", async (req, res) => {
+app.get('/api/family/profile', async (req, res) => {
   try {
-    const cookies = req.cookies || {};
-    const passportId = cookies.passportId;
-    const womenUserId = cookies.womenUserId;
-
-    if (passportId) {
-      // Tourist session
-      const result = await db.pool.query(
-        "SELECT passport_id, name, profile_picture_url, status, service_type FROM tourists WHERE passport_id = $1",
-        [passportId]
-      );
-      if (result.rows.length === 0)
-        return res.status(404).json({ message: "User not found" });
-      const u = result.rows[0];
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, '') || req.query?.token || req.cookies?.familyToken;
+    if (!token) return res.status(401).json({ message: 'Missing family token' });
+    // ...existing code to resolve tracked passportId...
+    // Try to find user in tourists first
+    const touristRes = await db.pool.query('SELECT passport_id, name, emergency_contact, emergency_contact_1, emergency_contact_email_1, emergency_contact_2, emergency_contact_email_2 FROM tourists WHERE passport_id = $1', [passportId]);
+    if (touristRes.rows.length) {
+      const t = touristRes.rows[0];
       return res.json({
-        passportId: u.passport_id,
-        name: u.name,
-        profilePictureUrl: u.profile_picture_url,
-        status: u.status,
-        serviceType: u.service_type || 'general_safety',
-        userType: 'tourist',
+        passportId: t.passport_id,
+        name: t.name,
+        emergencyContacts: [
+          { number: t.emergency_contact_1, email: t.emergency_contact_email_1 },
+          { number: t.emergency_contact_2, email: t.emergency_contact_email_2 }
+        ].filter(c => c.number || c.email)
       });
     }
-
-    if (womenUserId) {
-      // Women-safety session
-      const idNum = Number(womenUserId);
-      if (!Number.isFinite(idNum) || idNum <= 0) {
-        return res.status(401).json({ message: 'Not authenticated' });
-      }
-      const result = await db.pool.query(
-        'SELECT id, name, email, mobile_number, aadhaar_number, status, latitude, longitude FROM women_users WHERE id = $1',
-        [idNum]
-      );
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      const w = result.rows[0];
+    // If not found, try women table
+    const womenMatch = passportId && String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (!Number.isFinite(womenId)) return res.status(400).json({ message: 'Invalid women user id' });
+      const userRes = await db.pool.query('SELECT id, name FROM women_users WHERE id = $1', [womenId]);
+      if (!userRes.rows.length) return res.status(404).json({ message: 'User not found' });
+      const contactsRes = await db.pool.query('SELECT name, mobile_number, email, relationship, priority FROM women_emergency_contacts WHERE user_id = $1 ORDER BY priority', [womenId]);
       return res.json({
-        passportId: `WOMEN-${w.id}`,
-        name: w.name,
-        email: w.email,
-        mobileNumber: w.mobile_number,
-        aadhaarNumber: w.aadhaar_number,
-        status: w.status || 'safe',
-        location: (Number.isFinite(w.latitude) && Number.isFinite(w.longitude)) ? { latitude: w.latitude, longitude: w.longitude } : null,
-        serviceType: 'women_safety',
-        userType: 'women',
+        passportId,
+        name: userRes.rows[0].name,
+        emergencyContacts: contactsRes.rows.map(c => ({
+          name: c.name,
+          number: c.mobile_number,
+          email: c.email,
+          relationship: c.relationship,
+          priority: c.priority
+        }))
       });
     }
-
-    return res.status(401).json({ message: "Not authenticated" });
-  } catch (err) {
-    console.error("Error in /auth/me:", err.message);
-    res.status(500).send("Server error");
+    return res.status(404).json({ message: 'User not found' });
+  } catch (e) {
+    console.error('Family profile fetch failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to fetch profile' });
   }
 });
+// ...existing code...
 
 app.get("/api/v1/tourists", async (req, res) => {
   try {
@@ -2364,6 +2712,31 @@ app.post("/api/v1/location", async (req, res) => {
   }
 });
 
+app.get('/api/v1/location/sharing', (req, res) => {
+  const passportId = resolvePassportId(req);
+  if (!passportId) {
+    return res.status(400).json({ message: 'passportId required' });
+  }
+  const stored = liveLocationPrefs.has(passportId) ? !!liveLocationPrefs.get(passportId) : true;
+  const locked = panicLocks.has(passportId);
+  return res.json({ passportId, enabled: locked ? true : stored, locked });
+});
+
+app.post('/api/v1/location/sharing', (req, res) => {
+  const passportId = resolvePassportId(req);
+  if (!passportId) {
+    return res.status(400).json({ message: 'passportId required' });
+  }
+  const locked = panicLocks.has(passportId);
+  if (locked) {
+    liveLocationPrefs.set(passportId, true);
+    return res.json({ passportId, enabled: true, locked: true });
+  }
+  const enabled = !!(req.body && req.body.enabled);
+  liveLocationPrefs.set(passportId, enabled);
+  return res.json({ passportId, enabled, locked: false });
+});
+
 app.post("/api/v1/location/reverse-geocode", async (req, res) => {
   const { latitude, longitude } = req.body;
 
@@ -2518,71 +2891,126 @@ app.post("/api/v1/safety/score", async (req, res) => {
 });
 
 app.post("/api/v1/alert/panic", async (req, res) => {
-  const { passportId, latitude, longitude } = req.body; // Assume frontend sends location
-  if (!passportId || !latitude || !longitude) {
-    return res
-      .status(400)
-      .json({ message: "Passport ID and location are required." });
+  const { latitude, longitude } = req.body || {};
+  const passportId = resolvePassportId(req);
+  if (!passportId || latitude == null || longitude == null) {
+    return res.status(400).json({ message: "Passport ID and location are required." });
   }
   try {
-    await db.pool.query(
-      "UPDATE tourists SET status = 'distress' WHERE passport_id = $1",
-      [passportId]
-    );
-    try { await db.pool.query(`INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,'panic',$2)`, [passportId, JSON.stringify({ latitude, longitude })]); } catch(e) { console.warn('panic history insert failed', e.message); }
-    io.emit("panicAlert", { passport_id: passportId, status: "distress" });
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    let services = null;
 
-    // --- NEW: FORWARD TO EMERGENCY SERVICES ---
-    console.log(
-      `IMMEDIATE FORWARD: Panic alert for ${passportId}. Finding nearby services...`
-    );
-    const services = await findNearbyServices(latitude, longitude);
-    if (services) {
-      console.log("Found services:", services);
-      // For the prototype, we log this and notify the admin dashboard
-      io.emit("emergencyResponseDispatched", {
-        passport_id: passportId,
-        message: `Panic alert automatically sent to nearest services.`,
-        services,
-      });
-      // Persist forward marker for panic with services
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (Number.isFinite(womenId)) {
+        try {
+          await db.pool.query(
+            "UPDATE women_users SET status = 'distress', latitude = $1, longitude = $2, last_seen = NOW() WHERE id = $3",
+            [latitude, longitude, womenId]
+          );
+          await db.pool.query(
+            "INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,'panic',$2)",
+            [passportId, JSON.stringify({ latitude, longitude })]
+          );
+        } catch (e) {
+          console.warn('women panic update failed:', e && e.message);
+        }
+      }
+      io.emit("panicAlert", { passport_id: passportId, status: "distress" });
+      try {
+        services = await findNearbyServices(latitude, longitude);
+      } catch (svcErr) {
+        console.warn('Nearby services lookup failed (women panic):', svcErr && svcErr.message);
+      }
+      if (services) {
+        io.emit("emergencyResponseDispatched", {
+          passport_id: passportId,
+          message: `Panic alert automatically sent to nearest services.`,
+          services,
+        });
+      }
+      setCurrentAlert(passportId, { type: 'panic', startedAt: Date.now(), lat: latitude, lon: longitude, services, source: 'panic-button' });
+    } else {
+      await db.pool.query(
+        "UPDATE tourists SET status = 'distress' WHERE passport_id = $1",
+        [passportId]
+      );
       try {
         await db.pool.query(
-          `INSERT INTO alert_forwards(passport_id, alert_type, services) VALUES($1,$2,$3)
-           ON CONFLICT (passport_id, alert_type) DO UPDATE SET forwarded_at = now(), services = EXCLUDED.services`,
-          [passportId, 'distress', JSON.stringify(services || {})]
+          `INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,'panic',$2)`,
+          [passportId, JSON.stringify({ latitude, longitude })]
         );
-      } catch(e) { console.warn('Failed to persist panic forward record', e && e.message); }
-    }
-    // Track panic alert for family dashboard
-    setCurrentAlert(passportId, { type: 'panic', startedAt: Date.now(), lat: latitude, lon: longitude, services, source: 'panic-button' });
-    notifyEmergencyContacts({ passportId, latitude, longitude, alertType: 'panic', source: 'panic-button' }).catch((err) => {
-      console.warn('Emergency contact notification failed:', err && err.message);
-    });
-    // --- END NEW LOGIC ---
+      } catch (e) {
+        console.warn('panic history insert failed', e && e.message);
+      }
+      io.emit("panicAlert", { passport_id: passportId, status: "distress" });
 
-    res.status(200).json({ message: "Panic alert received and forwarded." });
+      console.log(`IMMEDIATE FORWARD: Panic alert for ${passportId}. Finding nearby services...`);
+      try {
+        services = await findNearbyServices(latitude, longitude);
+      } catch (svcErr) {
+        console.warn('Nearby services lookup failed:', svcErr && svcErr.message);
+      }
+      if (services) {
+        console.log("Found services:", services);
+        io.emit("emergencyResponseDispatched", {
+          passport_id: passportId,
+          message: `Panic alert automatically sent to nearest services.`,
+          services,
+        });
+        try {
+          await db.pool.query(
+            `INSERT INTO alert_forwards(passport_id, alert_type, services) VALUES($1,$2,$3)
+             ON CONFLICT (passport_id, alert_type) DO UPDATE SET forwarded_at = now(), services = EXCLUDED.services`,
+            [passportId, 'distress', JSON.stringify(services || {})]
+          );
+        } catch (e) {
+          console.warn('Failed to persist panic forward record', e && e.message);
+        }
+      }
+      setCurrentAlert(passportId, { type: 'panic', startedAt: Date.now(), lat: latitude, lon: longitude, services, source: 'panic-button' });
+      notifyEmergencyContacts({ passportId, latitude, longitude, alertType: 'panic', source: 'panic-button' }).catch((err) => {
+        console.warn('Emergency contact notification failed:', err && err.message);
+      });
+    }
+
+    panicLocks.add(passportId);
+    liveLocationPrefs.set(passportId, true);
+
+    return res.status(200).json({ message: "Panic alert received and forwarded.", services: services || undefined });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send("Server error");
+    return res.status(500).send("Server error");
   }
 });
 
 app.post("/api/v1/alert/cancel", async (req, res) => {
-  const { passportId } = req.body;
+  const passportId = resolvePassportId(req);
   if (!passportId) {
     return res.status(400).json({ message: "Passport ID is required." });
   }
   try {
-    // We set the status back to 'active' from 'distress'
-    await db.pool.query(
-      "UPDATE tourists SET status = 'active' WHERE passport_id = $1",
-      [passportId]
-    );
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (Number.isFinite(womenId)) {
+        try {
+          await db.pool.query(
+            "UPDATE women_users SET status = 'active' WHERE id = $1",
+            [womenId]
+          );
+        } catch (e) {
+          console.warn('Failed to reset women user status on cancel:', e && e.message);
+        }
+      }
+    } else {
+      await db.pool.query(
+        "UPDATE tourists SET status = 'active' WHERE passport_id = $1",
+        [passportId]
+      );
+    }
 
-    // Notify the admin dashboard that the alert is cancelled
     io.emit("statusUpdate", { passport_id: passportId, status: "active" });
-    // Also send a targeted cancelPanicMode to the user's socket so the client stops recording
     const userSocket = userSockets.get(passportId);
     if (userSocket) {
       try {
@@ -2593,12 +3021,12 @@ app.post("/api/v1/alert/cancel", async (req, res) => {
     }
 
     console.log(`Panic alert cancelled for ${passportId}.`);
-    // Mark resolved for family dashboard
     resolveCurrentAlert(passportId);
-    res.status(200).json({ message: "Panic alert has been cancelled." });
+    panicLocks.delete(passportId);
+    return res.status(200).json({ message: "Panic alert has been cancelled." });
   } catch (err) {
     console.error("Error cancelling panic alert:", err.message);
-    res.status(500).send("Server error");
+    return res.status(500).send("Server error");
   }
 });
 
@@ -2881,6 +3309,227 @@ app.get('/api/v1/recordings/file/:filename', (req, res) => {
   });
 });
 
+// ---------------- Women Emergency Contacts Management ----------------
+// National helplines for women safety
+const NATIONAL_HELPLINES = [
+  { name: 'Women Helpline', number: '181' },
+  { name: 'Emergency Services', number: '112' }
+];
+
+// List all emergency contacts for a women user, plus national helplines
+app.get('/api/women/emergency-contacts', async (req, res) => {
+  try {
+    const passportId = req.query.passportId || req.cookies?.passportId || req.cookies?.womenUserId && `WOMEN-${req.cookies.womenUserId}`;
+    let womenId = null;
+    if (passportId && /^WOMEN-(\d+)$/.test(passportId)) {
+      womenId = parseInt(passportId.replace('WOMEN-', ''), 10);
+    }
+    if (!womenId) return res.status(400).json({ message: 'Missing or invalid women passportId' });
+    const contactsRes = await db.pool.query('SELECT id, name, mobile_number, email, relationship, priority FROM women_emergency_contacts WHERE user_id = $1 ORDER BY priority, id', [womenId]);
+    return res.json({
+      contacts: contactsRes.rows,
+      helplines: NATIONAL_HELPLINES
+    });
+  } catch (e) {
+    console.error('Failed to list women emergency contacts:', e && e.message);
+    return res.status(500).json({ message: 'Failed to list contacts' });
+  }
+});
+
+// Add a new emergency contact for a women user
+app.post('/api/women/emergency-contacts', async (req, res) => {
+  try {
+    // Support both old (passportId) and new (userEmail/userAadhaarNumber) authentication
+    const passportId = req.body.passportId || req.cookies?.passportId || req.cookies?.womenUserId && `WOMEN-${req.cookies.womenUserId}`;
+    let womenId = null;
+    
+    // Try passportId format first (legacy)
+    if (passportId && /^WOMEN-(\d+)$/.test(passportId)) {
+      womenId = parseInt(passportId.replace('WOMEN-', ''), 10);
+    }
+    
+    // If no passportId, try email/aadhaar authentication
+    if (!womenId && (req.body.userEmail || req.body.userAadhaarNumber)) {
+      const userEmail = req.body.userEmail;
+      const userAadhaarNumber = req.body.userAadhaarNumber;
+      
+      let userQuery = 'SELECT id FROM women_users WHERE ';
+      const params = [];
+      
+      if (userEmail) {
+        userQuery += 'email = $1';
+        params.push(userEmail);
+      } else if (userAadhaarNumber) {
+        userQuery += 'aadhaar_number = $1';
+        params.push(userAadhaarNumber);
+      }
+      
+      const userRes = await db.pool.query(userQuery, params);
+      if (userRes.rows.length > 0) {
+        womenId = userRes.rows[0].id;
+      }
+    }
+    
+    if (!womenId) return res.status(400).json({ message: 'Missing or invalid women user identification' });
+    
+    // Get contact information (use contact_email if provided, fallback to email for backward compatibility)
+    const { name, mobile_number, contact_email, email, relationship } = req.body;
+    const contactEmail = contact_email || email; // contact_email takes priority
+    
+    if (!name || !mobile_number) return res.status(400).json({ message: 'Name and mobile number required' });
+    
+    const priorityRes = await db.pool.query('SELECT MAX(priority) AS maxp FROM women_emergency_contacts WHERE user_id = $1', [womenId]);
+    const nextPriority = (priorityRes.rows[0]?.maxp || 0) + 1;
+    const insertRes = await db.pool.query(
+      'INSERT INTO women_emergency_contacts (user_id, name, mobile_number, email, relationship, priority) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [womenId, name, mobile_number, contactEmail || null, relationship || 'trusted', nextPriority]
+    );
+    return res.status(201).json({ contact: insertRes.rows[0] });
+  } catch (e) {
+    console.error('Failed to add women emergency contact:', e && e.message);
+    return res.status(500).json({ message: 'Failed to add contact' });
+  }
+});
+
+// Remove an emergency contact for a women user
+app.delete('/api/women/emergency-contacts/:id', async (req, res) => {
+  try {
+    const passportId = req.body?.passportId || req.query?.passportId || req.cookies?.passportId || req.cookies?.womenUserId && `WOMEN-${req.cookies.womenUserId}`;
+    let womenId = null;
+    if (passportId && /^WOMEN-(\d+)$/.test(passportId)) {
+      womenId = parseInt(passportId.replace('WOMEN-', ''), 10);
+    }
+    const contactId = parseInt(req.params.id, 10);
+    if (!womenId || !contactId) return res.status(400).json({ message: 'Missing or invalid parameters' });
+    await db.pool.query('DELETE FROM women_emergency_contacts WHERE id = $1 AND user_id = $2', [contactId, womenId]);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('Failed to remove women emergency contact:', e && e.message);
+    return res.status(500).json({ message: 'Failed to remove contact' });
+  }
+});
+
+// ---------------- Women Live Streaming ----------------
+// Serve women stream media files from dedicated directory
+const WOMEN_MEDIA_DIR = path.join(__dirname, 'uploads', 'women-media');
+try { if (!fs.existsSync(WOMEN_MEDIA_DIR)) fs.mkdirSync(WOMEN_MEDIA_DIR, { recursive: true }); } catch (e) {}
+app.use('/uploads/women-media', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  next();
+}, express.static(WOMEN_MEDIA_DIR));
+
+// Women live A/V streaming control and evidence upload
+const avSegmentUpload = multer({ dest: path.join(__dirname, 'uploads', 'women-media', 'temp') }).single('chunk');
+
+app.post('/api/women/stream/start', async (req, res) => {
+  try {
+    const passportId = resolvePassportId(req);
+    if (!passportId || !/^WOMEN-/i.test(passportId)) return res.status(400).json({ message: 'Valid WOMEN passportId required' });
+    const session = await db.createWomenStreamSession(passportId);
+    // Notify admins and family subscribers
+    try {
+      io.emit('womenStreamStarted', { sessionId: session.id, passportId });
+      emitToFamily(passportId, 'familyWomenStreamStarted', { sessionId: session.id, passportId });
+    } catch (_) {}
+    return res.json({ session });
+  } catch (e) {
+    console.error('[women-stream] start failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to start stream' });
+  }
+});
+
+app.post('/api/women/stream/:sessionId/chunk', (req, res) => {
+  avSegmentUpload(req, res, async (err) => {
+    if (err) return res.status(500).json({ message: err.message });
+    const sessionId = parseInt(req.params.sessionId, 10);
+    if (!Number.isFinite(sessionId) || !req.file) return res.status(400).json({ message: 'Missing sessionId or chunk' });
+    try {
+      const safeBase = String(req.body?.fileBase || `seg-${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ext = path.extname(req.file.originalname || '.webm') || '.webm';
+      const finalName = `${safeBase}${ext}`;
+      const finalDir = WOMEN_MEDIA_DIR;
+      const finalPath = path.join(finalDir, finalName);
+      try { if (!fs.existsSync(finalDir)) fs.mkdirSync(finalDir, { recursive: true }); } catch (_) {}
+      fs.renameSync(req.file.path, finalPath);
+      const url = `/uploads/women-media/${finalName}`;
+      const seq = req.body?.sequence ? parseInt(req.body.sequence, 10) : null;
+      const size = req.file.size ? Number(req.file.size) : null;
+      const saved = await db.saveWomenMediaSegment(sessionId, url, finalName, seq, size);
+      // Lookup session to include passportId
+      let session = null;
+      try { session = await db.getWomenStreamSession(sessionId); } catch(_) {}
+      const payload = { sessionId, url, fileName: finalName, sequence: seq, sizeBytes: size, created_at: saved.created_at, passportId: session?.passport_id || null };
+      io.emit('womenStreamSegment', payload);
+      if (payload.passportId) {
+        try { emitToFamily(payload.passportId, 'familyWomenStreamSegment', payload); } catch(_) {}
+      }
+      return res.json({ ok: true, segment: saved });
+    } catch (e2) {
+      console.error('[women-stream] chunk failed:', e2 && e2.message);
+      return res.status(500).json({ message: 'Failed to store chunk' });
+    }
+  });
+});
+
+app.post('/api/women/stream/:sessionId/end', async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId, 10);
+    if (!Number.isFinite(sessionId)) return res.status(400).json({ message: 'Invalid sessionId' });
+    const updated = await db.endWomenStreamSession(sessionId);
+    io.emit('womenStreamEnded', { sessionId, passportId: updated?.passport_id || null });
+    if (updated?.passport_id) {
+      try { emitToFamily(updated.passport_id, 'familyWomenStreamEnded', { sessionId, passportId: updated.passport_id }); } catch(_) {}
+    }
+    return res.json({ session: updated });
+  } catch (e) {
+    console.error('[women-stream] end failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to end stream' });
+  }
+});
+
+app.get('/api/women/stream/:sessionId/segments', async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId, 10);
+    if (!Number.isFinite(sessionId)) return res.status(400).json({ message: 'Invalid sessionId' });
+    const rows = await db.listWomenMediaSegments(sessionId);
+    return res.json({ segments: rows });
+  } catch (e) {
+    console.error('[women-stream] list segments failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to list segments' });
+  }
+});
+
+// List recent sessions by passport (public for admin/responder; family route below)
+app.get('/api/women/stream/sessions', async (req, res) => {
+  try {
+    const passportId = req.query.passportId || req.query.passport_id || null;
+    const limit = req.query.limit || 5;
+    if (!passportId) return res.status(400).json({ message: 'passportId is required' });
+    const rows = await db.listWomenStreamSessionsByPassport(passportId, limit);
+    return res.json({ sessions: rows });
+  } catch (e) {
+    console.error('[women-stream] list sessions failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to list sessions' });
+  }
+});
+
+// Family-protected: list sessions for the tracked passport in token
+app.get('/api/family/women/stream/sessions', requireFamilyAuth, async (req, res) => {
+  try {
+    const passportId = req.family?.passportId;
+    if (!passportId) return res.status(400).json({ message: 'No tracked passport' });
+    const rows = await db.listWomenStreamSessionsByPassport(passportId, req.query.limit || 5);
+    return res.json({ sessions: rows });
+  } catch (e) {
+    console.error('[family women-stream] list sessions failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to list sessions' });
+  }
+});
+
 // Delete a recording by id (removes DB row and file)
 app.delete('/api/v1/recordings/:id', async (req, res) => {
   const { id } = req.params;
@@ -2911,6 +3560,177 @@ app.delete('/api/v1/recordings/file/:fileName', async (req, res) => {
     return res.status(500).json({ message: 'Server error' });
   }
 });
+
+// ============ Trusted Circle API Routes ============
+const trustedCircleService = require('./trustedCircleService');
+
+// Get or create user's trusted circle
+app.get('/api/v1/trusted-circle', async (req, res) => {
+  try {
+    const { passportId, serviceType = 'tourist' } = req.query;
+    
+    if (!passportId) {
+      return res.status(400).json({ message: 'passportId is required' });
+    }
+
+    const circle = await trustedCircleService.getOrCreateCircle(passportId, serviceType);
+    const members = await trustedCircleService.getCircleMembers(circle.id);
+
+    res.json({
+      circle,
+      members,
+      memberCount: members.length,
+      acceptedCount: members.filter(m => m.status === 'accepted').length
+    });
+  } catch (error) {
+    console.error('[API] Error getting trusted circle:', error?.message || error);
+    res.status(500).json({ message: 'Failed to get trusted circle' });
+  }
+});
+
+// Get all user's circles
+app.get('/api/v1/trusted-circles', async (req, res) => {
+  try {
+    const { passportId } = req.query;
+    
+    if (!passportId) {
+      return res.status(400).json({ message: 'passportId is required' });
+    }
+
+    const circles = await trustedCircleService.getUserCircles(passportId);
+    res.json({ circles });
+  } catch (error) {
+    console.error('[API] Error getting circles:', error?.message || error);
+    res.status(500).json({ message: 'Failed to get circles' });
+  }
+});
+
+// Add member to trusted circle
+app.post('/api/v1/trusted-circle/members', async (req, res) => {
+  try {
+    const { circleId, name, email, phone, relationship, canViewLocation, canReceiveSOS } = req.body;
+    
+    if (!circleId || !name || !email) {
+      return res.status(400).json({ message: 'circleId, name, and email are required' });
+    }
+
+    const member = await trustedCircleService.addMember(circleId, {
+      name,
+      email,
+      phone,
+      relationship,
+      canViewLocation,
+      canReceiveSOS
+    });
+
+    res.status(201).json({ member });
+  } catch (error) {
+    console.error('[API] Error adding member:', error?.message || error);
+    res.status(500).json({ message: 'Failed to add member' });
+  }
+});
+
+// Remove member from circle
+app.delete('/api/v1/trusted-circle/members/:memberId', async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const { circleId } = req.query;
+    
+    if (!circleId) {
+      return res.status(400).json({ message: 'circleId is required' });
+    }
+
+    await trustedCircleService.removeMember(circleId, memberId);
+    res.json({ message: 'Member removed successfully' });
+  } catch (error) {
+    console.error('[API] Error removing member:', error?.message || error);
+    res.status(500).json({ message: 'Failed to remove member' });
+  }
+});
+
+// Accept invitation
+app.post('/api/v1/trusted-circle/accept', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'token is required' });
+    }
+
+    const member = await trustedCircleService.acceptInvitation(token);
+    res.json({ message: 'Invitation accepted', member });
+  } catch (error) {
+    console.error('[API] Error accepting invitation:', error?.message || error);
+    res.status(400).json({ message: error?.message || 'Failed to accept invitation' });
+  }
+});
+
+// Reject invitation
+app.post('/api/v1/trusted-circle/reject', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'token is required' });
+    }
+
+    const member = await trustedCircleService.rejectInvitation(token);
+    res.json({ message: 'Invitation rejected', member });
+  } catch (error) {
+    console.error('[API] Error rejecting invitation:', error?.message || error);
+    res.status(400).json({ message: error?.message || 'Failed to reject invitation' });
+  }
+});
+
+// Share location with circle (called when user shares location or triggers SOS)
+app.post('/api/v1/trusted-circle/share-location', async (req, res) => {
+  try {
+    const { passportId, latitude, longitude, shareType = 'location' } = req.body;
+    
+    if (!passportId || !latitude || !longitude) {
+      return res.status(400).json({ message: 'passportId, latitude, and longitude are required' });
+    }
+
+    // Get user's circle
+    const circles = await trustedCircleService.getUserCircles(passportId);
+    
+    if (circles.length === 0) {
+      return res.json({ message: 'No trusted circle found', shared: 0 });
+    }
+
+    // Share with all circles
+    let totalShared = 0;
+    for (const circle of circles) {
+      const result = await trustedCircleService.shareLocation(circle.id, latitude, longitude, shareType);
+      totalShared += result.shared;
+    }
+
+    res.json({ message: 'Location shared with trusted circle', shared: totalShared });
+  } catch (error) {
+    console.error('[API] Error sharing location:', error?.message || error);
+    res.status(500).json({ message: 'Failed to share location' });
+  }
+});
+
+// Delete circle
+app.delete('/api/v1/trusted-circle/:circleId', async (req, res) => {
+  try {
+    const { circleId } = req.params;
+    const { passportId } = req.query;
+    
+    if (!passportId) {
+      return res.status(400).json({ message: 'passportId is required' });
+    }
+
+    await trustedCircleService.deleteCircle(circleId, passportId);
+    res.json({ message: 'Circle deleted successfully' });
+  } catch (error) {
+    console.error('[API] Error deleting circle:', error?.message || error);
+    res.status(500).json({ message: 'Failed to delete circle' });
+  }
+});
+
+// ============ End Trusted Circle Routes ============
 
 app.post("/api/v1/groups/create", async (req, res) => {
   const { groupName, passportId } = req.body;

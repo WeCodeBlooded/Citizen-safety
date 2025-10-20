@@ -986,6 +986,151 @@ router.get('/selfdefense', (req, res) => {
     },
   ]);
 });
+
+// Fake call / silent alert endpoint
+router.post('/fake-event', async (req, res) => {
+  const userId = extractUserId(req);
+  const user = await resolveWomenUser({ 
+    userId, 
+    mobileNumber: req.body?.mobileNumber || req.body?.mobile,
+    aadhaarNumber: req.body?.aadhaarNumber || req.body?.aadhaar,
+    email: req.body?.email || req.body?.userEmail || userId,
+    passportId: req.body?.passportId || userId,
+  });
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  const eventType = req.body?.event_type || req.body?.eventType || 'fake_call';
+  const validTypes = ['fake_call', 'silent_alert'];
+  if (!validTypes.includes(eventType)) {
+    return res.status(400).json({ error: 'Invalid event_type. Use fake_call or silent_alert.' });
+  }
+
+  // Extract location if provided
+  const location = req.body?.location || null;
+  const latitude = location?.latitude || req.body?.latitude || null;
+  const longitude = location?.longitude || req.body?.longitude || null;
+
+  try {
+    // Log the fake event to database
+    const result = await pool.query(
+      `INSERT INTO women_fake_events (user_id, event_type, status, created_at)
+       VALUES ($1, $2, $3, NOW())
+       RETURNING id, event_type, status, created_at`,
+      [user.id, eventType, 'triggered']
+    );
+
+    const event = result.rows[0];
+    console.log(`[womenService] Fake event triggered: ${eventType} for user ${user.email || user.mobile_number}`);
+
+    // Fetch emergency contacts for this user
+    const contactsResult = await pool.query(
+      'SELECT id, name, mobile_number, email, relationship FROM women_emergency_contacts WHERE user_id = $1 ORDER BY priority',
+      [user.id]
+    );
+
+    const emergencyContacts = contactsResult.rows;
+
+    // Send notifications to emergency contacts (only for silent_alert)
+    if (eventType === 'silent_alert' && emergencyContacts.length > 0) {
+      const userName = user.name || user.email || 'A user';
+      const alertMessage = `URGENT: ${userName} has triggered a silent alert. ` +
+        (latitude && longitude 
+          ? `Location: https://www.google.com/maps?q=${latitude},${longitude}` 
+          : 'Location not available.');
+
+      // Send emails to contacts
+      const emailPromises = emergencyContacts
+        .filter(contact => contact.email)
+        .map(contact => {
+          return transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: contact.email,
+            subject: `🚨 Silent Alert from ${userName}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5;">
+                <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <h2 style="color: #dc3545; margin-bottom: 20px;">🚨 Silent Alert</h2>
+                  <p style="font-size: 16px; line-height: 1.6;">
+                    <strong>${userName}</strong> has triggered a silent alert and may need assistance.
+                  </p>
+                  ${latitude && longitude ? `
+                    <div style="margin: 20px 0; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;">
+                      <p style="margin: 0; font-size: 14px;"><strong>📍 Location:</strong></p>
+                      <a href="https://www.google.com/maps?q=${latitude},${longitude}" 
+                         style="color: #0066cc; text-decoration: none; font-size: 14px; display: inline-block; margin-top: 8px;">
+                        View on Google Maps →
+                      </a>
+                    </div>
+                  ` : '<p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px; font-size: 14px;">📍 Location not available</p>'}
+                  <p style="font-size: 14px; color: #666; margin-top: 20px;">
+                    Time: ${new Date().toLocaleString()}
+                  </p>
+                  <p style="font-size: 13px; color: #999; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                    This is an automated alert from Secure Safar Women Safety System.
+                  </p>
+                </div>
+              </div>
+            `
+          }).catch(err => {
+            console.error(`[womenService] Failed to send email to ${contact.email}:`, err);
+          });
+        });
+
+      // Wait for all emails to be sent
+      await Promise.allSettled(emailPromises);
+
+      console.log(`[womenService] Notifications sent to ${emergencyContacts.length} emergency contacts`);
+    }
+
+    return res.status(201).json({ 
+      success: true,
+      event: event,
+      notificationsSent: eventType === 'silent_alert' ? emergencyContacts.length : 0,
+      message: eventType === 'fake_call' 
+        ? 'Fake call triggered successfully' 
+        : `Silent alert sent successfully. ${emergencyContacts.length} emergency contacts notified.`
+    });
+  } catch (error) {
+    console.error('[womenService] fake-event insert failed:', error);
+    return res.status(500).json({ error: 'Failed to trigger fake event.' });
+  }
+});
+
+// Get recent fake events
+router.get('/fake-events', async (req, res) => {
+  const userId = extractUserId(req);
+  const user = await resolveWomenUser({ 
+    userId, 
+    mobileNumber: req.query?.mobileNumber || req.query?.mobile,
+    aadhaarNumber: req.query?.aadhaarNumber || req.query?.aadhaar,
+    email: req.query?.email || req.body?.email || req.query?.userEmail || req.body?.userEmail || userId,
+    passportId: req.query?.passportId || req.body?.passportId || userId,
+  });
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, event_type, status, created_at
+       FROM women_fake_events
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [user.id]
+    );
+
+    return res.json({ events: result.rows });
+  } catch (error) {
+    console.error('[womenService] fetch fake-events failed:', error);
+    return res.status(500).json({ error: 'Failed to load fake events.' });
+  }
+});
+
 module.exports = router;
 module.exports.setEmergencyNotifier = (fn) => {
   emergencyNotifier = typeof fn === 'function' ? fn : null;

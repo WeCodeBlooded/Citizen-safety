@@ -1,0 +1,26 @@
+{
+  "appId": "com.tourist.safety",
+  "appName": "Tourist Safety",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "Geolocation": {
+      "backgroundTracking": true,
+      "requestPermissions": true
+    },
+    "BackgroundRunner": {
+      "label": "com.tourist.safety.background",
+      "src": "background-runner.js",
+      "event": "locationUpdate",
+      "repeat": true,
+      "interval": 30,
+      "autoStart": false
+    }
+  },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "hostname": "app.tourist-safety.local",
+    "cleartext": true
+  }
+}

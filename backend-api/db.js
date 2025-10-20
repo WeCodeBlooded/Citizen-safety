@@ -176,4 +176,55 @@ module.exports = {
     const res = await pool.query('INSERT INTO incident_forwards (incident_id, services) VALUES ($1, $2) RETURNING *', [incidentId, services || {}]);
     return res.rows[0];
   },
+  // Women stream sessions and media segments
+  async createWomenStreamSession(passportId) {
+    const res = await pool.query(
+      `INSERT INTO women_stream_sessions (passport_id, started_at, status)
+       VALUES ($1, NOW(), 'active') RETURNING *`,
+      [passportId]
+    );
+    return res.rows[0];
+  },
+  async endWomenStreamSession(sessionId) {
+    const res = await pool.query(
+      `UPDATE women_stream_sessions SET ended_at = NOW(), status = 'ended'
+       WHERE id = $1 RETURNING *`,
+      [sessionId]
+    );
+    return res.rows[0];
+  },
+  async saveWomenMediaSegment(sessionId, url, fileName, sequence, sizeBytes) {
+    const res = await pool.query(
+      `INSERT INTO women_media_segments (session_id, file_name, url, sequence, size_bytes)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [sessionId, fileName, url, sequence ?? null, sizeBytes ?? null]
+    );
+    return res.rows[0];
+  },
+  async listWomenMediaSegments(sessionId) {
+    const res = await pool.query(
+      `SELECT id, session_id, file_name, url, sequence, size_bytes, created_at
+       FROM women_media_segments WHERE session_id = $1 ORDER BY COALESCE(sequence, 1e9) ASC, created_at ASC`,
+      [sessionId]
+    );
+    return res.rows;
+  },
+  async getWomenStreamSession(sessionId) {
+    const res = await pool.query(
+      `SELECT id, passport_id, started_at, ended_at, status FROM women_stream_sessions WHERE id = $1 LIMIT 1`,
+      [sessionId]
+    );
+    return res.rows[0] || null;
+  },
+  async listWomenStreamSessionsByPassport(passportId, limit = 5) {
+    const res = await pool.query(
+      `SELECT id, passport_id, started_at, ended_at, status
+       FROM women_stream_sessions
+       WHERE passport_id = $1
+       ORDER BY started_at DESC
+       LIMIT $2`,
+      [passportId, Math.max(1, Math.min(50, Number(limit) || 5))]
+    );
+    return res.rows;
+  },
 };
