@@ -3,7 +3,7 @@ import axios from 'axios';
 import '../ServiceRegistration.css';
 
 const getBackend = () => {
-  const FALLBACK = (typeof window !== 'undefined' && window.location.hostname === 'localhost') ? 'http://localhost:3001' : 'http://localhost:3001';
+  const FALLBACK = (typeof window !== 'undefined' && window.location.hostname === 'localhost') ? process.env.REACT_APP_BACKEND_URL : process.env.REACT_APP_BACKEND_URL;
   let v = FALLBACK; 
   try { 
     const s = localStorage.getItem('BACKEND_URL'); 

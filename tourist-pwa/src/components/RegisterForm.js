@@ -3,9 +3,9 @@ import axios from 'axios';
 import './register.css';
 
 
-const FALLBACK_NGROK = "https://2fc10333427c.ngrok-free.app";
+const FALLBACK_NGROK = process.env.REACT_APP_BACKEND_URL;
 const DEFAULT_BACKEND = (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost')
-  ? 'http://localhost:3001'
+  ? process.env.REACT_APP_BACKEND_URL
   : FALLBACK_NGROK;
 let _rawBackend = DEFAULT_BACKEND;
 try { const v = localStorage.getItem('BACKEND_URL'); if (v) _rawBackend = v; } catch {}
