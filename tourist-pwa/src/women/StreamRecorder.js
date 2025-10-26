@@ -8,10 +8,10 @@ const getBackendURL = () => {
   } catch {}
   if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3001';
+    if (host === 'localhost' || host === '127.0.0.1') return process.env.REACT_APP_BACKEND_URL;
     return `${window.location.protocol}//${host}:3001`;
   }
-  return 'http://localhost:3001';
+  return process.env.REACT_APP_BACKEND_URL;
 };
 
 // Build identity payload compatible with backend womenService extractors

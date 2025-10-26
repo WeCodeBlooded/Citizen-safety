@@ -45,10 +45,10 @@ const TOURIST_FEATURE_SECTIONS = [
 // Use http for local development (no TLS) to avoid ERR_SSL_PROTOCOL_ERROR.
 // You can override the backend URL at runtime by setting localStorage.setItem('BACKEND_URL', '<your-backend>')
 // Default backend selection: prefer localhost when running locally.
-const FALLBACK_NGROK = "http://localhost:3001";
+const FALLBACK_NGROK = process.env.REACT_APP_BACKEND_URL;
 const DEFAULT_BACKEND =
   (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost')
-    ? 'http://localhost:3001'
+    ? process.env.REACT_APP_BACKEND_URL
     : FALLBACK_NGROK;
 
 // Read raw value from localStorage (if present) and sanitize it to avoid

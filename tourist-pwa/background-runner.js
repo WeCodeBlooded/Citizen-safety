@@ -12,11 +12,11 @@
       if (typeof window !== 'undefined' && window.location) {
         const host = window.location.hostname;
         const proto = window.location.protocol || 'http:';
-        if (/^(localhost|127\.0\.0\.1)$/.test(host)) return 'http://localhost:3001';
+        if (/^(localhost|127\.0\.0\.1)$/.test(host)) return process.env.REACT_APP_BACKEND_URL;
         return `${proto}//${host}:3001`;
       }
     } catch {}
-    return 'http://localhost:3001';
+    return process.env.REACT_APP_BACKEND_URL;
   };
 
   const BACKEND_URL = getBackend();

@@ -88,12 +88,12 @@ const getBackendURL = () => {
   const hasWindow = typeof window !== 'undefined' && window.location;
   const hostname = hasWindow ? window.location.hostname : 'localhost';
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:3001';
+    return process.env.REACT_APP_BACKEND_URL;
   }
 
   const protocol = hasWindow ? window.location.protocol : 'http:';
   const fallback = `${protocol}//${hostname}:3001`;
-  const normalizedFallback = ensureAbsolute(fallback) || 'http://localhost:3001';
+  const normalizedFallback = ensureAbsolute(fallback) || process.env.REACT_APP_BACKEND_URL;
   return normalizedFallback;
 };
 

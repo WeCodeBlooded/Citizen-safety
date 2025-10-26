@@ -235,12 +235,12 @@ class LocationQueueService {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:3001';
+        return process.env.REACT_APP_BACKEND_URL;
       }
       return `${window.location.protocol}//${hostname}:3001`;
     }
 
-    return 'http://localhost:3001';
+    return process.env.REACT_APP_BACKEND_URL;
   }
 
   /**
