@@ -6,7 +6,19 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const cookie = require("cookie");
-const { mintDigitalId, mintGroupId } = require("./blockchainService");
+const crypto = require("crypto");
+const blockchainService = require("./blockchainService");
+const {
+  mintDigitalId,
+  mintGroupId,
+  logAlert: logAlertOnChain,
+  logEmergency: logEmergencyOnChain,
+  computePassportHash,
+  fetchTourist,
+  fetchAlerts,
+  fetchEmergencies,
+  fetchAuditTrail
+} = blockchainService;
 const axios = require("axios");
 const cron = require("node-cron");
 const nodemailer = require("nodemailer");
@@ -46,6 +58,417 @@ const normalizeGovernmentId = (input, idType = 'passport') => {
   }
   return value.toUpperCase();
 };
+
+const PANIC_ALERT_SEVERITY = 3;
+
+function sha256Hex(input) {
+  try {
+    return crypto.createHash('sha256').update(String(input)).digest('hex');
+  } catch (error) {
+    console.warn('[hash] sha256 failed', error && error.message);
+    return null;
+  }
+}
+
+async function ensureTouristChainState(passportId) {
+  const normalized = normalizeGovernmentId(passportId, 'passport');
+  if (!normalized) {
+    return { id: null, passportHash: null, blockchainStatus: null };
+  }
+  try {
+    const { rows } = await db.pool.query(
+      `SELECT id, passport_hash, blockchain_status FROM tourists WHERE passport_id = $1 LIMIT 1`,
+      [normalized]
+    );
+    if (!rows.length) {
+      return { id: null, passportHash: null, blockchainStatus: null };
+    }
+    const row = rows[0];
+    let passportHash = row.passport_hash;
+    if (!passportHash) {
+      try {
+        passportHash = computePassportHash(normalized);
+        if (passportHash) {
+          await db.pool.query(`UPDATE tourists SET passport_hash = $1 WHERE id = $2`, [passportHash, row.id]);
+        }
+      } catch (hashErr) {
+        console.warn('[blockchain] passport hash compute failed', hashErr && hashErr.message);
+      }
+    }
+    return {
+      id: row.id,
+      passportHash: passportHash || null,
+      blockchainStatus: row.blockchain_status || null
+    };
+  } catch (error) {
+    console.warn('[blockchain] ensureTouristChainState failed', error && error.message);
+    return { id: null, passportHash: null, blockchainStatus: null };
+  }
+}
+
+async function recordBlockchainTransaction(entry) {
+  if (!entry || !entry.txHash) {
+    return;
+  }
+  const payloadJson = entry.payload ? JSON.stringify(entry.payload) : JSON.stringify({});
+  const status = entry.blockNumber ? 'confirmed' : (entry.status || 'submitted');
+  try {
+    await db.pool.query(
+      `INSERT INTO blockchain_transactions (passport_hash, entity_type, action, tx_hash, status, block_number, payload)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       ON CONFLICT (tx_hash) DO UPDATE SET
+         passport_hash = EXCLUDED.passport_hash,
+         entity_type = EXCLUDED.entity_type,
+         action = EXCLUDED.action,
+         status = EXCLUDED.status,
+         block_number = EXCLUDED.block_number,
+         payload = EXCLUDED.payload,
+         updated_at = NOW()`
+      , [entry.passportHash || null, entry.entityType || null, entry.action || null, entry.txHash, status, entry.blockNumber || null, payloadJson]
+    );
+  } catch (error) {
+    console.warn('[blockchain] recordBlockchainTransaction failed', error && error.message);
+  }
+}
+
+async function upsertBlockchainAlertRecord(entry) {
+  if (!entry || !entry.alertId) {
+    return;
+  }
+  const metadataJson = entry.metadata ? JSON.stringify(entry.metadata) : JSON.stringify({});
+  try {
+    await db.pool.query(
+      `INSERT INTO blockchain_alerts (alert_id, passport_hash, location, severity, tx_hash, block_number, occurred_at, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+       ON CONFLICT (alert_id) DO UPDATE SET
+         passport_hash = EXCLUDED.passport_hash,
+         location = EXCLUDED.location,
+         severity = EXCLUDED.severity,
+         tx_hash = EXCLUDED.tx_hash,
+         block_number = EXCLUDED.block_number,
+         occurred_at = EXCLUDED.occurred_at,
+         metadata = EXCLUDED.metadata`
+      , [
+        entry.alertId,
+        entry.passportHash || null,
+        entry.location || null,
+        entry.severity || null,
+        entry.txHash || null,
+        entry.blockNumber || null,
+        entry.occurredAt || new Date(),
+        metadataJson
+      ]
+    );
+  } catch (error) {
+    console.warn('[blockchain] upsertBlockchainAlertRecord failed', error && error.message);
+  }
+}
+
+async function upsertBlockchainEmergencyRecord(entry) {
+  if (!entry || !entry.logId) {
+    return;
+  }
+  const metadataJson = entry.metadata ? JSON.stringify(entry.metadata) : JSON.stringify({});
+  try {
+    await db.pool.query(
+      `INSERT INTO blockchain_emergencies (log_id, passport_hash, evidence_hash, location, tx_hash, block_number, occurred_at, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+       ON CONFLICT (log_id) DO UPDATE SET
+         passport_hash = EXCLUDED.passport_hash,
+         evidence_hash = EXCLUDED.evidence_hash,
+         location = EXCLUDED.location,
+         tx_hash = EXCLUDED.tx_hash,
+         block_number = EXCLUDED.block_number,
+         occurred_at = EXCLUDED.occurred_at,
+         metadata = EXCLUDED.metadata`
+      , [
+        entry.logId,
+        entry.passportHash || null,
+        entry.evidenceHash || null,
+        entry.location || null,
+        entry.txHash || null,
+        entry.blockNumber || null,
+        entry.occurredAt || new Date(),
+        metadataJson
+      ]
+    );
+  } catch (error) {
+    console.warn('[blockchain] upsertBlockchainEmergencyRecord failed', error && error.message);
+  }
+}
+
+const DEFAULT_BLOCKCHAIN_HISTORY_LIMIT = 10;
+
+const WOMEN_PASSPORT_REGEX = /^WOMEN-/i;
+
+function toIsoDate(value, assumeSeconds = false) {
+  if (value == null) return null;
+  try {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const millis = assumeSeconds ? value * 1000 : value;
+      return new Date(millis).toISOString();
+    }
+    if (typeof value === 'bigint') {
+      const millis = assumeSeconds ? Number(value) * 1000 : Number(value);
+      return new Date(millis).toISOString();
+    }
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value.toISOString();
+    }
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  } catch (err) {
+    console.warn('[blockchain] toIsoDate failed', err && err.message);
+    return null;
+  }
+}
+
+function ensurePlainObject(value) {
+  if (!value) return null;
+  if (typeof value === 'object' && !Buffer.isBuffer(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (err) {
+      return { raw: value };
+    }
+  }
+  return { raw: value };
+}
+
+async function buildBlockchainSummary(passportId, options = {}) {
+  const limit = Math.max(1, Math.min(50, Number(options.limit) || DEFAULT_BLOCKCHAIN_HISTORY_LIMIT));
+  const normalized = normalizeGovernmentId(passportId, 'passport');
+  if (!normalized) {
+    return {
+      supported: false,
+      reason: 'passport_missing',
+      passportId: null,
+      blockchainStatus: 'unknown'
+    };
+  }
+
+  if (WOMEN_PASSPORT_REGEX.test(normalized)) {
+    return {
+      supported: false,
+      reason: 'service_not_blockchain_enabled',
+      passportId: normalized,
+      blockchainStatus: 'unsupported'
+    };
+  }
+
+  const chainState = await ensureTouristChainState(normalized);
+  let touristDb = null;
+  try {
+    const result = await db.pool.query(
+      `SELECT id, name, passport_id, passport_hash, blockchain_status, blockchain_tx_hash, blockchain_registered_at, blockchain_metadata_uri, service_type
+       FROM tourists WHERE passport_id = $1 LIMIT 1`,
+      [normalized]
+    );
+    touristDb = result.rows[0] || null;
+  } catch (error) {
+    console.warn('[blockchain] failed to load tourist row', error && error.message);
+  }
+
+  let passportHash = chainState.passportHash || touristDb?.passport_hash || null;
+  if (!passportHash) {
+    try {
+      passportHash = computePassportHash(normalized);
+    } catch (err) {
+      passportHash = null;
+    }
+  }
+
+  let transactions = [];
+  let alerts = [];
+  let emergencies = [];
+
+  if (passportHash) {
+    try {
+      const { rows } = await db.pool.query(
+        `SELECT entity_type, action, tx_hash, status, block_number, payload, created_at, updated_at
+         FROM blockchain_transactions
+         WHERE passport_hash = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [passportHash, limit]
+      );
+      transactions = rows.map((row) => ({
+        entityType: row.entity_type,
+        action: row.action,
+        txHash: row.tx_hash,
+        status: row.status,
+        blockNumber: row.block_number != null ? Number(row.block_number) : null,
+        createdAt: toIsoDate(row.created_at),
+        updatedAt: toIsoDate(row.updated_at),
+        payload: ensurePlainObject(row.payload)
+      }));
+    } catch (error) {
+      console.warn('[blockchain] failed to load transactions', error && error.message);
+    }
+
+    try {
+      const { rows } = await db.pool.query(
+        `SELECT alert_id, location, severity, tx_hash, block_number, occurred_at, metadata
+         FROM blockchain_alerts
+         WHERE passport_hash = $1
+         ORDER BY occurred_at DESC NULLS LAST, alert_id DESC
+         LIMIT $2`,
+        [passportHash, limit]
+      );
+      alerts = rows.map((row) => ({
+        id: row.alert_id != null ? Number(row.alert_id) : null,
+        location: row.location || null,
+        severity: row.severity != null ? Number(row.severity) : null,
+        txHash: row.tx_hash || null,
+        blockNumber: row.block_number != null ? Number(row.block_number) : null,
+        occurredAt: toIsoDate(row.occurred_at),
+        metadata: ensurePlainObject(row.metadata)
+      }));
+    } catch (error) {
+      console.warn('[blockchain] failed to load alert mirror', error && error.message);
+    }
+
+    try {
+      const { rows } = await db.pool.query(
+        `SELECT log_id, evidence_hash, location, tx_hash, block_number, occurred_at, metadata
+         FROM blockchain_emergencies
+         WHERE passport_hash = $1
+         ORDER BY occurred_at DESC NULLS LAST, log_id DESC
+         LIMIT $2`,
+        [passportHash, limit]
+      );
+      emergencies = rows.map((row) => ({
+        id: row.log_id != null ? Number(row.log_id) : null,
+        evidenceHash: row.evidence_hash || null,
+        location: row.location || null,
+        txHash: row.tx_hash || null,
+        blockNumber: row.block_number != null ? Number(row.block_number) : null,
+        occurredAt: toIsoDate(row.occurred_at),
+        metadata: ensurePlainObject(row.metadata)
+      }));
+    } catch (error) {
+      console.warn('[blockchain] failed to load emergency mirror', error && error.message);
+    }
+  }
+
+  let contractTourist = null;
+  let contractAlerts = [];
+  let contractEmergencies = [];
+  let auditTrail = [];
+
+  if (passportHash) {
+    try {
+      contractTourist = await fetchTourist(normalized);
+    } catch (error) {
+      console.warn('[blockchain] fetchTourist failed', error && error.message);
+    }
+
+    try {
+      const alertList = await fetchAlerts(normalized);
+      contractAlerts = (alertList || [])
+        .map((alert) => ({
+          id: alert.id != null ? Number(alert.id) : null,
+          location: alert.location || null,
+          severity: alert.severity != null ? Number(alert.severity) : null,
+          raisedBy: alert.raisedBy || null,
+          timestamp: alert.timestamp != null ? Number(alert.timestamp) : null,
+          occurredAt: alert.timestamp != null ? toIsoDate(Number(alert.timestamp) * 1000, false) : null,
+          metadataURI: alert.metadataURI || null
+        }))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, limit);
+    } catch (error) {
+      console.warn('[blockchain] fetchAlerts failed', error && error.message);
+    }
+
+    try {
+      const emergencyList = await fetchEmergencies(normalized);
+      contractEmergencies = (emergencyList || [])
+        .map((entry) => ({
+          id: entry.id != null ? Number(entry.id) : null,
+          evidenceHash: entry.evidenceHash || null,
+          location: entry.location || null,
+          reportedBy: entry.reportedBy || null,
+          timestamp: entry.timestamp != null ? Number(entry.timestamp) : null,
+          occurredAt: entry.timestamp != null ? toIsoDate(Number(entry.timestamp) * 1000, false) : null,
+          metadataURI: entry.metadataURI || null
+        }))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, limit);
+    } catch (error) {
+      console.warn('[blockchain] fetchEmergencies failed', error && error.message);
+    }
+
+    if (options.includeAudit) {
+      try {
+        auditTrail = await fetchAuditTrail(Math.min(limit, 25));
+      } catch (error) {
+        console.warn('[blockchain] fetchAuditTrail failed', error && error.message);
+      }
+    }
+  }
+
+  let blockchainStatus = touristDb?.blockchain_status || chainState.blockchainStatus || 'pending';
+  if (contractTourist && contractTourist.active) {
+    blockchainStatus = 'registered';
+  } else if (!passportHash) {
+    blockchainStatus = 'unregistered';
+  }
+
+  const registrationDateIso = touristDb?.blockchain_registered_at
+    ? toIsoDate(touristDb.blockchain_registered_at)
+    : (contractTourist?.registrationDate ? toIsoDate(contractTourist.registrationDate * 1000, false) : null);
+
+  const latestTransaction = transactions[0] || null;
+  const latestAlert = alerts[0] || null;
+  const latestEmergency = emergencies[0] || null;
+
+  return {
+    supported: true,
+    passportId: normalized,
+    serviceType: touristDb?.service_type || 'tourist_safety',
+    passportHash,
+    blockchainStatus,
+    registration: {
+      txHash: touristDb?.blockchain_tx_hash || null,
+      registeredAt: registrationDateIso,
+      metadataURI: touristDb?.blockchain_metadata_uri || contractTourist?.metadataURI || null
+    },
+    counts: {
+      transactions: transactions.length,
+      alerts: alerts.length,
+      emergencies: emergencies.length,
+      onChainAlerts: contractAlerts.length,
+      onChainEmergencies: contractEmergencies.length
+    },
+    latest: {
+      transaction: latestTransaction,
+      alert: latestAlert,
+      emergency: latestEmergency
+    },
+    transactions,
+    alerts,
+    emergencies,
+    onChain: {
+      tourist: contractTourist
+        ? {
+            name: contractTourist.name || null,
+            account: contractTourist.account || null,
+            issuer: contractTourist.issuer || null,
+            active: Boolean(contractTourist.active),
+            registrationDate: contractTourist.registrationDate ? toIsoDate(contractTourist.registrationDate * 1000, false) : null,
+            metadataURI: contractTourist.metadataURI || null
+          }
+        : null,
+      alerts: contractAlerts,
+      emergencies: contractEmergencies,
+      auditTrail: auditTrail
+    }
+  };
+}
 
 let twilioClient = null;
 const twilioConfig = {
@@ -343,10 +766,31 @@ async function ensureDatabaseShape() {
       `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS passport_image_url VARCHAR(255)`,
       `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS passport_image_secondary_url VARCHAR(255)`,
       `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS visa_image_url VARCHAR(255)`,
-      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT false`
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS profile_complete BOOLEAN DEFAULT false`,
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS passport_hash CHAR(66)`,
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS blockchain_tx_hash VARCHAR(255)`,
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS blockchain_status VARCHAR(30) DEFAULT 'pending'`,
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS blockchain_registered_at TIMESTAMPTZ`,
+      `ALTER TABLE IF EXISTS tourists ADD COLUMN IF NOT EXISTS blockchain_metadata_uri TEXT`
     ];
     for (const sql of alters) {
       try { await db.pool.query(sql); } catch (e) { console.debug('Ensure column skipped:', e && e.message); }
+    }
+
+    const groupAlterStatements = [
+      `ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS blockchain_group_id VARCHAR(255)`,
+      `ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS blockchain_tx_hash VARCHAR(255)`,
+      `ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS blockchain_status VARCHAR(30) DEFAULT 'pending'`,
+      `ALTER TABLE IF EXISTS groups ADD COLUMN IF NOT EXISTS blockchain_created_at TIMESTAMPTZ`
+    ];
+    for (const sql of groupAlterStatements) {
+      try { await db.pool.query(sql); } catch (e) { console.debug('Ensure groups column skipped:', e && e.message); }
+    }
+
+    try {
+      await db.pool.query(`ALTER TABLE IF EXISTS tourists ADD CONSTRAINT IF NOT EXISTS tourists_passport_hash_unique UNIQUE (passport_hash);`);
+    } catch (e) {
+      console.debug('[DB] unique passport_hash ensure skipped:', e && e.message);
     }
 
     // Ensure location_history.created_at exists
@@ -395,6 +839,85 @@ async function ensureDatabaseShape() {
       console.log('[DB] alert_forwards table ready');
     } catch (e) {
       console.warn('[DB] could not ensure alert_forwards table:', e && e.message);
+    }
+
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS blockchain_transactions (
+          id SERIAL PRIMARY KEY,
+          passport_hash CHAR(66),
+          entity_type VARCHAR(40) NOT NULL,
+          action VARCHAR(40) NOT NULL,
+          tx_hash VARCHAR(255) UNIQUE NOT NULL,
+          status VARCHAR(20) DEFAULT 'submitted',
+          block_number BIGINT,
+          payload JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_blockchain_transactions_tourist FOREIGN KEY (passport_hash)
+            REFERENCES tourists(passport_hash)
+            ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE
+        );
+        CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_passport ON blockchain_transactions(passport_hash);
+        CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_action ON blockchain_transactions(action);
+
+        CREATE TABLE IF NOT EXISTS blockchain_alerts (
+          alert_id BIGINT PRIMARY KEY,
+          passport_hash CHAR(66) NOT NULL,
+          location TEXT,
+          severity INTEGER,
+          tx_hash VARCHAR(255),
+          block_number BIGINT,
+          occurred_at TIMESTAMPTZ,
+          metadata JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_blockchain_alerts_tourist FOREIGN KEY (passport_hash)
+            REFERENCES tourists(passport_hash)
+            ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
+        );
+        CREATE INDEX IF NOT EXISTS idx_blockchain_alerts_passport ON blockchain_alerts(passport_hash);
+
+        CREATE TABLE IF NOT EXISTS blockchain_emergencies (
+          log_id BIGINT PRIMARY KEY,
+          passport_hash CHAR(66) NOT NULL,
+          evidence_hash TEXT,
+          location TEXT,
+          tx_hash VARCHAR(255),
+          block_number BIGINT,
+          occurred_at TIMESTAMPTZ,
+          metadata JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_blockchain_emergencies_tourist FOREIGN KEY (passport_hash)
+            REFERENCES tourists(passport_hash)
+            ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
+        );
+        CREATE INDEX IF NOT EXISTS idx_blockchain_emergencies_passport ON blockchain_emergencies(passport_hash);
+
+        CREATE TABLE IF NOT EXISTS blockchain_audit_log (
+          audit_id BIGINT PRIMARY KEY,
+          actor VARCHAR(66),
+          action VARCHAR(100),
+          subject_hash CHAR(66),
+          details TEXT,
+          tx_hash VARCHAR(255),
+          block_number BIGINT,
+          occurred_at TIMESTAMPTZ,
+          metadata JSONB DEFAULT '{}'::JSONB,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_blockchain_audit_action ON blockchain_audit_log(action);
+        CREATE INDEX IF NOT EXISTS idx_blockchain_audit_subject ON blockchain_audit_log(subject_hash);
+
+        CREATE TABLE IF NOT EXISTS blockchain_event_cursors (
+          id SERIAL PRIMARY KEY,
+          event_name VARCHAR(120) UNIQUE NOT NULL,
+          last_block BIGINT DEFAULT 0,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('[DB] blockchain tables ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure blockchain tables:', e && e.message);
     }
 
     // Table to store manual overrides of dispatched authorities (chosen by admin editing)
@@ -3015,7 +3538,49 @@ app.post("/api/v1/auth/verify-email", async (req, res) => {
       "SELECT name FROM tourists WHERE passport_id = $1",
       [identifier]
     );
-    await mintDigitalId(touristInfo.rows[0].name, identifier);
+    const mintResult = await mintDigitalId(touristInfo.rows[0].name, identifier);
+
+    if (mintResult && mintResult.passportHash) {
+      try {
+        await db.pool.query(
+          `UPDATE tourists
+             SET passport_hash = COALESCE(passport_hash, $1),
+                 blockchain_tx_hash = COALESCE($2, blockchain_tx_hash),
+                 blockchain_status = 'registered',
+                 blockchain_registered_at = COALESCE(blockchain_registered_at, NOW())
+           WHERE passport_id = $3`,
+          [mintResult.passportHash, mintResult.txHash || null, identifier]
+        );
+      } catch (updateErr) {
+        console.warn('[blockchain] failed to update tourist chain state:', updateErr && updateErr.message);
+      }
+
+      try {
+        const payload = {
+          name: touristInfo.rows[0].name,
+          passportId: identifier
+        };
+        const status = mintResult.blockNumber ? 'confirmed' : 'submitted';
+        await db.pool.query(
+          `INSERT INTO blockchain_transactions (passport_hash, entity_type, action, tx_hash, status, block_number, payload)
+           VALUES ($1, 'tourist', 'register', $2, $3, $4, $5::jsonb)
+           ON CONFLICT (tx_hash) DO UPDATE
+             SET status = EXCLUDED.status,
+                 block_number = COALESCE(EXCLUDED.block_number, blockchain_transactions.block_number),
+                 payload = COALESCE(EXCLUDED.payload, blockchain_transactions.payload),
+                 updated_at = CURRENT_TIMESTAMP`,
+          [
+            mintResult.passportHash,
+            mintResult.txHash || null,
+            status,
+            mintResult.blockNumber || null,
+            JSON.stringify(payload)
+          ]
+        );
+      } catch (txErr) {
+        console.warn('[blockchain] failed to persist transaction record:', txErr && txErr.message);
+      }
+    }
 
     res
       .status(200)
@@ -3306,6 +3871,12 @@ app.get("/api/v1/tourists", authenticateAdmin, async (req, res) => {
           t.profile_picture_url,
           t.created_at,
           NULL::timestamptz AS updated_at,
+          t.service_type,
+          t.blockchain_status,
+          t.blockchain_tx_hash,
+          t.blockchain_registered_at,
+          t.blockchain_metadata_uri,
+          t.passport_hash,
           COALESCE(g.group_name, 'No Group') AS group_name
         FROM tourists t
         LEFT JOIN group_members gm ON t.id = gm.tourist_id AND gm.status = 'accepted'
@@ -3792,6 +4363,43 @@ app.post("/api/v1/alert/panic", async (req, res) => {
       notifyEmergencyContacts({ passportId, latitude, longitude, alertType: 'panic', source: 'panic-button' }).catch((err) => {
         console.warn('Emergency contact notification failed:', err && err.message);
       });
+
+      const chainState = await ensureTouristChainState(passportId);
+      if (chainState && chainState.passportHash && chainState.blockchainStatus === 'registered') {
+        const locationString = `${latitude},${longitude}`;
+        const metadata = {
+          source: 'panic-button',
+          forwarded: Boolean(services && Object.keys(services).length),
+          timestamp: new Date().toISOString()
+        };
+        try {
+          const alertResult = await logAlertOnChain(passportId, locationString, PANIC_ALERT_SEVERITY, JSON.stringify(metadata));
+          if (alertResult && alertResult.txHash) {
+            await recordBlockchainTransaction({
+              passportHash: alertResult.passportHash || chainState.passportHash,
+              entityType: 'alert',
+              action: 'panic_alert',
+              txHash: alertResult.txHash,
+              blockNumber: alertResult.blockNumber || null,
+              payload: metadata
+            });
+            await upsertBlockchainAlertRecord({
+              alertId: alertResult.alertId,
+              passportHash: alertResult.passportHash || chainState.passportHash,
+              location: locationString,
+              severity: PANIC_ALERT_SEVERITY,
+              txHash: alertResult.txHash,
+              blockNumber: alertResult.blockNumber || null,
+              occurredAt: new Date(),
+              metadata
+            });
+          }
+        } catch (chainErr) {
+          console.warn('[blockchain] panic alert sync failed', chainErr && chainErr.message);
+        }
+      } else if (chainState && chainState.blockchainStatus) {
+        console.log(`[blockchain] Panic alert skipped for ${passportId}; chain status=${chainState.blockchainStatus}`);
+      }
     }
 
     panicLocks.add(passportId);
@@ -4951,9 +5559,45 @@ app.post("/api/v1/groups/create", async (req, res) => {
 
     // 4. Mint the Group ID on the blockchain (non-blocking errors are logged)
     try {
-      await mintGroupId(newGroupIdChain);
+      const chainSummary = await mintGroupId(String(newGroupIdChain));
+      if (chainSummary) {
+        try {
+          await db.pool.query(
+            `UPDATE groups
+               SET blockchain_group_id = COALESCE(blockchain_group_id, $1),
+                   blockchain_tx_hash = COALESCE($2, blockchain_tx_hash),
+                   blockchain_status = 'registered',
+                   blockchain_created_at = COALESCE(blockchain_created_at, NOW())
+             WHERE id = $3`,
+            [String(newGroupIdChain), chainSummary.txHash || null, newGroupIdDb]
+          );
+        } catch (groupChainErr) {
+          console.warn('[blockchain] failed to update group chain state:', groupChainErr && groupChainErr.message);
+        }
+
+        try {
+          const payload = {
+            groupId: String(newGroupIdChain),
+            groupName,
+            creatorPassportId: passportId
+          };
+          const status = chainSummary.blockNumber ? 'confirmed' : 'submitted';
+          await db.pool.query(
+            `INSERT INTO blockchain_transactions (passport_hash, entity_type, action, tx_hash, status, block_number, payload)
+             VALUES ($1, 'group', 'create', $2, $3, $4, $5::jsonb)
+             ON CONFLICT (tx_hash) DO UPDATE
+               SET status = EXCLUDED.status,
+                   block_number = COALESCE(EXCLUDED.block_number, blockchain_transactions.block_number),
+                   payload = COALESCE(EXCLUDED.payload, blockchain_transactions.payload),
+                   updated_at = CURRENT_TIMESTAMP`,
+            [null, chainSummary.txHash || null, status, chainSummary.blockNumber || null, JSON.stringify(payload)]
+          );
+        } catch (groupTxErr) {
+          console.warn('[blockchain] failed to persist group transaction:', groupTxErr && groupTxErr.message);
+        }
+      }
     } catch (chainErr) {
-      console.warn("Warning: Failed to mint group on chain:", chainErr.message);
+      console.warn("Warning: Failed to mint group on chain:", chainErr && chainErr.message ? chainErr.message : chainErr);
     }
 
     res.status(201).json({
@@ -5333,6 +5977,61 @@ app.post("/api/v1/alerts/forward-to-emergency", authenticateAdmin, async (req, r
       console.warn('Failed to persist alert forward record:', e && e.message);
     }
     try { await db.pool.query(`INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,'forwarded',$2)`, [passportId, JSON.stringify(services || {})]); } catch(e){ console.warn('forward history insert failed', e.message); }
+
+    const chainState = await ensureTouristChainState(passportId);
+    if (chainState && chainState.passportHash && chainState.blockchainStatus === 'registered') {
+      const locationString = participant.latitude != null && participant.longitude != null
+        ? `${participant.latitude},${participant.longitude}`
+        : '';
+      const forwardedBy = (req.admin && (req.admin.email || req.admin.username || req.admin.id)) || 'admin';
+      const timestamp = new Date().toISOString();
+      const metadata = {
+        trigger: 'manual-forward',
+        forwardedBy,
+        services,
+        participantStatus: participant.status || null,
+        timestamp
+      };
+      const evidencePayload = {
+        passportId,
+        forwardedBy,
+        location: locationString,
+        services,
+        timestamp
+      };
+      let evidenceHash = sha256Hex(JSON.stringify(evidencePayload));
+      if (!evidenceHash) {
+        evidenceHash = uuidv4().replace(/-/g, '');
+      }
+      try {
+        const emergencyResult = await logEmergencyOnChain(passportId, String(evidenceHash), locationString, JSON.stringify(metadata));
+        if (emergencyResult && emergencyResult.txHash) {
+          await recordBlockchainTransaction({
+            passportHash: emergencyResult.passportHash || chainState.passportHash,
+            entityType: 'emergency',
+            action: 'forward_to_emergency',
+            txHash: emergencyResult.txHash,
+            blockNumber: emergencyResult.blockNumber || null,
+            payload: metadata
+          });
+          await upsertBlockchainEmergencyRecord({
+            logId: emergencyResult.logId,
+            passportHash: emergencyResult.passportHash || chainState.passportHash,
+            evidenceHash: String(evidenceHash),
+            location: locationString,
+            txHash: emergencyResult.txHash,
+            blockNumber: emergencyResult.blockNumber || null,
+            occurredAt: new Date(),
+            metadata
+          });
+        }
+      } catch (chainErr) {
+        console.warn('[blockchain] emergency forward sync failed', chainErr && chainErr.message);
+      }
+    } else if (chainState && chainState.blockchainStatus) {
+      console.log(`[blockchain] Emergency forward skipped for ${passportId}; chain status=${chainState.blockchainStatus}`);
+    }
+
     res.status(200).json({ message: "Alert forwarded successfully." });
   } catch (error) {
     console.error("Failed to forward alert:", error.message);
@@ -5389,6 +6088,20 @@ app.get('/api/v1/alerts/:passportId/nearby-services', async (req, res) => {
   } catch (e) {
     console.error('Failed to get nearby services lists:', e.message);
     res.status(500).json({ message: 'Failed to retrieve services' });
+  }
+});
+
+app.get('/api/v1/alerts/:passportId/blockchain', authenticateAdmin, async (req, res) => {
+  const { passportId } = req.params;
+  const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+  const includeAudit = String(req.query.includeAudit || req.query.include_audit).toLowerCase() === 'true';
+  try {
+    if (!enforcePassportAccess(res, req.admin, passportId)) return;
+    const summary = await buildBlockchainSummary(passportId, { limit, includeAudit });
+    res.json(summary);
+  } catch (error) {
+    console.error('[API] blockchain summary failed', error && error.message);
+    res.status(500).json({ message: 'Failed to load blockchain summary' });
   }
 });
 

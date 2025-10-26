@@ -104,6 +104,7 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const WOMEN_PASSPORT_PREFIX = 'WOMEN-';
+const BLOCKCHAIN_POLL_INTERVAL_MS = 30000;
 
 const buildEmergencyContacts = (participant = {}) => {
   const contacts = [];
@@ -183,6 +184,30 @@ const formatAdminServiceLabel = (serviceType) => {
   return 'Unknown';
 };
 
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  try {
+    const dateValue = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(dateValue.getTime())) return String(value);
+    return dateValue.toLocaleString();
+  } catch (err) {
+    return String(value);
+  }
+};
+
+const shortenHash = (hash, prefix = 10, suffix = 6) => {
+  if (!hash) return '—';
+  const str = String(hash);
+  if (str.length <= prefix + suffix + 3) return str;
+  return `${str.slice(0, prefix)}...${str.slice(-suffix)}`;
+};
+
+const humanizeStatusLabel = (status) => {
+  if (!status) return 'Unknown';
+  const normalized = String(status).replace(/_/g, ' ').trim();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
 function App() {
   const [admin, setAdmin] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -220,6 +245,17 @@ function App() {
   const [selectedWomenContacts, setSelectedWomenContacts] = useState(null);
   const [selectedWomenContactsError, setSelectedWomenContactsError] = useState(null);
   const [selectedWomenContactsLoading, setSelectedWomenContactsLoading] = useState(false);
+  const [blockchainSummaries, setBlockchainSummaries] = useState({});
+  const [blockchainSummaryLoading, setBlockchainSummaryLoading] = useState(false);
+  const [blockchainSummaryError, setBlockchainSummaryError] = useState(null);
+  const blockchainSummaryTimerRef = useRef(null);
+
+  const stopBlockchainPolling = useCallback(() => {
+    if (blockchainSummaryTimerRef.current) {
+      clearTimeout(blockchainSummaryTimerRef.current);
+      blockchainSummaryTimerRef.current = null;
+    }
+  }, []);
 
   
   axios.defaults.timeout = 10000;
@@ -261,6 +297,29 @@ function App() {
     setAuthorityServicesMap({});
     setIncidentFilter({ category: '', status: '' });
     setSnackbarOpen(false);
+    setBlockchainSummaries({});
+    setBlockchainSummaryLoading(false);
+    setBlockchainSummaryError(null);
+    stopBlockchainPolling();
+  }, [stopBlockchainPolling]);
+
+  const fetchBlockchainSummary = useCallback(async (passportId, { withSpinner = true } = {}) => {
+    if (!passportId) return null;
+    if (withSpinner) setBlockchainSummaryLoading(true);
+    setBlockchainSummaryError(null);
+    try {
+      const res = await axios.get(`${BACKEND_URL}/api/v1/alerts/${passportId}/blockchain`, {
+        params: { limit: 10 }
+      });
+      const payload = res.data || null;
+      setBlockchainSummaries((prev) => ({ ...prev, [passportId]: payload }));
+      return payload;
+    } catch (error) {
+      setBlockchainSummaryError(error);
+      return null;
+    } finally {
+      if (withSpinner) setBlockchainSummaryLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -887,6 +946,11 @@ function App() {
     }, {});
   }, [tourists]);
 
+  const currentBlockchainSummary = useMemo(() => {
+    if (!selectedTourist?.passport_id) return null;
+    return blockchainSummaries[selectedTourist.passport_id] || null;
+  }, [selectedTourist, blockchainSummaries]);
+
   const availableGroups = useMemo(() => {
     const map = new Map();
     (groups || []).forEach((groupEntry) => {
@@ -985,6 +1049,7 @@ function App() {
       setForwarding(true);
       await axios.post(`${BACKEND_URL}/api/v1/alerts/forward-to-emergency`, { passportId: tourist.passport_id });
       setForwardedIds(prev => new Set(prev).add(tourist.passport_id));
+      fetchBlockchainSummary(tourist.passport_id, { withSpinner: false });
     } catch (err) {
       console.error('Failed to forward alert:', err.response?.data || err.message);
       alert('Failed to forward alert. Check console for details.');
@@ -1037,12 +1102,44 @@ function App() {
         }
         
         setEmergencyDialog({ open: true, services: payload.services || null, passportId: payload.passport_id });
+        fetchBlockchainSummary(payload.passport_id, { withSpinner: false });
       }
     };
     sock.on('emergencyResponseDispatched', handleDispatched);
     return () => sock.off('emergencyResponseDispatched', handleDispatched);
-  }, [admin]);
+  }, [admin, fetchBlockchainSummary]);
+
+  useEffect(() => {
+    if (!isModalOpen || !selectedTourist?.passport_id) {
+      stopBlockchainPolling();
+      return;
+    }
+
+    let cancelled = false;
+    const passportId = selectedTourist.passport_id;
+    const hasCachedSummary = Boolean(blockchainSummaries[passportId]);
+
+    const run = async (withSpinner) => {
+      await fetchBlockchainSummary(passportId, { withSpinner });
+      if (cancelled) return;
+      stopBlockchainPolling();
+      blockchainSummaryTimerRef.current = setTimeout(() => {
+        run(false);
+      }, BLOCKCHAIN_POLL_INTERVAL_MS);
+    };
+
+    run(!hasCachedSummary);
+
+    return () => {
+      cancelled = true;
+      stopBlockchainPolling();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- polling interval managed manually
+  }, [isModalOpen, selectedTourist, fetchBlockchainSummary, stopBlockchainPolling]);
+
+  useEffect(() => () => stopBlockchainPolling(), [stopBlockchainPolling]);
   const handleCloseModal = () => {
+    stopBlockchainPolling();
     setIsModalOpen(false);
     setSelectedTourist(null);
     setSelectedWomenContacts(null);
@@ -1879,6 +1976,138 @@ function App() {
           </div>
           <div style={{ marginTop: 24 }}>
             <Typography variant="subtitle1" sx={{ display:'flex', alignItems:'center', gap:8 }}>
+              Blockchain Summary
+              {selectedTourist?.passport_id && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => fetchBlockchainSummary(selectedTourist.passport_id, { withSpinner: true })}
+                  disabled={blockchainSummaryLoading}
+                >
+                  {blockchainSummaryLoading ? 'Loading...' : 'Refresh'}
+                </Button>
+              )}
+            </Typography>
+            {blockchainSummaryError && (
+              <p className="muted-small" style={{ marginTop:4, color:'#b91c1c' }}>
+                {(blockchainSummaryError.response && blockchainSummaryError.response.data && blockchainSummaryError.response.data.message) || blockchainSummaryError.message || 'Failed to load blockchain summary.'}
+              </p>
+            )}
+            {blockchainSummaryLoading && !currentBlockchainSummary && (
+              <p className="muted-small" style={{ marginTop:4 }}>Loading blockchain summary...</p>
+            )}
+            {currentBlockchainSummary ? (
+              currentBlockchainSummary.supported ? (
+                <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:8 }}>
+                  <div style={{ fontSize:13 }}>
+                    <strong>Status:</strong> {humanizeStatusLabel(currentBlockchainSummary.blockchainStatus)}
+                  </div>
+                  <div style={{ fontSize:13 }}>
+                    <strong>Passport Hash:</strong> {currentBlockchainSummary.passportHash || '—'}
+                  </div>
+                  <div style={{ fontSize:13 }}>
+                    <strong>Registration:</strong>{' '}
+                    {(() => {
+                      const reg = currentBlockchainSummary.registration || {};
+                      if (!reg.txHash && !reg.registeredAt && !reg.metadataURI) {
+                        return 'Not registered yet';
+                      }
+                      return (
+                        <span>
+                          {reg.txHash ? `Tx ${shortenHash(reg.txHash)}` : 'Pending'}
+                          {reg.registeredAt && (
+                            <span className="muted-small"> • {formatDateTime(reg.registeredAt)}</span>
+                          )}
+                          {reg.metadataURI && (
+                            <span className="muted-small"> • {reg.metadataURI}</span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  {(() => {
+                    const counts = currentBlockchainSummary.counts || {};
+                    const rows = [
+                      { label: 'Mirrored Transactions', value: counts.transactions ?? 0 },
+                      { label: 'Mirrored Alerts', value: counts.alerts ?? 0 },
+                      { label: 'Mirrored Emergencies', value: counts.emergencies ?? 0 },
+                      { label: 'On-chain Alerts', value: counts.onChainAlerts ?? 0 },
+                      { label: 'On-chain Emergencies', value: counts.onChainEmergencies ?? 0 },
+                    ];
+                    return (
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:12, fontSize:12 }}>
+                        {rows.map((row) => (
+                          <div key={row.label} style={{ minWidth: 160 }}>
+                            <strong>{row.label}:</strong> {row.value}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const tx = currentBlockchainSummary.latest?.transaction || null;
+                    const alert = currentBlockchainSummary.latest?.alert || null;
+                    const emergency = currentBlockchainSummary.latest?.emergency || null;
+                    return (
+                      <div style={{ display:'flex', flexDirection:'column', gap:6, fontSize:12 }}>
+                        <div>
+                          <strong>Latest Transaction:</strong>{' '}
+                          {tx ? (
+                            <span>
+                              {(tx.action && tx.action.replace(/_/g, ' ')) || 'Update'}
+                              {tx.status && <span className="muted-small"> • {humanizeStatusLabel(tx.status)}</span>}
+                              {(tx.updatedAt || tx.createdAt) && <span className="muted-small"> • {formatDateTime(tx.updatedAt || tx.createdAt)}</span>}
+                              {tx.txHash && <span className="muted-small"> • {shortenHash(tx.txHash)}</span>}
+                            </span>
+                          ) : 'No mirrored transactions yet.'}
+                        </div>
+                        <div>
+                          <strong>Latest Alert:</strong>{' '}
+                          {alert ? (
+                            <span>
+                              {alert.location || `Alert #${alert.id || 'N/A'}`}
+                              {alert.severity != null && <span className="muted-small"> • Severity {alert.severity}</span>}
+                              {alert.occurredAt && <span className="muted-small"> • {formatDateTime(alert.occurredAt)}</span>}
+                              {alert.txHash && <span className="muted-small"> • {shortenHash(alert.txHash)}</span>}
+                            </span>
+                          ) : 'No mirrored alerts yet.'}
+                        </div>
+                        <div>
+                          <strong>Latest Emergency:</strong>{' '}
+                          {emergency ? (
+                            <span>
+                              {emergency.location || `Emergency #${emergency.id || 'N/A'}`}
+                              {emergency.occurredAt && <span className="muted-small"> • {formatDateTime(emergency.occurredAt)}</span>}
+                              {emergency.evidenceHash && <span className="muted-small"> • Evidence {shortenHash(emergency.evidenceHash)}</span>}
+                              {emergency.txHash && <span className="muted-small"> • {shortenHash(emergency.txHash)}</span>}
+                            </span>
+                          ) : 'No mirrored emergencies yet.'}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {currentBlockchainSummary.onChain?.tourist && (
+                    <div style={{ fontSize:12 }}>
+                      <strong>On-chain Identity:</strong>{' '}
+                      {shortenHash(currentBlockchainSummary.onChain.tourist.account || currentBlockchainSummary.onChain.tourist.issuer || '')}
+                      <span className="muted-small">
+                        {' '}• {currentBlockchainSummary.onChain.tourist.active ? 'Active' : 'Inactive'}
+                        {currentBlockchainSummary.onChain.tourist.metadataURI && ` • ${currentBlockchainSummary.onChain.tourist.metadataURI}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="muted-small" style={{ marginTop:4 }}>
+                  Blockchain integration not available for this profile{currentBlockchainSummary.reason ? ` (${humanizeStatusLabel(currentBlockchainSummary.reason)})` : '.'}
+                </p>
+              )
+            ) : (!blockchainSummaryLoading && !blockchainSummaryError && (
+              <p className="muted-small" style={{ marginTop:4 }}>No blockchain activity recorded yet.</p>
+            ))}
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <Typography variant="subtitle1" sx={{ display:'flex', alignItems:'center', gap:8 }}>
               Alert History
               <Button size="small" variant="outlined" onClick={() => selectedTourist && fetchAlertHistory(selectedTourist.passport_id)} disabled={alertHistoryLoading}>
                 {alertHistoryLoading ? 'Loading...' : 'Refresh'}
@@ -2060,7 +2289,7 @@ function App() {
             <Button variant="outlined" size="small" onClick={fetchIncidents} disabled={incidentsLoading}>Refresh</Button>
           </div>
           {incidentsLoading ? (
-            <div className="muted">Loading…</div>
+            <div className="muted">Loading...</div>
           ) : incidents.length === 0 ? (
             <div className="muted">No incidents found.</div>
           ) : (
