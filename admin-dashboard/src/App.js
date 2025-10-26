@@ -57,8 +57,42 @@ const anomalyInactiveIcon = new L.Icon({
 function MapController({ center, zoom }) {
     const map = useMap();
     useEffect(() => {
-      map.setView(center, zoom);
-      setTimeout(() => { map.invalidateSize(); }, 200);
+      if (!map) return;
+      try {
+        // set view if we have valid center/zoom
+        if (center && Array.isArray(center) && center.length === 2) {
+          map.setView(center, zoom);
+        }
+      } catch (e) {
+        console.debug('MapController: setView failed', e && e.message);
+      }
+
+      const runInvalidate = () => {
+        try {
+          // ensure container/position exists before invalidating size
+          const container = map.getContainer && map.getContainer();
+          const size = (map.getSize && map.getSize()) || null;
+          if (container && size && size.x !== 0 && size.y !== 0) {
+            map.invalidateSize({ animate: false });
+          } else {
+            // fallback small delay if size not ready
+            setTimeout(() => {
+              try { map.invalidateSize({ animate: false }); } catch (err) { /* swallow */ }
+            }, 250);
+          }
+        } catch (err) {
+          console.debug('MapController: invalidateSize skipped', err && err.message);
+        }
+      };
+
+      if (map._loaded) {
+        runInvalidate();
+      } else if (typeof map.whenReady === 'function') {
+        map.whenReady(runInvalidate);
+      } else {
+        // last-resort timeout
+        setTimeout(runInvalidate, 300);
+      }
     }, [map, center, zoom]);
     return null;
   }
@@ -188,9 +222,21 @@ function App() {
   const [selectedWomenContactsLoading, setSelectedWomenContactsLoading] = useState(false);
 
   
-  axios.defaults.timeout = 10000; 
-  axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+  axios.defaults.timeout = 10000;
+  // Set baseURL from env so relative requests work consistently
+  if (BACKEND_URL) axios.defaults.baseURL = BACKEND_URL;
+  // Enable credentialed requests for cookie-based admin auth
   axios.defaults.withCredentials = true;
+
+  // Only set the ngrok skipper header when backend looks like an ngrok tunnel
+  try {
+    const backendHost = BACKEND_URL ? new URL(BACKEND_URL).hostname : '';
+    if (backendHost && backendHost.includes('ngrok')) {
+      axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+    }
+  } catch (e) {
+    // ignore malformed BACKEND_URL
+  }
 
   const resetDashboardState = useCallback(() => {
     setTourists([]);

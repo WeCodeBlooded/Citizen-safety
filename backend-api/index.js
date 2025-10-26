@@ -119,10 +119,15 @@ const SOCKET_RESPONDER_SECRET = process.env.SOCKET_RESPONDER_SECRET ? String(pro
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'changeme-admin-secret';
 const ADMIN_TOKEN_COOKIE = process.env.ADMIN_TOKEN_COOKIE || 'admin_token';
 const ADMIN_TOKEN_TTL_HOURS = Math.max(1, Number(process.env.ADMIN_TOKEN_TTL_HOURS || 12));
+// Allow overriding cookie SameSite and secure behavior via env for cross-origin setups (ngrok, remote frontends)
+const ADMIN_COOKIE_SAMESITE = process.env.ADMIN_COOKIE_SAMESITE || 'lax'; // 'lax' | 'strict' | 'none'
+const ADMIN_COOKIE_SECURE = (typeof process.env.ADMIN_COOKIE_SECURE !== 'undefined')
+  ? String(process.env.ADMIN_COOKIE_SECURE).toLowerCase() === 'true'
+  : (process.env.NODE_ENV === 'production');
 const ADMIN_COOKIE_OPTIONS = {
   httpOnly: true,
-  sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production',
+  sameSite: ADMIN_COOKIE_SAMESITE,
+  secure: ADMIN_COOKIE_SECURE,
   maxAge: ADMIN_TOKEN_TTL_HOURS * 60 * 60 * 1000,
 };
 
@@ -1640,7 +1645,7 @@ app.post('/api/v1/admin/login', async (req, res) => {
 
 app.post('/api/v1/admin/logout', (req, res) => {
   try {
-    res.clearCookie(ADMIN_TOKEN_COOKIE, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+    res.clearCookie(ADMIN_TOKEN_COOKIE, ADMIN_COOKIE_OPTIONS);
   } catch (e) {
     console.debug('clearCookie failed:', e && e.message);
   }
