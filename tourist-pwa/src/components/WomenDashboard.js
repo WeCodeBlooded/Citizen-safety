@@ -791,7 +791,7 @@ const WomenDashboard = ({ user = {}, location = null }) => {
             </span>
           )}
         </div>
-        <div className="women-map-container">
+        <div className="women-map-container dashboard-map-wrapper">
           {mapPosition ? (
             <Map
               userPosition={mapPosition}

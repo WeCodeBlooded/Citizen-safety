@@ -174,4 +174,103 @@ const findNearbyServiceLists = async (latitude, longitude) => {
   }
 };
 
-module.exports = { findNearbyServices, findNearbyServiceLists };
+// Extended: Nearby Assistance (embassy, police, taxi, medical, heritage)
+const buildAssistanceQuery = (latitude, longitude, radiusInMeters) => {
+  const lat = latitude;
+  const lon = longitude;
+  const r = radiusInMeters;
+  return `[
+    out:json
+  ];
+  (
+    node["amenity"="police"](around:${r},${lat},${lon});
+    node["amenity"~"hospital|clinic|doctors|pharmacy"](around:${r},${lat},${lon});
+    node["amenity"="taxi"](around:${r},${lat},${lon});
+    node["diplomatic"~"embassy|consulate"](around:${r},${lat},${lon});
+    node["office"="diplomatic"](around:${r},${lat},${lon});
+    node["tourism"="attraction"](around:${r},${lat},${lon});
+    node["historic"](around:${r},${lat},${lon});
+  );
+  out body;`;
+};
+
+async function findNearbyAssistanceLists(latitude, longitude, radiusMeters = 7000, limitPerCategory = 20) {
+  const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+  const query = buildAssistanceQuery(latitude, longitude, radiusMeters);
+  try {
+    const response = await axios.post(OVERPASS_URL, query, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      timeout: 12000,
+    });
+    const byCategory = { embassy: [], police: [], taxi: [], medical: [], heritage: [] };
+    const elems = (response.data && response.data.elements) || [];
+    for (const el of elems) {
+      const tags = el.tags || {};
+      const entry = {
+        name: tags.name || tags["official_name"] || null,
+        lat: el.lat,
+        lon: el.lon,
+        address: tags["addr:full"] || null,
+        amenity: tags.amenity || null,
+        tourism: tags.tourism || null,
+        historic: tags.historic || null,
+        diplomatic: tags.diplomatic || null,
+        office: tags.office || null,
+      };
+      // Compute distance (km) and meters
+      const dkm = getDistance(latitude, longitude, el.lat, el.lon);
+      entry.distance_km = Number(dkm.toFixed(2));
+      entry.distance_m = Math.round(dkm * 1000);
+
+      const amenity = (tags.amenity || '').toLowerCase();
+      const tourism = (tags.tourism || '').toLowerCase();
+      const historic = (tags.historic || '').toLowerCase();
+      const diplomatic = (tags.diplomatic || '').toLowerCase();
+      const office = (tags.office || '').toLowerCase();
+      const name = (tags.name || '').toLowerCase();
+
+      if (amenity === 'police') {
+        if (!entry.name) entry.name = 'Police Station';
+        byCategory.police.push(entry);
+        continue;
+      }
+      if (amenity === 'taxi') {
+        if (!entry.name) entry.name = 'Taxi Stand';
+        byCategory.taxi.push(entry);
+        continue;
+      }
+      if (/^(hospital|clinic|doctors|pharmacy)$/.test(amenity)) {
+        if (!entry.name) entry.name = amenity === 'pharmacy' ? 'Pharmacy' : (amenity === 'clinic' ? 'Clinic' : 'Hospital');
+        byCategory.medical.push(entry);
+        continue;
+      }
+
+      const isEmbassy = diplomatic === 'embassy' || diplomatic === 'consulate' || office === 'diplomatic' || /\bembassy\b|\bconsulate\b/.test(name);
+      if (isEmbassy) {
+        if (!entry.name) entry.name = diplomatic ? diplomatic.charAt(0).toUpperCase() + diplomatic.slice(1) : 'Embassy';
+        byCategory.embassy.push(entry);
+        continue;
+      }
+
+      const isHeritage = tourism === 'attraction' || !!historic || (tags.heritage != null);
+      if (isHeritage) {
+        if (!entry.name) entry.name = tourism === 'attraction' ? 'Attraction' : (historic ? `Historic: ${historic}` : 'Heritage Site');
+        byCategory.heritage.push(entry);
+        continue;
+      }
+    }
+
+    // Sort and trim each category
+    Object.keys(byCategory).forEach((k) => {
+      byCategory[k].sort((a, b) => (a.distance_m || 0) - (b.distance_m || 0));
+      byCategory[k] = byCategory[k].slice(0, limitPerCategory);
+    });
+
+    return byCategory;
+  } catch (e) {
+    console.error('Error querying Overpass API (assistance):', e.message);
+    return { embassy: [], police: [], taxi: [], medical: [], heritage: [] };
+  }
+}
+
+module.exports = { findNearbyServices, findNearbyServiceLists, findNearbyAssistanceLists };

@@ -66,10 +66,15 @@ This is the central Node.js and Express backend for the Citizen Safety Platform 
     DB_PORT=5432
     DB_USER=postgres
     DB_PASSWORD=your_db_password
-    DB_NAME=tourist_safety
+    DB_DATABASE=tourist_safety
 
     # Server
     PORT=3001
+
+    # Admin dashboard authentication
+    ADMIN_JWT_SECRET=change_this_secret
+    ADMIN_TOKEN_COOKIE=admin_token
+    ADMIN_TOKEN_TTL_HOURS=12
 
     # Nodemailer (Gmail for OTP)
     EMAIL_USER=your-email@gmail.com
@@ -102,6 +107,16 @@ This is the central Node.js and Express backend for the Citizen Safety Platform 
     ```
     The API will be running at `http://localhost:3001`
 
+### Create an Admin User
+
+The admin dashboard requires authenticated users stored in the `admin_users` table. Registration happens outside the UI. Use the helper CLI after configuring your `.env` file and running migrations:
+
+```powershell
+npm run create-admin -- --email=admin@example.com --password=StrongPass123 --display="City Command" --service=both
+```
+
+`--service` accepts `tourist`, `women`, or `both` and controls which datasets the admin can access inside the dashboard. Re-running the script for the same email updates the password, display name, and assigned service.
+
 ## 📝 API Endpoints
 
 ### Citizen Incident Reporting
@@ -121,6 +136,48 @@ This is the central Node.js and Express backend for the Citizen Safety Platform 
 
 - `POST /api/v1/alerts/forward-to-emergency`: Forward alert to nearby services
 - `GET /api/v1/alerts/:passportId/history`: Get alert history for a tourist
+
+### Offline SMS / USSD (Fallback delivery)
+
+The backend supports an offline SMS queue for fallback delivery when realtime channels fail or when devices submit queued SOS events.
+
+- `POST /api/v1/alert/enqueue-sms` — enqueue a message. Body: `{ passportId, phoneNumber, message, channel }`.
+- `GET  /api/v1/alert/sms-queue` — list recent queue items (admin/debug).
+- `POST /api/v1/alert/process-sms-queue` — trigger processing of the queue (calls the worker).
+
+The queue records are persisted in the `sms_queue` table. The worker uses Twilio when `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` are provided; otherwise processing is logged for development. Retries are attempted up to 5 times before marking an entry as `failed`.
+
+Environment variables (Twilio):
+
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+- `TWILIO_SMS_FROM` — sender phone number for SMS
+- `TWILIO_WHATSAPP_FROM` — sender address for WhatsApp if used
+- `TWILIO_ENABLE_ALERTS` — set `false` to disable Twilio integration
+
+### Safe Zones Mapping
+
+The backend provides a REST API for managing and querying safe zones (police stations, hospitals, shelters, treatment centres) with offline caching support.
+
+- `GET  /api/v1/safe-zones` — list all safe zones with optional filters. Query params:
+  - `type` — filter by type: `police`, `hospital`, `shelter`, `treatment_centre`
+  - `city`, `state` — filter by location
+  - `verified` — filter by verification status (boolean)
+  - `limit`, `offset` — pagination (default: limit=50)
+- `GET  /api/v1/safe-zones/nearby` — find safe zones within radius. Query params:
+  - `latitude`, `longitude` — center point coordinates (required)
+  - `radius` — search radius in meters (default: 5000)
+  - `type` — optional type filter
+  - `limit` — max results (default: 20)
+- `GET  /api/v1/safe-zones/:id` — get detailed information for a specific safe zone
+- `POST /api/v1/safe-zones` — create new safe zone (admin). Body: `{ name, type, latitude, longitude, address, contact, city, district, state, operational_hours, services[], verified }`
+- `PATCH /api/v1/safe-zones/:id` — update safe zone (admin)
+- `DELETE /api/v1/safe-zones/:id` — soft delete safe zone (admin)
+
+The safe zones are persisted in the `safe_zones` table with geospatial indexes for fast proximity queries. The API uses Haversine distance calculation for nearby searches. The frontend caches data in IndexedDB for offline access.
+
+**Testing:** Run `node test-safe-zones.js` to test all endpoints.
+
+See [SAFE_ZONES_FEATURE.md](../SAFE_ZONES_FEATURE.md) for comprehensive documentation.
 
 ### Family Dashboard
 

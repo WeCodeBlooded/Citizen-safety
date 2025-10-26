@@ -79,6 +79,243 @@ CREATE TABLE group_members (
 );
 
 
+CREATE TABLE IF NOT EXISTS tourist_helplines (
+        id SERIAL PRIMARY KEY,
+        region VARCHAR(120) NOT NULL,
+        service_name VARCHAR(200) NOT NULL,
+        phone_number VARCHAR(40) NOT NULL,
+        availability VARCHAR(120) DEFAULT '24x7',
+        languages TEXT[] DEFAULT '{}',
+        description TEXT,
+        priority INTEGER DEFAULT 100,
+        UNIQUE(region, service_name, phone_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tourist_helplines_region ON tourist_helplines(region);
+CREATE INDEX IF NOT EXISTS idx_tourist_helplines_priority ON tourist_helplines(priority);
+
+INSERT INTO tourist_helplines (region, service_name, phone_number, availability, languages, description, priority) VALUES
+    ('National', 'Incredible India Tourist Helpline (Ministry of Tourism)', '1800-11-1363 / 1363', '24x7', ARRAY['English','Hindi','Tamil','Telugu','Bengali','Kannada','Marathi'], 'Central multilingual helpline for tourists across India offering emergency guidance and travel assistance.', 1),
+    ('National', 'Emergency Response Support System (ERSS)', '112', '24x7', ARRAY['English','Hindi'], 'Single emergency number that connects to police, fire, and medical services pan-India.', 2),
+    ('National', 'Women & Child Helpline', '1091 / 181', '24x7', ARRAY['English','Hindi'], 'Dedicated helpline for women and child safety with rapid police escalation.', 3),
+    ('Delhi', 'Delhi Tourist Police', '+91-8750871111', '24x7', ARRAY['English','Hindi'], 'Tourist police assistance within Delhi NCR including airport zone and heritage sites.', 10),
+    ('Maharashtra', 'Maharashtra Tourism Helpline', '1800-229-933', '06:00 - 22:00 IST', ARRAY['English','Hindi','Marathi'], 'Support for tourists in Mumbai, Pune, and major Maharashtra destinations.', 12),
+    ('Tamil Nadu', 'Tamil Nadu Tourism Helpline', '044-2533-2770', '24x7', ARRAY['English','Tamil'], 'Tourist assistance for Chennai, Madurai, Rameswaram, and other Tamil Nadu circuits.', 15),
+    ('Karnataka', 'Karnataka Tourism Helpline', '1800-425-2577', '07:00 - 19:00 IST', ARRAY['English','Kannada','Hindi'], 'Guidance for Bengaluru, Mysuru, coastal Karnataka, and heritage trails.', 16),
+    ('Kerala', 'Kerala Tourism Helpline', '1800-425-4747', '24x7', ARRAY['English','Malayalam','Hindi'], 'Round-the-clock support covering backwaters, hill stations, and coastal Kerala.', 18),
+    ('Goa', 'Goa Tourism Safety Patrol', '+91-9623798080', '24x7', ARRAY['English','Konkani','Hindi'], 'Dedicated safety patrol hotline for beaches, nightlife zones, and tourist belts in Goa.', 20),
+    ('Rajasthan', 'Rajasthan Tourism Helpline', '1800-180-6127', '08:00 - 22:00 IST', ARRAY['English','Hindi'], 'Assistance for Jaipur, Udaipur, Jodhpur, Jaisalmer, and desert circuits.', 22)
+ON CONFLICT (region, service_name, phone_number) DO NOTHING;
+
+
+CREATE TABLE IF NOT EXISTS tourist_support_faqs (
+        id SERIAL PRIMARY KEY,
+        keywords TEXT[] NOT NULL DEFAULT '{}',
+        response_en TEXT NOT NULL,
+        response_hi TEXT,
+        response_bn TEXT,
+        response_ta TEXT,
+        response_te TEXT,
+        response_mr TEXT,
+        response_kn TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tourist_support_faqs_keywords ON tourist_support_faqs USING GIN (keywords);
+
+INSERT INTO tourist_support_faqs (keywords, response_en, response_hi, response_bn, response_ta, response_te, response_mr, response_kn) VALUES
+    (ARRAY['lost passport','passport lost','missing passport','documents lost'],
+     'If your passport is lost, file an FIR at the nearest police station, contact your embassy or consulate, call the Ministry of Tourism helpline 1800-11-1363 for guidance, and keep digital copies of your identification documents handy.',
+     'यदि आपका पासपोर्ट खो गया है तो नज़दीकी पुलिस थाने में एफआईआर दर्ज करें, अपने दूतावास या वाणिज्य दूतावास से संपर्क करें, मार्गदर्शन के लिए पर्यटन मंत्रालय हेल्पलाइन 1800-11-1363 पर कॉल करें और अपने पहचान दस्तावेज़ों की डिजिटल प्रतियां साथ रखें।',
+     'পাসপোর্ট হারালে নিকটস্থ থানায় এফআইআর করুন, আপনার দূতাবাস বা কনস্যুলেটের সঙ্গে যোগাযোগ করুন, পরামর্শের জন্য পর্যটন মন্ত্রণালয়ের হেল্পলাইন ১৮০০-১১-১৩৬৩ নম্বরে ফোন করুন এবং পরিচয়পত্রের ডিজিটাল কপি সঙ্গে রাখুন।',
+     'பாஸ்போர்ட் இழந்தால் அருகிலுள்ள காவல் நிலையத்தில் FIR பதிவு செய்யவும், உங்கள் தூதரகம் அல்லது துணைத்தூதரகத்தை தொடர்புகொள்ளவும், வழிகாட்டுதலுக்காக τουரிசம் அமைச்சின் 1800-11-1363 உதவி எண்ணை அழைக்கவும், அடையாள ஆவணங்களின் டிஜிட்டல் நகல்களை வைத்திருங்கள்.',
+     'మీ పాస్‌పోర్ట్ పోతే సమీప పోలీస్ స్టేషన్లో FIR నమోదు చేయండి, మీ రాయబారి కార్యాలయం లేదా కాన్సులేట్‌ను సంప్రదించండి, మార్గదర్శకానికి పర్యాటక మంత్రిత్వ శాఖ హెల్ప్‌లైన్ 1800-11-1363 కి కాల్ చేయండి మరియు మీ గుర్తింపు పత్రాల డిజిటల్ ప్రతులను దగ్గర ఉంచుకోండి.',
+     'पासपोर्ट हरवला असल्यास जवळच्या पोलीस ठाण्यात FIR दाखल करा, आपल्या दूतावास किंवा वाणिज्य दूतावासाशी संपर्क साधा, मार्गदर्शनासाठी पर्यटन मंत्रालय हेल्पलाइन 1800-11-1363 वर कॉल करा आणि ओळखपत्रांच्या डिजिटल प्रत्या सोबत ठेवा.',
+     'ನಿಮ್ಮ ಪಾಸ್‌ಪೋರ್ಟ್ ಕಳೆದುಹೋದರೆ ಸಮೀಪದ ಪೊಲೀಸ್ ಠಾಣೆಯಲ್ಲಿ FIR ದಾಖಲು ಮಾಡಿ, ನಿಮ್ಮ ರಾಯಭಾರಿ ಕಚೇರಿ ಅಥವಾ ಕಾನ್ಸುಲೇಟ್ ಅನ್ನು ಸಂಪರ್ಕಿಸಿ, ಮಾರ್ಗದರ್ಶನಕ್ಕಾಗಿ ಪ್ರವಾಸೋದ್ಯಮ ಸಚಿವಾಲಯದ 1800-11-1363 ಸಹಾಯವಾಣಿ ಸಂಖ್ಯೆಗೆ ಕರೆ ಮಾಡಿ ಮತ್ತು ಗುರುತುಪತ್ರಗಳ ಡಿಜಿಟಲ್ ಪ್ರತಿಗಳನ್ನು ಹೊಂದಿಡಿ.'),
+    (ARRAY['medical emergency','need doctor','injury','medical help'],
+     'For medical emergencies dial 112 for immediate assistance, share your live location if possible, and request ambulance support. Government and private hospitals in major cities have dedicated tourist desks.',
+     'चिकित्सा आपात स्थिति में त्वरित सहायता के लिए 112 पर कॉल करें, संभव हो तो अपना लाइव लोकेशन साझा करें और एम्बुलेंस सहायता का अनुरोध करें। बड़े शहरों के सरकारी और निजी अस्पतालों में पर्यटकों के लिए समर्पित डेस्क उपलब्ध हैं।',
+     'জরুরি চিকিৎসার জন্য অবিলম্বে ১১২ নম্বরে ফোন করুন, সম্ভব হলে আপনার লাইভ লোকেশন শেয়ার করুন এবং অ্যাম্বুলেন্স সহায়তা চান। বড় শহরের সরকারি ও বেসরকারি হাসপাতালগুলোতে পর্যটকদের জন্য বিশেষ ডেস্ক রয়েছে।',
+     'மருத்துவ அவசர நிலையிலேயே உடனடி உதவிக்கு 112 ஐ அழைக்கவும், முடிந்தால் உங்கள் நேரடி இருப்பிடத்தை பகிரவும் மற்றும் ஆம்புலன்ஸ் உதவியை கோரவும். பெருநகர மருத்துவமனைகளில்τουரிஸ்ட் சேவை மையங்கள் உள்ளன.',
+     'వైద్య అత్యవసర పరిస్థితుల్లో వెంటనే సహాయానికి 112 కి కాల్ చేయండి, సాధ్యమైతే మీ ప్రత్యక్ష స్థానాన్ని షేర్ చేయండి మరియు అంబులెన్స్ కోసం అభ్యర్థించండి. ప్రధాన నగరాల్లో ప్రభుత్వం మరియు ప్రైవేట్ ఆసుపత్రుల్లో పర్యాటక డెస్కులు అందుబాటులో ఉన్నాయి.',
+     'वैद्यकीय आपत्कालीन स्थितीत त्वरित मदतीसाठी 112 वर कॉल करा, शक्य असल्यास आपले थेट लोकेशन शेअर करा आणि रुग्णवाहिकेची मदत मागवा. मोठ्या शहरांतील सरकारी व खाजगी रुग्णालयांत पर्यटकांसाठी स्वतंत्र डेस्क आहेत.',
+     'ವೈದ್ಯಕೀಯ ತುರ್ತು ಪರಿಸ್ಥಿತಿಗೆ ತಕ್ಷಣದ ಸಹಾಯಕ್ಕಾಗಿ 112 ಗೆ ಕರೆ ಮಾಡಿ, ಸಾಧ್ಯವಾದರೆ ನಿಮ್ಮ ಲೈವ್ ಲೊಕೇಶನ್ ಹಂಚಿಕೊಳ್ಳಿ ಮತ್ತು ಆಂಬುಲೆನ್ಸ್ ನೆರವು ಬೇಡಿ. ಪ್ರಮುಖ ನಗರಗಳ ಸರಕಾರಿ ಮತ್ತು ಖಾಸಗಿ ಆಸ್ಪತ್ರೆಗಳಲ್ಲಿ ಪ್ರವಾಸಿಗರಿಗಾಗಿ ವಿಶೇಷ ಡೆಸ್ಕ್‌ಗಳು ಇವೆ.'),
+    (ARRAY['safety tip','unsafe area','feel unsafe','safety advice'],
+     'Move to a well-lit public space, alert nearby authorities or security staff, and share your real-time location with trusted contacts through the app. You can also call the tourist police helpline listed for your region.',
+     'कृपया रोशनी वाले सार्वजनिक स्थान पर जाएँ, नज़दीकी अधिकारियों या सुरक्षा कर्मियों को सूचित करें और ऐप के माध्यम से अपने विश्वसनीय संपर्कों के साथ वास्तविक समय लोकेशन साझा करें। अपने क्षेत्र की सूची में उपलब्ध टूरिस्ट पुलिस हेल्पलाइन पर भी कॉल कर सकते हैं।',
+     'উজ্জ্বল আলোযুক্ত জনসমক্ষে চলে যান, আশেপাশের কর্তৃপক্ষ বা সুরক্ষা কর্মীদের জানান এবং অ্যাপের মাধ্যমে বিশ্বাসযোগ্য পরিচিতদের সঙ্গে আপনার রিয়েল-টাইম লোকেশন শেয়ার করুন। আপনার অঞ্চলের তালিকাভুক্ত পর্যটন পুলিশ হেল্পলাইনে ফোন করতে পারেন।',
+     'ஒளியுடன் கூடிய பொதுப் பகுதிக்குச் செல்லவும், அருகிலுள்ள அதிகாரிகள் அல்லது பாதுகாப்பு பணியாளர்களுக்கு தகவல்伝டிக்கவும் மற்றும் பயன்பாட்டின் மூலம் நம்பகமான தொடர்புகளுடன் உங்கள் நேரடி இருப்பிடத்தை பகிரவும். உங்கள் பிராந்தியத்திற்கானτουரிஸ்ட் போலீஸ் உதவி எண்ணிற்கு அழைக்கவும்.',
+     'బాగా వెలుతురు ఉన్న ప్రజా ప్రదేశానికి వెళ్లండి, సమీపంలోని అధికారులు లేదా భద్రతా సిబ్బందికి సమాచಾರమివ్వండి మరియు యాప్ ద్వారా విశ్వసనీయ పరిచయాలతో మీ ప్రత్యక్ష స్థానం పంచుకోండి. మీ ప్రాంతానికి సూచించిన పర్యాటక పోలీస్ హెల్ప్‌లైన్ కి కూడా కాల్ చేయండి.',
+     'प्रकाशमान सार्वजनिक ठिकाणी जा, जवळच्या अधिकाऱ्यांना किंवा सुरक्षा कर्मचाऱ्यांना कळवा आणि अॅपद्वारे विश्वासू संपर्कांशी आपले प्रत्यक्ष स्थान शेअर करा. आपल्या प्रदेशासाठी सांगितलेल्या टूरिस्ट पोलिस हेल्पलाइनवरही कॉल करा.',
+     'ಬೆಳಕುಳ್ಳ ಸಾರ್ವಜನಿಕ ಸ್ಥಳಕ್ಕೆ ಹೋಗಿ, ಸಮೀಪದ ಅಧಿಕಾರಿಗಳು ಅಥವಾ ಭದ್ರತೆಯವರಿಗೆ ತಿಳಿಸಿ ಮತ್ತು ಅಪ್ಲಿಕೇಷನ್ ಮೂಲಕ ವಿಶ್ವಾಸಾರ್ಹ ಸಂಪರ್ಕಗಳಿಗೆ ನಿಮ್ಮ ಲೈವ್ ಸ್ಥಾನವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ. ನಿಮ್ಮ ಪ್ರದೇಶಕ್ಕೆ ಸೂಚಿಸಲಾದ ಪ್ರವಾಸಿ ಪೊಲೀಸ್ ಸಹಾಯವಾಣಿಗೆ ಕರೆ ಮಾಡಬಹುದು.'),
+    (ARRAY['language help','translation','speak language','interpreter'],
+     'Use the language switcher to receive guidance in your preferred language, show prepared travel cards with translated phrases, and call 1800-11-1363 for interpreter support if officials request clarification.',
+     'अपनी पसंदीदा भाषा में मार्गदर्शन पाने के लिए भाषा स्विचर का उपयोग करें, अनुवादित वाक्यों वाले तैयार यात्रा कार्ड दिखाएँ और यदि अधिकारियों को स्पष्टीकरण चाहिए तो 1800-11-1363 पर कॉल करके दुभाषिया सहायता माँगें।',
+     'আপনার পছন্দের ভাষায় নির্দেশনা পেতে ভাষা সুইচার ব্যবহার করুন, অনূদিত বাক্যসহ প্রস্তুত ভ্রমণ কার্ড দেখান এবং কর্মকর্তারা ব্যাখ্যা চাইলে ১৮০০-১১-১৩৬৩ নম্বরে ফোন করে দোভাষী সহায়তা নিন।',
+     'உங்கள் விருப்பமான மொழியில் வழிகாட்டுதலை பெற மொழி மாற்றியை பயன்படுத்தவும், மொழிபெயர்க்கப்பட்ட சொற்றொடர்களுடன் பயண அட்டைகளை காட்டவும், அதிகாரிகள் தெளிவுபடுத்துமாறு கேட்டால் 1800-11-1363 என்ற எண்ணில் அழைத்து மொழிபெயர்ப்பாளர் உதவಿಯನ್ನುப் பெறவும்.',
+     'మీ ఇష్టమైన భాషలో మార్గదర్శకత్వం పొందడానికి భాష స్విచర్‌ను ఉపయోగించండి, అనువదించిన వాక్యాలతో సిద్ధం చేసిన ప్రయాణ కార్డులను చూపండి మరియు అధికారులు వివరణ కోరితే 1800-11-1363 కి కాల్ చేసి అనువాదక సహాయాన్ని అడగండి.',
+     'आपल्या पसंतीच्या भाषेत मार्गदर्शन मिळवण्यासाठी भाषा स्विचर वापरा, अनुवादित वाक्यांसह तयार ट्रॅव्हल कार्ड दाखवा आणि अधिकाऱ्यांनी स्पष्टता विचारल्यास 1800-11-1363 वर कॉल करून दुभाषी मदत घ्या.',
+     'ನಿಮ್ಮ ಇಷ್ಟದ ಭಾಷೆಯಲ್ಲಿ ಮಾರ್ಗದರ್ಶನ ಪಡೆಯಲು ಭಾಷಾ ಸ್ವಿಚರ್ ಅನ್ನು ಬಳಸಿ, ಅನುವಾದಿತ ಪದಬಂಧಗಳಿರುವ ಪ್ರಯಾಣ ಕಾರ್ಡ್‌ಗಳನ್ನು ತೋರಿಸಿ ಮತ್ತು ಅಧಿಕಾರಿಗಳು ವಿವರಣೆ ಕೇಳಿದರೆ 1800-11-1363 ಗೆ ಕರೆ ಮಾಡಿ ಅನುವಾದಕರ ನೆರವನ್ನು ಪಡೆಯಿರಿ.'),
+    (ARRAY['money exchange','currency','payment issue','card blocked'],
+     'Use authorised currency exchange counters inside airports, RBI-approved forex outlets, or ATMs inside nationalised banks. For blocked cards contact your bank using the international helpline and keep emergency cash separated in small denominations.',
+     'मुद्रा विनिमय के लिए हवाई अड्डों के अधिकृत काउंटर, आरबीआई अनुमोदित फॉरेक्स आउटलेट या राष्ट्रीयकृत बैंकों के एटीएम का उपयोग करें। कार्ड ब्लॉक होने पर अंतरराष्ट्रीय हेल्पलाइन पर अपने बैंक से संपर्क करें और आपातकाल के लिए छोटे मूल्य के नकद पैसे अलग रखें।',
+     'মুদ্রা পরিবর্তনের জন্য বিমানবন্দরের অনুমোদিত কাউন্টার, আরবিআই অনুমোদিত ফরেক্স আউটলেট বা জাতীয়করণকৃত ব্যাংকের এটিএম ব্যবহার করুন। কার্ড ব্লক হলে আন্তর্জাতিক হেল্পলাইনের মাধ্যমে আপনার ব্যাংকের সঙ্গে যোগাযোগ করুন এবং জরুরি পরিস্থিতির জন্য ছোট অঙ্কের নগদ আলাদা করে রাখুন।',
+     'நாணய மாற்றத்திற்காக விமான நிலைய அங்கீகரிக்கப்பட்ட கவுண்டர்கள், भारतीय ரிசர்வ் வங்கியால் அங்கீகரிக்கப்பட்ட ஃபாரெக்ஸ் மையங்கள் அல்லது தேசிய வங்கிகளின் ATM களை பயன்படுத்தவும். அட்டை முடக்கப்பட்டால் சர்வதேச உதவி எண்ணின் மூலம் உங்கள் வங்கியை தொடர்புகொள்ளவும் மற்றும் அவசரநிலைக்காக சிறு நோட்டுகளாக பணத்தை தனியே வைத்திருங்கள்.',
+     'కరెన్సీ మార్పిడికి విమానాశ్రయంలోని అధికారిక కౌంటర్లు, RBI అనుమతించిన ఫారెక్స్ ఔట్‌లెట్లు లేదా జాతీయ బ్యాంకుల ATMలను ఉపయోగించండి. కార్డ్ బ్లాక్ అయితే అంతర్జాతీయ హెల్ప్‌లైన్ ద్వారా మీ బ్యాంక్‌ను సంప్రదించండి మరియు అత్యవసర పరిస్థితులకు చిన్న నామములలో నగదు విడిగా ఉంచుకోండి.',
+     'चलन बदलण्यासाठी विमानतळावरील अधिकृत काउंटर, RBI मान्यताप्राप्त फॉरेक्स आउटलेट किंवा राष्ट्रीयीकृत बँकांच्या ATM चा वापर करा. कार्ड ब्लॉक झाल्यास आंतरराष्ट्रीय हेल्पलाइनवरून आपल्या बँकेशी संपर्क साधा आणि आपत्कालीन परिस्थितीसाठी कमी मूल्याच्या नोटा वेगळ्या ठेवा.',
+     'ಕರೆನ್ಸಿ ವಿನಿಮಯಕ್ಕೆ ವಿಮಾನ ನಿಲ್ದಾಣದ ಅನುಮೋದಿತ ಕೌಂಟರ್‌ಗಳು, RBI ಅಂಗೀಕೃತ ಫಾರೆಕ್ಸ್ ಔಟ್‌ಲೆಟ್‌ಗಳು ಅಥವಾ ರಾಷ್ಟ್ರೀಕೃತ ಬ್ಯಾಂಕ್‌ಗಳ ATM‌ಗಳನ್ನು ಬಳಸಿ. ಕಾರ್ಡ್ ಬ್ಲಾಕ್ ಆದರೆ ಅಂತರರಾಷ್ಟ್ರೀಯ ಸಹಾಯವಾಣಿ ಮೂಲಕ ನಿಮ್ಮ ಬ್ಯಾಂಕನ್ನು ಸಂಪರ್ಕಿಸಿ ಮತ್ತು ತುರ್ತು ಸಂದರ್ಭಕ್ಕೆ ಸಣ್ಣ ಮೊತ್ತದ ನಗದನ್ನು ಪ್ರತ್ಯೇಕವಾಗಿ ಇಟ್ಟುಕೊಳ್ಳಿ.')
+ON CONFLICT DO NOTHING;
+
+
+-- Alert forwards: track which alerts were forwarded and to which services
+CREATE TABLE IF NOT EXISTS alert_forwards (
+    id SERIAL PRIMARY KEY,
+    passport_id VARCHAR(50) NOT NULL,
+    alert_type VARCHAR(50), -- e.g., 'panic', 'anomaly', 'distress'
+    services JSONB,
+    forwarded_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(passport_id, alert_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_forwards_passport ON alert_forwards(passport_id);
+
+
+-- Manual authority overrides picked by admin for a given passport/session
+CREATE TABLE IF NOT EXISTS alert_authority_overrides (
+    id SERIAL PRIMARY KEY,
+    passport_id VARCHAR(50) NOT NULL,
+    authority_type VARCHAR(30) NOT NULL, -- hospital | police | fire
+    name TEXT,
+    lat DOUBLE PRECISION,
+    lon DOUBLE PRECISION,
+    distance_km DOUBLE PRECISION,
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(passport_id, authority_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_authority_overrides_passport ON alert_authority_overrides(passport_id);
+
+
+-- Offline delivery queue for SMS/USSD fallbacks
+CREATE TABLE IF NOT EXISTS sms_queue (
+    id SERIAL PRIMARY KEY,
+    passport_id VARCHAR(80),
+    phone_number VARCHAR(80),
+    message TEXT NOT NULL,
+    channel VARCHAR(20) DEFAULT 'sms', -- 'sms' | 'ussd' | other
+    status VARCHAR(20) DEFAULT 'pending', -- pending | sent | failed
+    attempts INTEGER DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    sent_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_sms_queue_status ON sms_queue(status);
+CREATE INDEX IF NOT EXISTS idx_sms_queue_passport ON sms_queue(passport_id);
+
+
+-- Safe Zones: shelters, police, hospitals, treatment centres
+CREATE TABLE IF NOT EXISTS safe_zones (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL, -- hospital | police | shelter | treatment_centre
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    address TEXT,
+    contact VARCHAR(100),
+    city VARCHAR(100),
+    district VARCHAR(100),
+    state VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'India',
+    operational_hours VARCHAR(100),
+    services TEXT[],
+    facilities TEXT,
+    verified BOOLEAN DEFAULT false,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_safe_zones_type ON safe_zones(type);
+CREATE INDEX IF NOT EXISTS idx_safe_zones_city ON safe_zones(city);
+CREATE INDEX IF NOT EXISTS idx_safe_zones_location ON safe_zones(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_safe_zones_active ON safe_zones(active);
+
+
+-- Women streaming evidence capture (session + media segments)
+CREATE TABLE IF NOT EXISTS women_stream_sessions (
+    id SERIAL PRIMARY KEY,
+    passport_id VARCHAR(50) NOT NULL,
+    started_at TIMESTAMPTZ DEFAULT now(),
+    ended_at TIMESTAMPTZ,
+    status VARCHAR(20) DEFAULT 'active'
+);
+
+CREATE INDEX IF NOT EXISTS idx_women_stream_sessions_passport ON women_stream_sessions(passport_id);
+
+CREATE TABLE IF NOT EXISTS women_media_segments (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES women_stream_sessions(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    sequence INTEGER,
+    size_bytes BIGINT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_women_media_segments_session ON women_media_segments(session_id);
+
+
+-- Tourist Safety: Neighborhood Safety Ratings and Aggregated Score Cells
+CREATE TABLE IF NOT EXISTS safety_ratings (
+    id SERIAL PRIMARY KEY,
+    passport_id VARCHAR(50),
+    score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+    tags TEXT[],
+    comment TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    cell_id VARCHAR(32) NOT NULL,
+    cell_lat DOUBLE PRECISION NOT NULL,
+    cell_lon DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_safety_ratings_cell ON safety_ratings(cell_id);
+CREATE INDEX IF NOT EXISTS idx_safety_ratings_passport ON safety_ratings(passport_id);
+CREATE INDEX IF NOT EXISTS idx_safety_ratings_created ON safety_ratings(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS safety_score_cells (
+    cell_id VARCHAR(32) PRIMARY KEY,
+    cell_lat DOUBLE PRECISION NOT NULL,
+    cell_lon DOUBLE PRECISION NOT NULL,
+    avg_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ratings_count INTEGER NOT NULL DEFAULT 0,
+    last_score DOUBLE PRECISION,
+    last_updated TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_safety_cells_ratings ON safety_score_cells(ratings_count);
+
+-- Geo-targeted Safety Alerts (crime, accidents, disasters)
+CREATE TABLE IF NOT EXISTS safety_alerts (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(40) NOT NULL, -- crime | accident | disaster | other
+    severity VARCHAR(20) DEFAULT 'medium', -- info | low | medium | high | critical
+    description TEXT,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    radius_m INTEGER DEFAULT 1000,
+    status VARCHAR(20) DEFAULT 'active', -- active | resolved | expired
+    source VARCHAR(60),
+    starts_at TIMESTAMPTZ DEFAULT now(),
+    ends_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_safety_alerts_status ON safety_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_safety_alerts_geo ON safety_alerts(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_safety_alerts_category ON safety_alerts(category);
+
+
 CREATE TABLE location_history (
     id SERIAL PRIMARY KEY,
     tourist_id INTEGER REFERENCES tourists(id) ON DELETE CASCADE,

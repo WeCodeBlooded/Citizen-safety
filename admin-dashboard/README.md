@@ -1,70 +1,43 @@
-# Getting Started with Create React App
+# Admin Dashboard
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React dashboard for the Citizen Safety operations team. It provides authenticated access to tourist and women safety data, live alerts, incident triage, and panic response tooling.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- Email/password login backed by the backend `admin_users` table
+- Role-aware access control (`tourist`, `women`, or `both`) applied across lists, filters, and incident actions
+- Live location map with panic alerts, anomaly tracking, and reset workflows
+- Incident management with status updates and agency assignments
+- Women safety streaming review and emergency contact visibility
+- Real-time socket updates scoped to the authenticated admin session
 
-### `npm start`
+## Requirements
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Backend API running with admin authentication enabled
+- Admin seeded via `npm run create-admin` in `backend-api`
+- Node.js 18+ and npm
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Create a `.env` file in this directory with at least:
 
-### `npm test`
+```env
+REACT_APP_BACKEND_URL=http://localhost:3001
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The frontend automatically sends credentials (cookies) with axios requests, so the backend must allow credentialed requests over HTTP during development or use HTTPS in production.
 
-### `npm run build`
+## Getting Started
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```powershell
+cd admin-dashboard
+npm install
+npm start
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Visit `http://localhost:3000` and log in using the email/password created through the backend helper. The header displays the assigned service and includes a logout action. Filters and data visibility adjust automatically according to that assignment.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Development Notes
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Socket connections are re-established whenever the admin session changes. Logging out clears local state to prevent stale data exposure.
+- 401 responses from the backend automatically clear the session and return to the login screen.
+- Service filters are pinned when the admin is scoped to a specific team; global admins (`both`) can toggle between datasets.
+- Styling for the login experience lives under `.auth-*` classes; header actions use `.header-*` modifiers in `src/App.css`.

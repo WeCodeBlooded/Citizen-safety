@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import "./App.css";
 import axios from "axios";
 import io from "socket.io-client";
@@ -69,8 +69,93 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const WOMEN_PASSPORT_PREFIX = 'WOMEN-';
+
+const buildEmergencyContacts = (participant = {}) => {
+  const contacts = [];
+  if (participant.emergency_contact) {
+    contacts.push({ label: 'Primary', number: participant.emergency_contact, email: participant.emergency_contact_email || null });
+  }
+  if (participant.emergency_contact_1 || participant.emergency_contact_email_1) {
+    contacts.push({ label: 'Contact 1', number: participant.emergency_contact_1 || null, email: participant.emergency_contact_email_1 || null });
+  }
+  if (participant.emergency_contact_2 || participant.emergency_contact_email_2) {
+    contacts.push({ label: 'Contact 2', number: participant.emergency_contact_2 || null, email: participant.emergency_contact_email_2 || null });
+  }
+  return contacts;
+};
+
+const normalizeParticipant = (rawParticipant = {}, previousParticipant = {}) => {
+  const merged = { ...previousParticipant, ...rawParticipant };
+  const inferredPassport = merged.passport_id || merged.passportId || merged.id || '';
+  const passportId = inferredPassport ? String(inferredPassport).trim() : '';
+  const isWomenParticipant = passportId.startsWith(WOMEN_PASSPORT_PREFIX);
+  const serviceType = merged.service_type || (isWomenParticipant ? 'women_safety' : 'tourist_safety');
+
+  const groupName = serviceType === 'women_safety'
+    ? 'Women Safety'
+    : (merged.group_name || merged.group || merged.group_id || merged.team || 'No Group');
+
+  const emergencyContacts = serviceType === 'women_safety'
+    ? (merged.emergency_contacts || previousParticipant.emergency_contacts || [])
+    : buildEmergencyContacts(merged);
+
+  return {
+    ...merged,
+    id: merged.id || passportId || merged.mobile_number || merged.email || `participant-${Date.now()}`,
+    passport_id: passportId,
+    service_type: serviceType,
+    group_name: groupName,
+    emergency_contacts: emergencyContacts,
+    source: merged.source || (serviceType === 'women_safety' ? 'women' : 'tourist'),
+    status: merged.status || 'active',
+    name: merged.name || merged.fullName || merged.displayName || 'Unknown Participant',
+    mobile_number: merged.mobile_number || merged.mobileNumber || merged.phone || null,
+    email: merged.email || merged.userEmail || merged.contact_email || null,
+    last_seen: merged.last_seen || merged.updated_at || merged.created_at || null,
+  };
+};
+
+const mergeParticipantIntoList = (list = [], update = {}) => {
+  if (!update || !update.passport_id) return list;
+  const index = list.findIndex((participant) => participant.passport_id === update.passport_id);
+  const normalized = normalizeParticipant(update, index >= 0 ? list[index] : undefined);
+  if (index === -1) {
+    return [...list, normalized];
+  }
+  const next = [...list];
+  next[index] = normalized;
+  return next;
+};
+
+const formatServiceLabel = (serviceType) => {
+  if (serviceType === 'women_safety') return 'Women Safety';
+  if (serviceType === 'tourist_safety') return 'Tourist Safety';
+  return serviceType ? String(serviceType).replace(/_/g, ' ') : 'Unknown';
+};
+
+const normalizeAdminAssignment = (serviceType) => {
+  const key = String(serviceType || '').toLowerCase();
+  if (['both', 'all', 'dual', 'combined'].includes(key)) return 'both';
+  if (['women', 'women_safety', 'women-safety'].includes(key)) return 'women';
+  return 'tourist';
+};
+
+const formatAdminServiceLabel = (serviceType) => {
+  const normalized = normalizeAdminAssignment(serviceType);
+  if (normalized === 'women') return 'Women Safety';
+  if (normalized === 'tourist') return 'Tourist Safety';
+  if (normalized === 'both') return 'All Services';
+  return 'Unknown';
+};
 
 function App() {
+  const [admin, setAdmin] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+
   const [tourists, setTourists] = useState([]);
   const [mapPosition, setMapPosition] = useState([20.5937, 78.9629]);
   const [mapZoom, setMapZoom] = useState(5);
@@ -91,27 +176,107 @@ function App() {
   
   const [groups, setGroups] = useState([]);
   const [filterGroup, setFilterGroup] = useState(null);
+  const [serviceFilter, setServiceFilter] = useState('all');
   // Incidents state
   const [incidentsOpen, setIncidentsOpen] = useState(false);
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
   const [incidentFilter, setIncidentFilter] = useState({ category: '', status: '' });
+  const womenContactsCacheRef = useRef({});
+  const [selectedWomenContacts, setSelectedWomenContacts] = useState(null);
+  const [selectedWomenContactsError, setSelectedWomenContactsError] = useState(null);
+  const [selectedWomenContactsLoading, setSelectedWomenContactsLoading] = useState(false);
 
   
   axios.defaults.timeout = 10000; 
   axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
+  axios.defaults.withCredentials = true;
+
+  const resetDashboardState = useCallback(() => {
+    setTourists([]);
+    setSelectedTourist(null);
+    setGroups([]);
+    setRecordings([]);
+    setAudioUrls({});
+    setAdminNotifications([]);
+    setAdminList([]);
+    setAnchorEl(null);
+    setWomenStreams({});
+    setDislocationAlert(null);
+    setIsDislocationDialogOpen(false);
+    setFilterGroup(null);
+    setIncidents([]);
+    setIncidentsOpen(false);
+    setSelectedWomenContacts(null);
+    setSelectedWomenContactsError(null);
+    setSelectedWomenContactsLoading(false);
+    setIsMapVisible(false);
+    setForwardedIds(new Set());
+    setAuthorityServicesMap({});
+    setIncidentFilter({ category: '', status: '' });
+    setSnackbarOpen(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrapAuth = async () => {
+      setAuthLoading(true);
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/v1/admin/me`);
+        if (cancelled) return;
+        const nextAdmin = res.data?.admin || null;
+        setAdmin(nextAdmin);
+        if (!nextAdmin) {
+          resetDashboardState();
+        }
+        setAuthError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setAdmin(null);
+        resetDashboardState();
+        setAuthError(null);
+      } finally {
+        if (!cancelled) {
+          setAuthLoading(false);
+        }
+      }
+    };
+    bootstrapAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [resetDashboardState]);
+
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error?.response?.status === 401) {
+          setAdmin(null);
+          resetDashboardState();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => {
+      axios.interceptors.response.eject(interceptorId);
+    };
+  }, [resetDashboardState]);
 
   
   useEffect(() => {
+    if (!admin) {
+      return;
+    }
     let mounted = true;
     const fetchInitialTourists = async () => {
       try {
         const res = await axios.get(`${BACKEND_URL}/api/v1/tourists`);
         if (!mounted) return;
         if (Array.isArray(res.data)) {
-          setTourists(res.data);
+          setTourists(res.data.map((participant) => normalizeParticipant(participant)));
         } else if (res && res.data && res.data.tourists) {
-          setTourists(res.data.tourists);
+          setTourists(res.data.tourists.map((participant) => normalizeParticipant(participant)));
         } else {
           console.warn('Unexpected tourists response shape:', res.data);
         }
@@ -144,9 +309,25 @@ function App() {
     };
     fetchInitialTourists();
     return () => { mounted = false; };
-  }, []);
+  }, [admin]);
 
-  const fetchIncidents = async () => {
+  useEffect(() => {
+    if (!admin) {
+      setServiceFilter('all');
+      return;
+    }
+    const assigned = admin.assignedService || admin.assigned_service;
+    if (assigned === 'women') {
+      setServiceFilter('women_safety');
+    } else if (assigned === 'tourist') {
+      setServiceFilter('tourist_safety');
+    } else {
+      setServiceFilter('all');
+    }
+  }, [admin]);
+
+  const fetchIncidents = useCallback(async () => {
+    if (!admin) return;
     setIncidentsLoading(true);
     try {
       const params = {};
@@ -158,12 +339,12 @@ function App() {
       console.error('Failed to fetch incidents', e);
       setIncidents([]);
     } finally { setIncidentsLoading(false); }
-  };
+  }, [incidentFilter, admin]);
 
   useEffect(() => {
     if (!incidentsOpen) return;
     fetchIncidents();
-  }, [incidentsOpen, incidentFilter]);
+  }, [incidentsOpen, fetchIncidents]);
 
   const updateIncidentStatus = async (inc, nextStatus) => {
     try {
@@ -191,21 +372,30 @@ function App() {
   const socketRef = useRef(null);
 
   useEffect(() => {
+    if (!admin) {
+      if (socketRef.current) {
+        try { socketRef.current.disconnect(); } catch (_) {}
+        socketRef.current = null;
+      }
+      return;
+    }
+
     const responderSecret = process.env.REACT_APP_RESPONDER_SECRET;
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling'],
       withCredentials: true,
       auth: {
         clientType: 'responder',
-        responderSecret: responderSecret
-      }
+        responderSecret,
+        adminEmail: admin.email,
+      },
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       console.log('Connected to WebSocket server as responder');
-      
-      const storedAdminName = localStorage.getItem('adminName') || `Admin-${Math.floor(Math.random()*1000)}`;
+      const fallbackName = `Admin-${Math.floor(Math.random() * 1000)}`;
+      const storedAdminName = admin.displayName || admin.display_name || localStorage.getItem('adminName') || fallbackName;
       localStorage.setItem('adminName', storedAdminName);
       socket.emit('identifyAdmin', storedAdminName);
     });
@@ -236,13 +426,12 @@ function App() {
       if (Array.isArray(list)) setAdminNotifications(list);
     });
 
-    // Women stream events
     const onSeg = (payload) => {
       if (!payload || !payload.sessionId || !payload.url) return;
       setWomenStreams(prev => {
         const next = { ...prev };
         const s = next[payload.sessionId] || { segments: [], ended: false };
-        s.segments = [...s.segments, payload].sort((a,b) => (a.sequence ?? 1e9) - (b.sequence ?? 1e9));
+        s.segments = [...s.segments, payload].sort((a, b) => (a.sequence ?? 1e9) - (b.sequence ?? 1e9));
         next[payload.sessionId] = s;
         return next;
       });
@@ -258,16 +447,17 @@ function App() {
     socket.on('womenStreamSegment', onSeg);
     socket.on('womenStreamEnded', onEnd);
 
-    const handleUpdate = (updateData) => {
-      setTourists((prevTourists) =>
-        prevTourists.map((tourist) =>
-          tourist.passport_id === updateData.passport_id
-            ? { ...tourist, ...updateData }
-            : tourist
-        )
-      );
-      
-      if (updateData.status === 'active') {
+    const handleUpdate = (updateData = {}) => {
+      if (!updateData.passport_id) return;
+      let updatedParticipant = null;
+      setTourists((prevTourists) => {
+        const merged = mergeParticipantIntoList(prevTourists, updateData);
+        updatedParticipant = merged.find((p) => p.passport_id === updateData.passport_id) || null;
+        return merged;
+      });
+
+      const statusToCheck = updatedParticipant?.status || updateData.status;
+      if (statusToCheck === 'active') {
         setForwardedIds(prev => { const next = new Set(prev); next.delete(updateData.passport_id); return next; });
         setAuthorityServicesMap(prev => {
           if (prev[updateData.passport_id]) {
@@ -279,10 +469,10 @@ function App() {
         });
       }
     };
-    socket.on("locationUpdate", handleUpdate);
-    socket.on("panicAlert", handleUpdate);
-    socket.on("anomalyAlert", handleUpdate);
-    socket.on("statusUpdate", handleUpdate);
+    socket.on('locationUpdate', handleUpdate);
+    socket.on('panicAlert', handleUpdate);
+    socket.on('anomalyAlert', handleUpdate);
+    socket.on('statusUpdate', handleUpdate);
 
     const dislocHandler = (payload) => {
       console.log('Received admin dislocation alert:', payload);
@@ -306,9 +496,14 @@ function App() {
       socket.off('adminNotificationsInit');
       socket.off('womenStreamSegment', onSeg);
       socket.off('womenStreamEnded', onEnd);
+      socket.off('locationUpdate', handleUpdate);
+      socket.off('panicAlert', handleUpdate);
+      socket.off('anomalyAlert', handleUpdate);
+      socket.off('statusUpdate', handleUpdate);
       socket.disconnect();
+      socketRef.current = null;
     };
-  }, []);
+  }, [admin]);
 
   
   useEffect(() => {
@@ -459,14 +654,6 @@ function App() {
 
   
   useEffect(() => {
-    if (isModalOpen && selectedTourist?.passport_id) {
-      fetchPathFor(selectedTourist.passport_id, timeframe).then(()=>setPathLastUpdated(new Date()));
-    }
-    
-  }, [timeframe]);
-
-  
-  useEffect(() => {
     if (!pathAutoRefresh || !isModalOpen || !selectedTourist?.passport_id) return;
     const id = setInterval(() => {
       fetchPathFor(selectedTourist.passport_id, timeframe).then(()=>setPathLastUpdated(new Date()));
@@ -605,6 +792,10 @@ function App() {
     if (s.includes('alert') && !s.includes('group')) return 'High Risk';
     return 'Active';
   };
+  const assignedService = admin ? normalizeAdminAssignment(admin.assignedService || admin.assigned_service) : 'tourist';
+  const assignedServiceLabel = formatAdminServiceLabel(assignedService);
+  const canViewTourist = assignedService === 'tourist' || assignedService === 'both';
+  const canViewWomen = assignedService === 'women' || assignedService === 'both';
   const alertTourists = tourists.filter(
     (t) => {
       const s = (t.status || '').toLowerCase();
@@ -612,6 +803,10 @@ function App() {
     }
   );
   const filteredTourists = tourists
+    .filter((participant) => {
+      if (serviceFilter === 'all') return true;
+      return participant.service_type === serviceFilter;
+    })
     .filter((tourist) => {
       if (filterStatus === "all") return true;
       if (filterStatus === "active") return !tourist.status || tourist.status === "active";
@@ -620,26 +815,69 @@ function App() {
     })
     .filter((tourist) => {
       if (!filterGroup) return true;
-      const g = tourist.group || tourist.group_id || tourist.team || '';
+      const g = tourist.group_name || tourist.group || tourist.group_id || tourist.team || '';
       if (!g) return false;
       return String(g) === String(filterGroup);
     })
     .filter((tourist) => {
       const name = tourist.name || "";
       const passportId = tourist.passport_id || "";
+      const mobile = tourist.mobile_number || tourist.phone || '';
+      const email = tourist.email || '';
       const query = searchQuery.toLowerCase();
-      return name.toLowerCase().includes(query) || passportId.toLowerCase().includes(query);
+      return (
+        name.toLowerCase().includes(query) ||
+        passportId.toLowerCase().includes(query) ||
+        (mobile && mobile.toLowerCase().includes(query)) ||
+        (email && email.toLowerCase().includes(query))
+      );
     });
-  const handleOpenModal = (tourist) => {
-    
+
+  const serviceCounts = useMemo(() => {
+    return tourists.reduce((acc, participant) => {
+      const key = participant.service_type || 'unknown';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [tourists]);
+
+  const availableGroups = useMemo(() => {
+    const map = new Map();
+    (groups || []).forEach((groupEntry) => {
+      if (!groupEntry) return;
+      const groupName = typeof groupEntry === 'string'
+        ? groupEntry
+        : (groupEntry.name || groupEntry.group_name || groupEntry.group || groupEntry.id);
+      if (!groupName) return;
+      if (!map.has(groupName)) map.set(groupName, 0);
+    });
+    tourists.forEach((participant) => {
+      const groupName = participant.group_name || participant.group || participant.group_id || participant.team || (participant.service_type === 'women_safety' ? 'Women Safety' : null);
+      if (!groupName) return;
+      map.set(groupName, (map.get(groupName) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  }, [groups, tourists]);
+  const handleOpenModal = async (tourist) => {
+    if (!tourist) return;
+
+    const normalized = normalizeParticipant(tourist, tourist);
     setRecordings([]);
     setRecordingsError(null);
     setAudioUrls({});
-    setSelectedTourist(tourist);
+    setSelectedWomenContacts(null);
+    setSelectedWomenContactsError(null);
+    setSelectedWomenContactsLoading(false);
+    setSelectedTourist(normalized);
     setIsModalOpen(true);
-    if (tourist?.passport_id) {
-      fetchRecordingsFor(tourist.passport_id);
-      fetchAlertHistory(tourist.passport_id);
+    if (normalized?.passport_id) {
+      fetchRecordingsFor(normalized.passport_id);
+      fetchAlertHistory(normalized.passport_id);
+      if (normalized.service_type === 'women_safety') {
+        fetchWomenEmergencyContacts(normalized.passport_id).catch((error) => {
+          console.warn('Failed to load women emergency contacts:', error?.message || error);
+        });
+      }
     }
   };
 
@@ -663,6 +901,36 @@ function App() {
     } finally { setAlertHistoryLoading(false); }
   };
 
+  const fetchWomenEmergencyContacts = async (passportId) => {
+    if (!passportId) return null;
+    const cached = womenContactsCacheRef.current[passportId];
+    if (cached) {
+      setSelectedWomenContacts(cached);
+      setSelectedWomenContactsError(null);
+      setSelectedWomenContactsLoading(false);
+      return cached;
+    }
+
+    setSelectedWomenContactsLoading(true);
+    setSelectedWomenContactsError(null);
+    try {
+      const res = await axios.get(`${BACKEND_URL}/api/women/emergency-contacts`, { params: { passportId } });
+      const payload = {
+        contacts: res.data?.contacts || [],
+        helplines: res.data?.helplines || [],
+      };
+      womenContactsCacheRef.current[passportId] = payload;
+      setSelectedWomenContacts(payload);
+      return payload;
+    } catch (error) {
+      setSelectedWomenContacts(null);
+      setSelectedWomenContactsError(error);
+      throw error;
+    } finally {
+      setSelectedWomenContactsLoading(false);
+    }
+  };
+
   const handleForwardAlert = async (e, tourist) => {
     e.stopPropagation(); 
     if (!tourist || !tourist.passport_id) return;
@@ -681,6 +949,11 @@ function App() {
 
   
   useEffect(() => {
+    if (!admin) {
+      return;
+    }
+    setForwardedIds(new Set());
+    setAuthorityServicesMap({});
     let cancelled = false;
     const loadForwarded = async () => {
       try {
@@ -700,11 +973,11 @@ function App() {
     };
     loadForwarded();
     return () => { cancelled = true; };
-  }, []);
+  }, [admin]);
 
   
   useEffect(() => {
-    if (!socketRef.current) return;
+    if (!admin || !socketRef.current) return;
     const sock = socketRef.current;
     const handleDispatched = (payload) => {
       if (payload && payload.passport_id) {
@@ -722,10 +995,13 @@ function App() {
     };
     sock.on('emergencyResponseDispatched', handleDispatched);
     return () => sock.off('emergencyResponseDispatched', handleDispatched);
-  }, []);
+  }, [admin]);
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedTourist(null);
+    setSelectedWomenContacts(null);
+    setSelectedWomenContactsError(null);
+    setSelectedWomenContactsLoading(false);
   };
   const handleLocateOnMap = () => {
     if (selectedTourist && selectedTourist.latitude && selectedTourist.longitude) {
@@ -771,25 +1047,41 @@ function App() {
     if (!filterGroup) return;
     if (!window.confirm(`Reset ALL alerts for group "${filterGroup}"?`)) return;
     try {
-      
+      const targetGroup = String(filterGroup);
+      const matchingParticipants = tourists.filter((t) => {
+        const g = t.group_name || t.group || t.group_id || t.team || (t.service_type === 'women_safety' ? 'Women Safety' : '');
+        return String(g) === targetGroup;
+      });
+
       setTourists(prev => prev.map(t => {
-        const g = t.group || t.group_id || t.team;
-        if (String(g) === String(filterGroup) && t.status && t.status !== 'active') {
+        const g = t.group_name || t.group || t.group_id || t.team || (t.service_type === 'women_safety' ? 'Women Safety' : '');
+        if (String(g) === targetGroup && t.status && t.status !== 'active') {
           return { ...t, status: 'active' };
         }
         return t;
       }));
-      
+
       setForwardedIds(prev => {
         const next = new Set(prev);
-        tourists.forEach(t => {
-          const g = t.group || t.group_id || t.team;
-            if (String(g) === String(filterGroup)) next.delete(t.passport_id);
+        matchingParticipants.forEach(t => {
+          if (t.passport_id) next.delete(t.passport_id);
         });
         return next;
       });
-      
-      await axios.post(`${BACKEND_URL}/api/v1/groups/${encodeURIComponent(filterGroup)}/reset-alerts`);
+
+      if (targetGroup === 'Women Safety') {
+        await Promise.all(
+          matchingParticipants.map((p) =>
+            p.passport_id
+              ? axios.post(`${BACKEND_URL}/api/v1/tourists/${p.passport_id}/reset`).catch((err) => {
+                  console.warn('Failed to reset women participant alert', p.passport_id, err?.message || err);
+                })
+              : Promise.resolve()
+          )
+        );
+      } else {
+        await axios.post(`${BACKEND_URL}/api/v1/groups/${encodeURIComponent(filterGroup)}/reset-alerts`);
+      }
       showSnackbar(`Group ${filterGroup} alerts reset`, 'success');
     } catch (e) {
       console.error('Failed to reset group alerts', e);
@@ -814,6 +1106,59 @@ function App() {
   const handleCloseSnackbar = (event, reason) => {
     if (reason === 'clickaway') return;
     setSnackbarOpen(false);
+  };
+
+  const handleLoginFieldChange = (field) => (event) => {
+    const value = event?.target?.value ?? '';
+    setLoginForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleLoginSubmit = async (event) => {
+    event.preventDefault();
+    if (loginSubmitting) return;
+    setLoginSubmitting(true);
+    setAuthError(null);
+    try {
+      const payload = {
+        email: (loginForm.email || '').trim().toLowerCase(),
+        password: loginForm.password || '',
+      };
+      const res = await axios.post(`${BACKEND_URL}/api/v1/admin/login`, payload);
+      const nextAdmin = res.data?.admin || null;
+      setAdmin(nextAdmin);
+      setLoginForm((prev) => ({ ...prev, password: '' }));
+      if (nextAdmin) {
+        showSnackbar(`Welcome back, ${nextAdmin.displayName || nextAdmin.email}!`, 'success');
+      }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Invalid credentials';
+      setAuthError(message);
+      showSnackbar(message, 'error');
+      resetDashboardState();
+    } finally {
+      setLoginSubmitting(false);
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setAnchorEl(null);
+    if (socketRef.current) {
+      try {
+        socketRef.current.disconnect();
+      } catch (_) {}
+      socketRef.current = null;
+    }
+    try {
+      await axios.post(`${BACKEND_URL}/api/v1/admin/logout`);
+    } catch (err) {
+      console.debug('Logout request failed (ignored):', err?.message || err);
+    }
+    setAdmin(null);
+    resetDashboardState();
+    setLoginForm({ email: '', password: '' });
+    setAuthError(null);
+    showSnackbar('Signed out successfully', 'info');
   };
 
   const handleAdminListClick = (event) => {
@@ -842,11 +1187,73 @@ function App() {
   const openAdminPopover = Boolean(anchorEl);
   const adminPopoverId = openAdminPopover ? 'admin-list-popover' : undefined;
 
+  if (authLoading) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card auth-card--loading">
+          <h1>Authority Dashboard</h1>
+          <p>Loading your session…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!admin) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-card">
+          <h1>Authority Dashboard</h1>
+          <p className="auth-card__subtitle">Sign in with administrator credentials to access live incidents and alerts.</p>
+          {authError && <div className="auth-card__error">{authError}</div>}
+          <form className="auth-form" onSubmit={handleLoginSubmit}>
+            <label className="auth-field">
+              <span>Email</span>
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={loginForm.email}
+                onChange={handleLoginFieldChange('email')}
+                required
+                placeholder="admin@example.gov"
+              />
+            </label>
+            <label className="auth-field">
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={loginForm.password}
+                onChange={handleLoginFieldChange('password')}
+                required
+                placeholder="Enter your password"
+              />
+            </label>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              fullWidth
+              disabled={loginSubmitting}
+            >
+              {loginSubmitting ? 'Signing in…' : 'Sign In'}
+            </Button>
+          </form>
+          <p className="auth-card__hint">Contact the system administrator to provision or reset access.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <div className="header">
-        <h1>Authority Dashboard</h1>
-        <div>
+        <div className="header-title">
+          <h1>Authority Dashboard</h1>
+          <span className="header-subtitle">Monitoring {assignedServiceLabel}</span>
+        </div>
+        <div className="header-actions">
           <IconButton aria-describedby={adminPopoverId} className="header-button" onClick={handleAdminListClick}>
             <SupervisorAccountIcon />
           </IconButton>
@@ -856,6 +1263,11 @@ function App() {
           <IconButton className="header-button" onClick={() => setIsMapVisible(true)}>
             <MapIcon />
           </IconButton>
+          <div className="header-user">
+            <span className="header-user__name">{admin.displayName || admin.display_name || admin.email}</span>
+            <span className="header-user__role">{assignedServiceLabel}</span>
+          </div>
+          <button className="header-logout" onClick={handleLogout}>Logout</button>
         </div>
       </div>
 
@@ -1008,7 +1420,12 @@ function App() {
                 >
                   <p>
                     <strong>{tourist.name}</strong> ({tourist.passport_id})
+                    <span className="muted-small"> • {formatServiceLabel(tourist.service_type)}</span>
+                    {tourist.group_name && tourist.group_name !== 'No Group' && (
+                      <span className="muted-small"> • {tourist.group_name}</span>
+                    )}
                   </p>
+                  <p className="muted-small" style={{ marginTop: -4 }}>Status: {tourist.status || 'active'}</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
                     {!forwardedIds.has(tourist.passport_id) ? (
                       <button
@@ -1045,15 +1462,15 @@ function App() {
           </div>
 
           <div className="tourist-list-container panel">
-            <h2>All Registered Tourists ({filteredTourists.length})</h2>
+            <h2>All Registered Participants ({filteredTourists.length})</h2>
           
             <div className="groups-container" style={{ marginBottom: 12 }}>
               <h3 style={{ margin: '6px 0' }}>Registered Groups</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 120, overflowY: 'auto' }}>
-                {groups && groups.length > 0 ? (
-                  groups.map((g, i) => {
-                    const name = typeof g === 'string' ? g : (g.name || g.group || g.id);
-                    const count = typeof g === 'string' ? null : (g.count || g.size || g.member_count || null);
+                {availableGroups && availableGroups.length > 0 ? (
+                  availableGroups.map((g, i) => {
+                    const name = g.name || g.group || g.id;
+                    const count = g.count ?? null;
                     return (
                       <button key={i} className={`group-button ${filterGroup === name ? 'active' : ''}`} onClick={() => setFilterGroup(filterGroup === name ? null : name)} style={{ textAlign: 'left', padding: '6px 8px' }}>
                         <span style={{ fontWeight: 600 }}>{name}</span>
@@ -1073,10 +1490,36 @@ function App() {
               <button className={`filter-button ${filterStatus === 'active' ? 'active' : ''}`} onClick={() => setFilterStatus('active')}>Active</button>
               <button className={`filter-button ${filterStatus === 'distress' ? 'active' : ''}`} onClick={() => setFilterStatus('distress')}>In Distress</button>
             </div>
+            <div className="filter-container" style={{ marginTop: 8 }}>
+              <button
+                className={`filter-button ${serviceFilter === 'all' ? 'active' : ''}`}
+                onClick={() => assignedService === 'both' && setServiceFilter('all')}
+                disabled={assignedService !== 'both'}
+                title={assignedService === 'both' ? 'Show all services' : 'Only available for admins assigned to both services'}
+              >
+                All Participants
+              </button>
+              <button
+                className={`filter-button ${serviceFilter === 'tourist_safety' ? 'active' : ''}`}
+                onClick={() => canViewTourist && setServiceFilter('tourist_safety')}
+                disabled={!canViewTourist}
+                title={canViewTourist ? 'Show tourist safety participants' : 'Not part of your assignment'}
+              >
+                Tourist Safety
+              </button>
+              <button
+                className={`filter-button ${serviceFilter === 'women_safety' ? 'active' : ''}`}
+                onClick={() => canViewWomen && setServiceFilter('women_safety')}
+                disabled={!canViewWomen}
+                title={canViewWomen ? 'Show women safety participants' : 'Not part of your assignment'}
+              >
+                Women Safety
+              </button>
+            </div>
             <div className="search-container">
               <input
                 type="text"
-                placeholder="Search by name or passport ID..."
+                placeholder="Search by name, ID, phone, or email..."
                 className="search-bar"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1089,8 +1532,12 @@ function App() {
                   className={`tourist-item ${uiStatusClass(tourist.status)}`}
                   onClick={() => handleOpenModal(tourist)}
                 >
-                  <p><strong>Name:</strong> {tourist.name || "N/A"}</p>
-                  <p><strong>Passport ID:</strong> {tourist.passport_id}</p>
+                  <p><strong>{tourist.name || "N/A"}</strong></p>
+                  <p className="muted-small" style={{ marginTop: -4 }}>{tourist.passport_id} • {formatServiceLabel(tourist.service_type)}</p>
+                  {tourist.group_name && tourist.group_name !== 'No Group' && (
+                    <p className="muted-small" style={{ marginTop: -6 }}>Group: {tourist.group_name}</p>
+                  )}
+                  <p className="muted-small" style={{ marginTop: -6 }}>Status: {tourist.status || 'active'}</p>
                 </div>
               ))}
             </div>
@@ -1110,7 +1557,7 @@ function App() {
                   .map((tourist) => (
                     <Marker key={tourist.id} position={[tourist.latitude, tourist.longitude]} icon={getMarkerIcon(tourist.status)}>
                       <Popup>
-                        <b>{tourist.name}</b><br />Passport ID: {tourist.passport_id}<br />Status: {tourist.status || 'active'}
+                        <b>{tourist.name}</b><br />Passport ID: {tourist.passport_id}<br />Service: {formatServiceLabel(tourist.service_type)}<br />Status: {tourist.status || 'active'}
                       </Popup>
                     </Marker>
                   ))}
@@ -1128,7 +1575,7 @@ function App() {
               {tourists.slice(0, 6).map((t) => (
                 <div key={t.id || t.passport_id} className="tourist-item" style={{ marginBottom: 8 }}>
                   <p style={{ margin: 0 }}><strong>{t.name || 'Unknown'}</strong></p>
-                  <p className="muted-small" style={{ margin: 0 }}>{t.passport_id} • {t.status || 'active'}</p>
+                  <p className="muted-small" style={{ margin: 0 }}>{t.passport_id} • {formatServiceLabel(t.service_type)} • {t.status || 'active'}</p>
                 </div>
               ))}
               {tourists.length === 0 && <p className="muted-small">No recent activity</p>}
@@ -1140,7 +1587,9 @@ function App() {
         <div className="right-panel">
           <div className="panel">
             <h2>Overview</h2>
-            <p>Total Tourists: <strong>{tourists.length}</strong></p>
+            <p>Total Participants: <strong>{tourists.length}</strong></p>
+            <p>Tourist Safety: <strong>{serviceCounts.tourist_safety || 0}</strong></p>
+            <p>Women Safety: <strong>{serviceCounts.women_safety || 0}</strong></p>
             <p>Active: <strong>{tourists.filter(t => !t.status || t.status === 'active').length}</strong></p>
             <p>Alerts: <strong>{alertTourists.length}</strong></p>
             {}
@@ -1236,6 +1685,9 @@ function App() {
       <Dialog open={isModalOpen} onClose={handleCloseModal} fullWidth maxWidth="md">
         <DialogTitle>
           Digital ID: {selectedTourist?.name}
+          {selectedTourist?.service_type && (
+            <span className="muted-small"> • {formatServiceLabel(selectedTourist.service_type)}</span>
+          )}
           <IconButton
             onClick={handleCloseModal}
             sx={{ position: 'absolute', right: 8, top: 8 }}
@@ -1248,7 +1700,68 @@ function App() {
             <Box>
                 <List dense>
                     <ListItem><ListItemText primary="Passport ID" secondary={selectedTourist.passport_id} /></ListItem>
-                    <ListItem><ListItemText primary="Emergency Contact" secondary={selectedTourist.emergencyContact || 'N/A'} /></ListItem>
+                    <ListItem><ListItemText primary="Service Type" secondary={formatServiceLabel(selectedTourist.service_type)} /></ListItem>
+                    {selectedTourist.group_name && selectedTourist.group_name !== 'No Group' && (
+                      <ListItem><ListItemText primary="Group" secondary={selectedTourist.group_name} /></ListItem>
+                    )}
+                    <ListItem>
+                      <ListItemText
+                        primary="Emergency Contacts"
+                        secondary={(() => {
+                          if (selectedTourist.service_type === 'women_safety') {
+                            if (selectedWomenContactsLoading) return 'Loading contacts…';
+                            if (selectedWomenContactsError) return 'Failed to load contacts';
+                            const contactList = selectedWomenContacts?.contacts || [];
+                            const helplines = selectedWomenContacts?.helplines || [];
+                            if (!contactList.length && !helplines.length) return 'No emergency contacts available';
+                            return (
+                              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                                {contactList.map((contact, idx) => (
+                                  <div key={`women-contact-${contact.id || contact.mobile_number || contact.email || idx}`} style={{ fontSize:12 }}>
+                                    <strong>{contact.name || contact.relationship || 'Contact'}</strong>
+                                    {contact.relationship && <span className="muted-small"> • {contact.relationship}</span>}
+                                    <div>{contact.mobile_number || 'No number provided'}</div>
+                                    {contact.email && <div className="muted-small">{contact.email}</div>}
+                                  </div>
+                                ))}
+                                {helplines.length > 0 && (
+                                  <div style={{ marginTop:6 }}>
+                                    <div style={{ fontWeight:600, fontSize:12 }}>National Helplines</div>
+                                    {helplines.map((helpline) => (
+                                      <div key={`helpline-${helpline.number}`} className="muted-small">{helpline.name}: {helpline.number}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          const contacts = selectedTourist.emergency_contacts || [];
+                          if (!contacts.length) return 'N/A';
+                          return (
+                            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                              {contacts.map((contact) => (
+                                <div key={`${selectedTourist.passport_id}-contact-${contact.label}`} style={{ fontSize:12 }}>
+                                  <strong>{contact.label}</strong>
+                                  {contact.number && <div>{contact.number}</div>}
+                                  {contact.email && <div className="muted-small">{contact.email}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemText
+                        primary="Primary Contact Details"
+                        secondary={(() => {
+                          const lines = [];
+                          if (selectedTourist.mobile_number) lines.push(`Phone: ${selectedTourist.mobile_number}`);
+                          if (selectedTourist.email) lines.push(`Email: ${selectedTourist.email}`);
+                          return lines.length ? lines.join(' • ') : 'N/A';
+                        })()}
+                      />
+                    </ListItem>
                     <ListItem><ListItemText primary="Status" secondary={selectedTourist.status || 'active'} /></ListItem>
                     <ListItem>
                       <ListItemText primary="Last Known Location" secondary={`Lat: ${selectedTourist.latitude || 'N/A'}, Lon: ${selectedTourist.longitude || 'N/A'}`} />
@@ -1315,7 +1828,7 @@ function App() {
                 ))}
               </div>
             ) : (
-              <p className="muted-small" style={{ marginTop:4 }}>No authority dispatch recorded for this tourist yet.</p>
+              <p className="muted-small" style={{ marginTop:4 }}>No authority dispatch recorded for this participant yet.</p>
             )}
           </div>
           <div style={{ marginTop: 24 }}>
@@ -1436,7 +1949,7 @@ function App() {
         <AppBar sx={{ position: 'relative' }}>
           <Toolbar>
             <Typography sx={{ ml: 2, flex: 1 }} variant="h6" component="div">
-              Tourist Map View
+              Participant Map View
             </Typography>
             <IconButton
               edge="end"
@@ -1469,6 +1982,7 @@ function App() {
                 <Popup>
                     <b>{tourist.name}</b><br />
                     Passport ID: {tourist.passport_id}<br />
+                    Service: {formatServiceLabel(tourist.service_type)}<br />
                     Status: {tourist.status || "active"}
                 </Popup>
               </Marker>

@@ -25,6 +25,7 @@ This platform provides integrated safety services for citizens across multiple d
 - 📡 **Offline-first location tracking** - Works even without internet connectivity
 - 💾 **Smart data sync** - Automatic sync when connection is restored
 - 🔋 **Battery efficient** - Optimized for mobile devices
+- 📱 **SMS/USSD-based SOS** - Fallback emergency alerts for poor connectivity (Tourist Dashboard)
 
 ## 🏗️ Architecture
 

@@ -14,6 +14,8 @@ const multer = require("multer");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const { body, validationResult } = require("express-validator");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require("./db");
 const { findNearbyServices, findNearbyServiceLists } = require("./emergencyService");
 const fs = require("fs");
@@ -21,6 +23,9 @@ const dotenvPath = require('path').join(__dirname, '.env');
 require("dotenv").config({ path: dotenvPath });
 const womenService = require('./womenService');
 const womenRouter = require('./womenService');
+const authMeRouter = require('./routes/authMe');
+const touristSupportRouter = require('./routes/touristSupport');
+const touristNearbyRouter = require('./routes/touristNearby');
 
 const sanitizePhoneNumber = (input) => {
   if (!input && input !== 0) return '';
@@ -111,6 +116,15 @@ function generateCode() {
 const DEFAULT_SOCKET_ORIGIN_REGEX = /localhost|127\.0\.0\.1|ngrok|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\./i;
 const rawSocketOrigins = (process.env.SOCKET_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const SOCKET_RESPONDER_SECRET = process.env.SOCKET_RESPONDER_SECRET ? String(process.env.SOCKET_RESPONDER_SECRET).trim() : null;
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'changeme-admin-secret';
+const ADMIN_TOKEN_COOKIE = process.env.ADMIN_TOKEN_COOKIE || 'admin_token';
+const ADMIN_TOKEN_TTL_HOURS = Math.max(1, Number(process.env.ADMIN_TOKEN_TTL_HOURS || 12));
+const ADMIN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: ADMIN_TOKEN_TTL_HOURS * 60 * 60 * 1000,
+};
 
 const compiledOriginMatchers = rawSocketOrigins.map((entry) => {
   if (!entry) return null;
@@ -149,9 +163,11 @@ const compiledOriginMatchers = rawSocketOrigins.map((entry) => {
 function isOriginAllowed(origin) {
   if (!origin) return true;
   if (compiledOriginMatchers.length) {
-    return compiledOriginMatchers.some((matcher) => {
+    const matched = compiledOriginMatchers.some((matcher) => {
       try { return matcher(origin); } catch { return false; }
     });
+    if (matched) return true;
+    return DEFAULT_SOCKET_ORIGIN_REGEX.test(origin);
   }
   return DEFAULT_SOCKET_ORIGIN_REGEX.test(origin);
 }
@@ -160,6 +176,124 @@ const connectedTourists = {};
 const app = express();
 const liveLocationPrefs = new Map();
 const panicLocks = new Set();
+
+const normalizeAdminService = (service) => {
+  const val = String(service || '').toLowerCase();
+  if (['both', 'all', 'dual', 'combined'].includes(val)) return 'both';
+  if (['women', 'women_safety', 'women-safety'].includes(val)) return 'women';
+  return 'tourist';
+};
+
+const sanitizeAdminRow = (row) => {
+  if (!row) return null;
+  const assigned = normalizeAdminService(row.assigned_service);
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name || row.email,
+    assignedService: assigned,
+    assigned_service: assigned,
+    lastLogin: row.last_login || null,
+  };
+};
+
+const issueAdminToken = (adminRow) => {
+  const payload = {
+    id: adminRow.id,
+    email: adminRow.email,
+    assigned_service: normalizeAdminService(adminRow.assigned_service),
+    display_name: adminRow.display_name || adminRow.email,
+  };
+  return jwt.sign(payload, ADMIN_JWT_SECRET, { expiresIn: `${ADMIN_TOKEN_TTL_HOURS}h` });
+};
+
+const verifyAdminToken = (token) => {
+  if (!token) return null;
+  try {
+    return jwt.verify(token, ADMIN_JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+};
+
+const extractAdminTokenFromRequest = (req) => {
+  if (req.cookies && req.cookies[ADMIN_TOKEN_COOKIE]) {
+    return req.cookies[ADMIN_TOKEN_COOKIE];
+  }
+  const authHeader = req.headers?.authorization || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (match) return match[1];
+  return null;
+};
+
+const extractAdminTokenFromCookieHeader = (cookieHeader) => {
+  if (!cookieHeader) return null;
+  try {
+    const parsed = cookie.parse(cookieHeader);
+    if (parsed && parsed[ADMIN_TOKEN_COOKIE]) return parsed[ADMIN_TOKEN_COOKIE];
+  } catch (e) {
+    console.debug('Failed to parse admin token from cookies:', e && e.message);
+  }
+  return null;
+};
+
+const adminCanAccessPassport = (admin, passportId) => {
+  if (!admin || !passportId) return false;
+  const assigned = normalizeAdminService(admin.assigned_service || admin.assignedService);
+  if (assigned === 'both') return true;
+  const isWomen = db.WOMEN_PASSPORT_REGEX.test(String(passportId));
+  if (assigned === 'women') return isWomen;
+  if (assigned === 'tourist') return !isWomen;
+  return false;
+};
+
+const enforcePassportAccess = (res, admin, passportId) => {
+  if (adminCanAccessPassport(admin, passportId)) return true;
+  res.status(403).json({ message: 'Forbidden for assigned team' });
+  return false;
+};
+
+const authenticateAdmin = async (req, res, next) => {
+  try {
+    const token = extractAdminTokenFromRequest(req);
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const payload = verifyAdminToken(token);
+    if (!payload || !payload.id) return res.status(401).json({ message: 'Unauthorized' });
+    const adminRow = await db.getAdminUserById(payload.id);
+    if (!adminRow || adminRow.is_active === false) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    req.admin = sanitizeAdminRow(adminRow);
+    req.adminToken = token;
+    return next();
+  } catch (err) {
+    console.warn('authenticateAdmin failed:', err && err.message);
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+};
+
+// Initialize SMS worker and offline SOS routes (requires express app)
+let smsWorker = null;
+try {
+  const createSmsWorker = require('./smsWorker');
+  smsWorker = createSmsWorker({ db, twilioClient, twilioConfig });
+} catch (e) {
+  console.warn('[smsWorker] failed to initialize:', e && e.message);
+}
+
+try {
+  require('./offlineSos')(app, { db, twilioClient, twilioConfig, smsWorker });
+  console.log('[offlineSos] routes registered');
+} catch (e) {
+  console.warn('[offlineSos] failed to register routes:', e && e.message);
+}
+
+// Initialize Safe Zones Service (government shelters, police stations, hospitals)
+try {
+  require('./safeZonesService')(app, db);
+} catch (e) {
+  console.warn('[SafeZones] failed to initialize:', e && e.message);
+}
 
 function resolvePassportId(req) {
   try {
@@ -296,6 +430,27 @@ async function ensureDatabaseShape() {
       console.warn('[DB] could not ensure alert_history table:', e && e.message);
     }
 
+    // Admin users for dashboard authentication
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_users (
+          id SERIAL PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          display_name VARCHAR(120),
+          assigned_service VARCHAR(20) NOT NULL DEFAULT 'tourist',
+          is_active BOOLEAN DEFAULT true,
+          last_login TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_admin_users_service ON admin_users(assigned_service);
+      `);
+      console.log('[DB] admin_users table ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure admin_users table:', e && e.message);
+    }
+
     // Incidents & forwards (citizen safety pivot)
     try {
       await db.pool.query(`
@@ -358,6 +513,447 @@ async function ensureDatabaseShape() {
       console.log('[DB] women stream tables ready');
     } catch (e) {
       console.warn('[DB] could not ensure women stream tables:', e && e.message);
+    }
+
+    // Tourist helplines and multilingual FAQ content
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS tourist_helplines (
+          id SERIAL PRIMARY KEY,
+          region VARCHAR(120) NOT NULL,
+          service_name VARCHAR(200) NOT NULL,
+          phone_number VARCHAR(40) NOT NULL,
+          availability VARCHAR(120) DEFAULT '24x7',
+          languages TEXT[] DEFAULT '{}',
+          description TEXT,
+          priority INTEGER DEFAULT 100,
+          UNIQUE(region, service_name, phone_number)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tourist_helplines_region ON tourist_helplines(region);
+        CREATE INDEX IF NOT EXISTS idx_tourist_helplines_priority ON tourist_helplines(priority);
+      `);
+
+      // Table to persist offline SMS/USSD queue entries for fallback delivery
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS sms_queue (
+          id SERIAL PRIMARY KEY,
+          passport_id VARCHAR(80),
+          phone_number VARCHAR(80),
+          message TEXT NOT NULL,
+          channel VARCHAR(20) DEFAULT 'sms', -- 'sms' or 'ussd' or other
+          status VARCHAR(20) DEFAULT 'pending', -- pending|sent|failed
+          attempts INTEGER DEFAULT 0,
+          last_error TEXT,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          sent_at TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS idx_sms_queue_status ON sms_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_sms_queue_passport ON sms_queue(passport_id);
+      `);
+
+      // Table for Safe Zones (shelters, police stations, hospitals, treatment centres)
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS safe_zones (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          latitude DOUBLE PRECISION NOT NULL,
+          longitude DOUBLE PRECISION NOT NULL,
+          address TEXT,
+          contact VARCHAR(100),
+          city VARCHAR(100),
+          district VARCHAR(100),
+          state VARCHAR(100),
+          country VARCHAR(100) DEFAULT 'India',
+          operational_hours VARCHAR(100),
+          services TEXT[],
+          facilities TEXT,
+          verified BOOLEAN DEFAULT false,
+          active BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_safe_zones_type ON safe_zones(type);
+        CREATE INDEX IF NOT EXISTS idx_safe_zones_city ON safe_zones(city);
+        CREATE INDEX IF NOT EXISTS idx_safe_zones_location ON safe_zones(latitude, longitude);
+        CREATE INDEX IF NOT EXISTS idx_safe_zones_active ON safe_zones(active);
+      `);
+      console.log('[DB] safe_zones table ready');
+
+      const { rows: helplineCountRows } = await db.pool.query('SELECT COUNT(*)::INT AS count FROM tourist_helplines');
+      const currentHelplineCount = helplineCountRows?.[0]?.count || 0;
+      if (currentHelplineCount === 0) {
+        const helplineSeeds = [
+          {
+            region: 'National',
+            service_name: 'Incredible India Tourist Helpline (Ministry of Tourism)',
+            phone_number: '1800-11-1363 / 1363',
+            availability: '24x7',
+            languages: ['English', 'Hindi', 'Tamil', 'Telugu', 'Bengali', 'Kannada', 'Marathi'],
+            description: 'Central multilingual helpline for tourists across India offering emergency guidance and travel assistance.',
+            priority: 1
+          },
+          {
+            region: 'National',
+            service_name: 'Emergency Response Support System (ERSS)',
+            phone_number: '112',
+            availability: '24x7',
+            languages: ['English', 'Hindi'],
+            description: 'Single emergency number that connects to police, fire, and medical services pan-India.',
+            priority: 2
+          },
+          {
+            region: 'National',
+            service_name: 'Women & Child Helpline',
+            phone_number: '1091 / 181',
+            availability: '24x7',
+            languages: ['English', 'Hindi'],
+            description: 'Dedicated helpline for women and child safety with rapid police escalation.',
+            priority: 3
+          },
+          {
+            region: 'Delhi',
+            service_name: 'Delhi Tourist Police',
+            phone_number: '+91-8750871111',
+            availability: '24x7',
+            languages: ['English', 'Hindi'],
+            description: 'Tourist police assistance within Delhi NCR including airport zone and heritage sites.',
+            priority: 10
+          },
+          {
+            region: 'Maharashtra',
+            service_name: 'Maharashtra Tourism Helpline',
+            phone_number: '1800-229-933',
+            availability: '06:00 - 22:00 IST',
+            languages: ['English', 'Hindi', 'Marathi'],
+            description: 'Support for tourists in Mumbai, Pune, and major Maharashtra destinations.',
+            priority: 12
+          },
+          {
+            region: 'Tamil Nadu',
+            service_name: 'Tamil Nadu Tourism Helpline',
+            phone_number: '044-2533-2770',
+            availability: '24x7',
+            languages: ['English', 'Tamil'],
+            description: 'Tourist assistance for Chennai, Madurai, Rameswaram, and other Tamil Nadu circuits.',
+            priority: 15
+          },
+          {
+            region: 'Karnataka',
+            service_name: 'Karnataka Tourism Helpline',
+            phone_number: '1800-425-2577',
+            availability: '07:00 - 19:00 IST',
+            languages: ['English', 'Kannada', 'Hindi'],
+            description: 'Guidance for Bengaluru, Mysuru, coastal Karnataka, and heritage trails.',
+            priority: 16
+          },
+          {
+            region: 'Kerala',
+            service_name: 'Kerala Tourism Helpline',
+            phone_number: '1800-425-4747',
+            availability: '24x7',
+            languages: ['English', 'Malayalam', 'Hindi'],
+            description: 'Round-the-clock support covering backwaters, hill stations, and coastal Kerala.',
+            priority: 18
+          },
+          {
+            region: 'Goa',
+            service_name: 'Goa Tourism Safety Patrol',
+            phone_number: '+91-9623798080',
+            availability: '24x7',
+            languages: ['English', 'Konkani', 'Hindi'],
+            description: 'Dedicated safety patrol hotline for beaches, nightlife zones, and tourist belts in Goa.',
+            priority: 20
+          },
+          {
+            region: 'Rajasthan',
+            service_name: 'Rajasthan Tourism Helpline',
+            phone_number: '1800-180-6127',
+            availability: '08:00 - 22:00 IST',
+            languages: ['English', 'Hindi'],
+            description: 'Assistance for Jaipur, Udaipur, Jodhpur, Jaisalmer, and desert circuits.',
+            priority: 22
+          }
+        ];
+
+        for (const entry of helplineSeeds) {
+          try {
+            await db.pool.query(
+              `INSERT INTO tourist_helplines (region, service_name, phone_number, availability, languages, description, priority)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (region, service_name, phone_number) DO NOTHING`,
+              [entry.region, entry.service_name, entry.phone_number, entry.availability, entry.languages, entry.description, entry.priority]
+            );
+          } catch (seedErr) {
+            console.warn('[DB] tourist_helplines seed failed:', seedErr && seedErr.message);
+          }
+        }
+      }
+
+      console.log('[DB] tourist_helplines table ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure tourist_helplines table:', e && e.message);
+    }
+
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS tourist_support_faqs (
+          id SERIAL PRIMARY KEY,
+          keywords TEXT[] NOT NULL DEFAULT '{}',
+          response_en TEXT NOT NULL,
+          response_hi TEXT,
+          response_bn TEXT,
+          response_ta TEXT,
+          response_te TEXT,
+          response_mr TEXT,
+          response_kn TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_tourist_support_faqs_keywords ON tourist_support_faqs USING GIN (keywords);
+      `);
+
+      const { rows: faqCountRows } = await db.pool.query('SELECT COUNT(*)::INT AS count FROM tourist_support_faqs');
+      const currentFaqCount = faqCountRows?.[0]?.count || 0;
+      if (currentFaqCount === 0) {
+        const faqSeeds = [
+          {
+            keywords: ['lost passport', 'passport lost', 'missing passport', 'documents lost'],
+            response_en: 'If your passport is lost, file an FIR at the nearest police station, contact your embassy or consulate, call the Ministry of Tourism helpline 1800-11-1363 for guidance, and keep digital copies of your identification documents handy.',
+            response_hi: 'यदि आपका पासपोर्ट खो गया है तो नज़दीकी पुलिस थाने में एफआईआर दर्ज करें, अपने दूतावास या वाणिज्य दूतावास से संपर्क करें, मार्गदर्शन के लिए पर्यटन मंत्रालय हेल्पलाइन 1800-11-1363 पर कॉल करें और अपने पहचान दस्तावेज़ों की डिजिटल प्रतियां साथ रखें।',
+            response_bn: 'পাসপোর্ট হারালে নিকটস্থ থানায় এফআইআর করুন, আপনার দূতাবাস বা কনস্যুলেটের সঙ্গে যোগাযোগ করুন, পরামর্শের জন্য পর্যটন মন্ত্রণালয়ের হেল্পলাইন ১৮০০-১১-১৩৬৩ নম্বরে ফোন করুন এবং পরিচয়পত্রের ডিজিটাল কপি সঙ্গে রাখুন।',
+            response_ta: 'பாஸ்போர்ட் இழந்தால் அருகிலுள்ள காவல் நிலையத்தில் FIR பதிவு செய்யவும், உங்கள் தூதரகம் அல்லது துணைத்தூதரகத்தை தொடர்புகொள்ளவும், வழிகாட்டுதலுக்காக τουரிசம் அமைச்சின் 1800-11-1363 உதவி எண்ணை அழைக்கவும், அடையாள ஆவணங்களின் டிஜிட்டல் நகல்களை வைத்திருங்கள்.',
+            response_te: 'మీ పాస్‌పోర్ట్ పోతే సమీప పోలీస్ స్టేషన్లో FIR నమోదు చేయండి, మీ రాయబారి కార్యాలయం లేదా కాన్సులేట్‌ను సంప్రదించండి, మార్గదర్శకానికి పర్యాటక మంత్రిత్వ శాఖ హెల్ప్‌లైన్ 1800-11-1363 కి కాల్ చేయండి మరియు మీ గుర్తింపు పత్రాల డిజిటల్ ప్రతులను దగ్గర ఉంచుకోండి.',
+            response_mr: 'पासपोर्ट हरवला असल्यास जवळच्या पोलीस ठाण्यात FIR दाखल करा, आपल्या दूतावास किंवा वाणिज्य दूतावासाशी संपर्क साधा, मार्गदर्शनासाठी पर्यटन मंत्रालय हेल्पलाइन 1800-11-1363 वर कॉल करा आणि ओळखपत्रांच्या डिजिटल प्रत्या सोबत ठेवा.',
+            response_kn: 'ನಿಮ್ಮ ಪಾಸ್‌ಪೋರ್ಟ್ ಕಳೆದುಹೋದರೆ ಸಮೀಪದ ಪೊಲೀಸ್ ಠಾಣೆಯಲ್ಲಿ FIR ದಾಖಲು ಮಾಡಿ, ನಿಮ್ಮ ರಾಯಭಾರಿ ಕಚೇರಿ ಅಥವಾ ಕಾನ್ಸುಲೇಟ್ ಅನ್ನು ಸಂಪರ್ಕಿಸಿ, ಮಾರ್ಗದರ್ಶನಕ್ಕಾಗಿ ಪ್ರವಾಸೋದ್ಯಮ ಸಚಿವಾಲಯದ 1800-11-1363 ಸಹಾಯವಾಣಿ ಸಂಖ್ಯೆಗೆ ಕರೆ ಮಾಡಿ ಮತ್ತು ಗುರುತುಪತ್ರಗಳ ಡಿಜಿಟಲ್ ಪ್ರತಿಗಳನ್ನು ಹೊಂದಿಡಿ.'
+          },
+          {
+            keywords: ['medical emergency', 'need doctor', 'injury', 'medical help'],
+            response_en: 'For medical emergencies dial 112 for immediate assistance, share your live location if possible, and request ambulance support. Government and private hospitals in major cities have dedicated tourist desks.',
+            response_hi: 'चिकित्सा आपात स्थिति में त्वरित सहायता के लिए 112 पर कॉल करें, संभव हो तो अपना लाइव लोकेशन साझा करें और एम्बुलेंस सहायता का अनुरोध करें। बड़े शहरों के सरकारी और निजी अस्पतालों में पर्यटकों के लिए समर्पित डेस्क उपलब्ध हैं।',
+            response_bn: 'জরুরি চিকিৎসার জন্য অবিলম্বে ১১২ নম্বরে ফোন করুন, সম্ভব হলে আপনার লাইভ লোকেশন শেয়ার করুন এবং অ্যাম্বুলেন্স সহায়তা চান। বড় শহরের সরকারি ও বেসরকারি হাসপাতালগুলোতে পর্যটকদের জন্য বিশেষ ডেস্ক রয়েছে।',
+            response_ta: 'மருத்துவ அவசர நிலையிலேயே உடனடி உதவிக்கு 112 ஐ அழைக்கவும், முடிந்தால் உங்கள் நேரடி இருப்பிடத்தை பகிரவும் மற்றும் ஆம்புலன்ஸ் உதவியை கோரவும். பெருநகர மருத்துவமனைகளில்τουரிஸ்ட் சேவை மையங்கள் உள்ளன.',
+            response_te: 'వైద్య అత్యవసర పరిస్థితుల్లో వెంటనే సహాయానికి 112 కి కాల్ చేయండి, సాధ్యమైతే మీ ప్రత్యక్ష స్థానాన్ని షేర్ చేయండి మరియు అంబులెన్స్ కోసం అభ్యర్థించండి. ప్రధాన నగరాల్లో ప్రభుత్వం మరియు ప్రైవేట్ ఆసుపత్రుల్లో పర్యాటక డెస్కులు అందుబాటులో ఉన్నాయి.',
+            response_mr: 'वैद्यकीय आपत्कालीन स्थितीत त्वरित मदतीसाठी 112 वर कॉल करा, शक्य असल्यास आपले थेट लोकेशन शेअर करा आणि रुग्णवाहिकेची मदत मागवा. मोठ्या शहरांतील सरकारी व खाजगी रुग्णालयांत पर्यटकांसाठी स्वतंत्र डेस्क आहेत.',
+            response_kn: 'ವೈದ್ಯಕೀಯ ತುರ್ತು ಪರಿಸ್ಥಿತಿಗೆ ತಕ್ಷಣದ ಸಹಾಯಕ್ಕಾಗಿ 112 ಗೆ ಕರೆ ಮಾಡಿ, ಸಾಧ್ಯವಾದರೆ ನಿಮ್ಮ ಲೈವ್ ಲೊಕೇಶನ್ ಹಂಚಿಕೊಳ್ಳಿ ಮತ್ತು ಆಂಬುಲೆನ್ಸ್ ನೆರವು ಬೇಡಿ. ಪ್ರಮುಖ ನಗರಗಳ ಸರಕಾರಿ ಮತ್ತು ಖಾಸಗಿ ಆಸ್ಪತ್ರೆಗಳಲ್ಲಿ ಪ್ರವಾಸಿಗರಿಗಾಗಿ ವಿಶೇಷ ಡೆಸ್ಕ್‌ಗಳು ಇವೆ.'
+          },
+          {
+            keywords: ['safety tip', 'unsafe area', 'feel unsafe', 'safety advice'],
+            response_en: 'Move to a well-lit public space, alert nearby authorities or security staff, and share your real-time location with trusted contacts through the app. You can also call the tourist police helpline listed for your region.',
+            response_hi: 'कृपया रोशनी वाले सार्वजनिक स्थान पर जाएँ, नज़दीकी अधिकारियों या सुरक्षा कर्मियों को सूचित करें और ऐप के माध्यम से अपने विश्वसनीय संपर्कों के साथ वास्तविक समय लोकेशन साझा करें। अपने क्षेत्र की सूची में उपलब्ध टूरिस्ट पुलिस हेल्पलाइन पर भी कॉल कर सकते हैं।',
+            response_bn: 'উজ্জ্বল আলোযুক্ত জনসমক্ষে চলে যান, আশেপাশের কর্তৃপক্ষ বা সুরক্ষা কর্মীদের জানান এবং অ্যাপের মাধ্যমে বিশ্বাসযোগ্য পরিচিতদের সঙ্গে আপনার রিয়েল-টাইম লোকেশন শেয়ার করুন। আপনার অঞ্চলের তালিকাভুক্ত পর্যটন পুলিশ হেল্পলাইনে ফোন করতে পারেন।',
+            response_ta: 'ஒளியுடன் கூடிய பொதுப் பகுதிக்குச் செல்லவும், அருகிலுள்ள அதிகாரிகள் அல்லது பாதுகாப்பு பணியாளர்களுக்கு தகவல்伝டிக்கவும் மற்றும் பயன்பாட்டின் மூலம் நம்பகமான தொடர்புகளுடன் உங்கள் நேரடி இருப்பிடத்தை பகிரவும். உங்கள் பிராந்தியத்திற்கானτουரிஸ்ட் போலீஸ் உதவி எண்ணிற்கு அழைக்கவும்.',
+            response_te: 'బాగా వెలుతురు ఉన్న ప్రజా ప్రదేశానికి వెళ్లండి, సమీపంలోని అధికారులు లేదా భద్రతా సిబ్బందికి సమాచಾರమివ్వండి మరియు యాప్ ద్వారా విశ్వసనೀಯ పరిచయాలతో మీ ప్రత్యక్ష స్థానం పంచుకోండి. మీ ప్రాంతానికి సూచించిన పర్యాటక పోలీస్ హెల్ప్‌లైన్ కి కూడా కాల్ చేయండి.',
+            response_mr: 'प्रकाशमान सार्वजनिक ठिकाणी जा, जवळच्या अधिकाऱ्यांना किंवा सुरक्षा कर्मचाऱ्यांना कळवा आणि अॅपद्वारे विश्वासू संपर्कांशी आपले प्रत्यक्ष स्थान शेअर करा. आपल्या प्रदेशासाठी सांगितलेल्या टूरिस्ट पोलिस हेल्पलाइनवरही कॉल करा.',
+            response_kn: 'ಬೆಳಕುಳ್ಳ ಸಾರ್ವಜನಿಕ ಸ್ಥಳಕ್ಕೆ ಹೋಗಿ, ಸಮೀಪದ ಅಧಿಕಾರಿಗಳು ಅಥವಾ ಭದ್ರತೆಯವರಿಗೆ ತಿಳಿಸಿ ಮತ್ತು ಅಪ್ಲಿಕೇಷನ್ ಮೂಲಕ ವಿಶ್ವಾಸಾರ್ಹ ಸಂಪರ್ಕಗಳಿಗೆ ನಿಮ್ಮ ಲೈವ್ ಸ್ಥಾನವನ್ನು ಹಂಚಿಕೊಳ್ಳಿ. ನಿಮ್ಮ ಪ್ರದೇಶಕ್ಕೆ ಸೂಚಿಸಲಾದ ಪ್ರವಾಸಿ ಪೊಲೀಸ್ ಸಹಾಯವಾಣಿಗೆ ಕರೆ ಮಾಡಬಹುದು.'
+          },
+          {
+            keywords: ['language help', 'translation', 'speak language', 'interpreter'],
+            response_en: 'Use the language switcher to receive guidance in your preferred language, show prepared travel cards with translated phrases, and call 1800-11-1363 for interpreter support if officials request clarification.',
+            response_hi: 'अपनी पसंदीदा भाषा में मार्गदर्शन पाने के लिए भाषा स्विचर का उपयोग करें, अनुवादित वाक्यों वाले तैयार यात्रा कार्ड दिखाएँ और यदि अधिकारियों को स्पष्टीकरण चाहिए तो 1800-11-1363 पर कॉल करके दुभाषिया सहायता माँगें।',
+            response_bn: 'আপনার পছন্দের ভাষায় নির্দেশনা পেতে ভাষা সুইচার ব্যবহার করুন, অনূদিত বাক্যসহ প্রস্তুত ভ্রমণ কার্ড দেখান এবং কর্মকর্তারা ব্যাখ্যা চাইলে ১৮০০-১১-১৩৬৩ নম্বরে ফোন করে দোভাষী সহায়তা নিন।',
+            response_ta: 'உங்கள் விருப்பமான மொழியில் வழிகாட்டுதலை பெற மொழி மாற்றியை பயன்படுத்தவும், மொழிபெயர்க்கப்பட்ட சொற்றொடர்களுடன் பயண அட்டைகளை காட்டவும், அதிகாரிகள் தெளிவுபடுத்துமாறு கேட்டால் 1800-11-1363 என்ற எண்ணில் அழைத்து மொழிபெயர்ப்பாளர் உதவியைப் பெறவும்.',
+            response_te: 'మీ ఇష్టమైన భాషలో మార్గదర్శకత్వం పొందడానికి భాష స్విచర్‌ను ఉపయోగించండి, అనువదించిన వాక్యాలతో సిద్ధం చేసిన ప్రయాణ కార్డులను చూపండి మరియు అధికారులు వివరణ కోరితే 1800-11-1363 కి కాల్ చేసి అనువాదక సహాయాన్ని అడగండి.',
+            response_mr: 'आपल्या पसंतीच्या भाषेत मार्गदर्शन मिळवण्यासाठी भाषा स्विचर वापरा, अनुवादित वाक्यांसह तयार ट्रॅव्हल कार्ड दाखवा आणि अधिकाऱ्यांनी स्पष्टता विचारल्यास 1800-11-1363 वर कॉल करून दुभाषी मदत घ्या.',
+            response_kn: 'ನಿಮ್ಮ ಇಷ್ಟದ ಭಾಷೆಯಲ್ಲಿ ಮಾರ್ಗದರ್ಶನ ಪಡೆಯಲು ಭಾಷಾ ಸ್ವಿಚರ್ ಅನ್ನು ಬಳಸಿ, ಅನುವಾದಿತ ಪದಬಂಧಗಳಿರುವ ಪ್ರಯಾಣ ಕಾರ್ಡ್‌ಗಳನ್ನು ತೋರಿಸಿ ಮತ್ತು ಅಧಿಕಾರಿಗಳು ವಿವರಣೆ ಕೇಳಿದರೆ 1800-11-1363 ಗೆ ಕರೆ ಮಾಡಿ ಅನುವಾದಕರ ನೆರವನ್ನು ಪಡೆಯಿರಿ.'
+          },
+          {
+            keywords: ['money exchange', 'currency', 'payment issue', 'card blocked'],
+            response_en: 'Use authorised currency exchange counters inside airports, RBI-approved forex outlets, or ATMs inside nationalised banks. For blocked cards contact your bank using the international helpline and keep emergency cash separated in small denominations.',
+            response_hi: 'मुद्रा विनिमय के लिए हवाई अड्डों के अधिकृत काउंटर, आरबीआई अनुमोदित फॉरेक्स आउटलेट या राष्ट्रीयकृत बैंकों के एटीएम का उपयोग करें। कार्ड ब्लॉक होने पर अंतरराष्ट्रीय हेल्पलाइन पर अपने बैंक से संपर्क करें और आपातकाल के लिए छोटे मूल्य के नकद पैसे अलग रखें।',
+            response_bn: 'মুদ্রা পরিবর্তনের জন্য বিমানবন্দরের অনুমোদিত কাউন্টার, আরবিআই অনুমোদিত ফরেক্স আউটলেট বা জাতীয়করণকৃত ব্যাংকের এটিএম ব্যবহার করুন। কার্ড ব্লক হলে আন্তর্জাতিক হেল্পলাইনের মাধ্যমে আপনার ব্যাংকের সঙ্গে যোগাযোগ করুন এবং জরুরি পরিস্থিতির জন্য ছোট অঙ্কের নগদ আলাদা করে রাখুন।',
+            response_ta: 'நாணய மாற்றத்திற்காக விமான நிலைய அங்கீகரிக்கப்பட்ட கவுண்டர்கள், இந்திய ரிசர்வ் வங்கியால் அங்கீகரிக்கப்பட்ட ஃபாரெக்ஸ் மையங்கள் அல்லது தேசிய வங்கிகளின் ATM களை பயன்படுத்தவும். அட்டை முடக்கப்பட்டால் சர்வதேச உதவி எண்ணின் மூலம் உங்கள் வங்கியை தொடர்புகொள்ளவும் மற்றும் அவசரநிலைக்காக சிறு நோட்டுகளாக பணத்தை தனியே வைத்திருங்கள்.',
+            response_te: 'కరెన్సీ మార్పిడికి విమానాశ్రయంలోని అధికారిక కౌంటర్లు, RBI అనుమతించిన ఫారెక్స్ ఔట్‌లెట్లు లేదా జాతీయ బ్యాంకుల ATMలను ఉపయోగించండి. కార్డ్ బ్లాక్ అయితే అంతర్జాతీయ హెల్ప్‌లైన్ ద్వారా మీ బ్యాంక్‌ను సంప్రದించండి మరియు అత్యవసర పరిస్థితులకు చిన్న నామములలో నగదు విడిగా ఉంచుకోండి.',
+            response_mr: 'चलन बदलासाठी विमानतळावरील अधिकृत काउंटर, RBI मान्यताप्राप्त फॉरेक्स आउटलेट किंवा राष्ट्रीयीकृत बँकांच्या ATM चा वापर करा. कार्ड ब्लॉक झाल्यास आंतरराष्ट्रीय हेल्पलाइनवरून आपल्या बँकेशी संपर्क साधा आणि आपत्कालीन परिस्थितीसाठी कमी मूल्याच्या नोटा वेगळ्या ठेवा.',
+            response_kn: 'ಕರೆನ್ಸಿ ವಿನಿಮಯಕ್ಕೆ ವಿಮಾನ ನಿಲ್ದಾಣದ ಅನುಮೋದಿತ ಕೌಂಟರ್‌ಗಳು, RBI ಅಂಗೀಕೃತ ಫಾರೆಕ್ಸ್ ಔಟ್‌ಲೆಟ್‌ಗಳು ಅಥವಾ ರಾಷ್ಟ್ರೀಕೃತ ಬ್ಯಾಂಕ್‌ಗಳ ATM‌ಗಳನ್ನು ಬಳಸಿ. ಕಾರ್ಡ್ ಬ್ಲಾಕ್ ಆದರೆ ಅಂತರರಾಷ್ಟ್ರೀಯ ಸಹಾಯವಾಣಿ ಮೂಲಕ ನಿಮ್ಮ ಬ್ಯಾಂಕನ್ನು ಸಂಪರ್ಕಿಸಿ ಮತ್ತು ತುರ್ತು ಸಂದರ್ಭಕ್ಕೆ ಸಣ್ಣ ಕೊರತೆಗಳ ನಗದನ್ನು ಪ್ರತ್ಯೇಕವಾಗಿ ಇಟ್ಟುಕೊಳ್ಳಿ.'
+          }
+        ];
+
+        for (const entry of faqSeeds) {
+          try {
+            await db.pool.query(
+              `INSERT INTO tourist_support_faqs (keywords, response_en, response_hi, response_bn, response_ta, response_te, response_mr, response_kn)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [entry.keywords, entry.response_en, entry.response_hi, entry.response_bn, entry.response_ta, entry.response_te, entry.response_mr, entry.response_kn]
+            );
+          } catch (seedErr) {
+            console.warn('[DB] tourist_support_faqs seed failed:', seedErr && seedErr.message);
+          }
+        }
+      }
+
+      console.log('[DB] tourist_support_faqs table ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure tourist_support_faqs table:', e && e.message);
+    }
+
+    // Seed safe zones data
+    try {
+      const { rows: safeZonesCountRows } = await db.pool.query('SELECT COUNT(*)::INT AS count FROM safe_zones');
+      const currentSafeZonesCount = safeZonesCountRows?.[0]?.count || 0;
+      if (currentSafeZonesCount === 0) {
+        const safeZonesSeeds = [
+          // Delhi Safe Zones
+          { name: 'Safdarjung Hospital', type: 'hospital', latitude: 28.5672, longitude: 77.2034, address: 'Ring Road, Safdarjung Enclave', contact: '011-26730007', city: 'Delhi', district: 'New Delhi', state: 'Delhi', operational_hours: '24x7', services: ['Emergency', 'Trauma', 'ICU'], verified: true },
+          { name: 'All India Institute of Medical Sciences (AIIMS)', type: 'hospital', latitude: 28.5638, longitude: 77.2093, address: 'Ansari Nagar', contact: '011-26588500', city: 'Delhi', district: 'New Delhi', state: 'Delhi', operational_hours: '24x7', services: ['Emergency', 'Multi-Specialty', 'ICU'], verified: true },
+          { name: 'Connaught Place Police Station', type: 'police', latitude: 28.6321, longitude: 77.2194, address: 'Connaught Place', contact: '011-23415050', city: 'Delhi', district: 'Central Delhi', state: 'Delhi', operational_hours: '24x7', services: ['Tourist Police', 'FIR', 'Women Safety'], verified: true },
+          { name: 'Delhi Govt Night Shelter - Nizamuddin', type: 'shelter', latitude: 28.5889, longitude: 77.2506, address: 'Nizamuddin West', contact: '011-23358180', city: 'Delhi', district: 'South Delhi', state: 'Delhi', operational_hours: '18:00-08:00', services: ['Night Shelter', 'Meals', 'First Aid'], verified: true },
+          
+          // Mumbai Safe Zones
+          { name: 'KEM Hospital', type: 'hospital', latitude: 19.0041, longitude: 73.0117, address: 'Parel', contact: '022-24107000', city: 'Mumbai', district: 'Mumbai', state: 'Maharashtra', operational_hours: '24x7', services: ['Emergency', 'Trauma', 'Burn Unit'], verified: true },
+          { name: 'Colaba Police Station', type: 'police', latitude: 18.9186, longitude: 72.8253, address: 'Colaba Causeway', contact: '022-22151503', city: 'Mumbai', district: 'Mumbai City', state: 'Maharashtra', operational_hours: '24x7', services: ['Tourist Police', 'FIR'], verified: true },
+          { name: 'Mumbai Govt Emergency Shelter', type: 'shelter', latitude: 19.0760, longitude: 72.8777, address: 'Andheri East', contact: '022-26827200', city: 'Mumbai', district: 'Mumbai Suburban', state: 'Maharashtra', operational_hours: '24x7', services: ['Emergency Shelter', 'Food', 'Medical Aid'], verified: true },
+          
+          // Bangalore Safe Zones
+          { name: 'Victoria Hospital', type: 'hospital', latitude: 12.9637, longitude: 77.5894, address: 'Fort, KR Market', contact: '080-26700300', city: 'Bangalore', district: 'Bangalore Urban', state: 'Karnataka', operational_hours: '24x7', services: ['Emergency', 'General', 'ICU'], verified: true },
+          { name: 'Cubbon Park Police Station', type: 'police', latitude: 12.9754, longitude: 77.5931, address: 'Kasturba Road', contact: '080-22867100', city: 'Bangalore', district: 'Bangalore Urban', state: 'Karnataka', operational_hours: '24x7', services: ['Tourist Safety', 'FIR'], verified: true },
+          { name: 'Bangalore Night Shelter - Shivajinagar', type: 'shelter', latitude: 12.9835, longitude: 77.6023, address: 'Shivajinagar', contact: '080-22255678', city: 'Bangalore', district: 'Bangalore Urban', state: 'Karnataka', operational_hours: '19:00-07:00', services: ['Night Shelter', 'Meals'], verified: true },
+          
+          // Chennai Safe Zones
+          { name: 'Government Stanley Hospital', type: 'hospital', latitude: 13.0784, longitude: 80.2826, address: 'Old Jail Road, Royapuram', contact: '044-25281351', city: 'Chennai', district: 'Chennai', state: 'Tamil Nadu', operational_hours: '24x7', services: ['Emergency', 'Trauma'], verified: true },
+          { name: 'Marina Beach Police Station', type: 'police', latitude: 13.0502, longitude: 80.2828, address: 'Marina Beach Road', contact: '044-23452020', city: 'Chennai', district: 'Chennai', state: 'Tamil Nadu', operational_hours: '24x7', services: ['Beach Patrol', 'Tourist Safety'], verified: true },
+          { name: 'Chennai Corporation Shelter', type: 'shelter', latitude: 13.0827, longitude: 80.2707, address: 'Park Town', contact: '044-25361200', city: 'Chennai', district: 'Chennai', state: 'Tamil Nadu', operational_hours: '24x7', services: ['Emergency Shelter', 'Food'], verified: true },
+          
+          // Kolkata Safe Zones
+          { name: 'SSKM Hospital', type: 'hospital', latitude: 22.5414, longitude: 88.3536, address: '244 AJC Bose Road', contact: '033-22231200', city: 'Kolkata', district: 'Kolkata', state: 'West Bengal', operational_hours: '24x7', services: ['Emergency', 'Multi-Specialty'], verified: true },
+          { name: 'Park Street Police Station', type: 'police', latitude: 22.5536, longitude: 88.3525, address: 'Park Street', contact: '033-22298000', city: 'Kolkata', district: 'Kolkata', state: 'West Bengal', operational_hours: '24x7', services: ['Tourist Police', 'FIR'], verified: true },
+          { name: 'Kolkata Night Shelter - Sealdah', type: 'shelter', latitude: 22.5687, longitude: 88.3706, address: 'Sealdah Station Area', contact: '033-23502300', city: 'Kolkata', district: 'Kolkata', state: 'West Bengal', operational_hours: '20:00-06:00', services: ['Night Shelter', 'Meals'], verified: true },
+          
+          // Hyderabad Safe Zones
+          { name: 'Gandhi Hospital', type: 'hospital', latitude: 17.4420, longitude: 78.4815, address: 'Musheerabad', contact: '040-27562613', city: 'Hyderabad', district: 'Hyderabad', state: 'Telangana', operational_hours: '24x7', services: ['Emergency', 'Trauma'], verified: true },
+          { name: 'Hussain Sagar Police Station', type: 'police', latitude: 17.4281, longitude: 78.4752, address: 'Tank Bund Road', contact: '040-27604500', city: 'Hyderabad', district: 'Hyderabad', state: 'Telangana', operational_hours: '24x7', services: ['Tourist Safety', 'FIR'], verified: true },
+          
+          // Pune Safe Zones
+          { name: 'Sassoon General Hospital', type: 'hospital', latitude: 18.5221, longitude: 73.8598, address: 'Near Railway Station', contact: '020-26126262', city: 'Pune', district: 'Pune', state: 'Maharashtra', operational_hours: '24x7', services: ['Emergency', 'Trauma', 'ICU'], verified: true },
+          { name: 'Shivajinagar Police Station', type: 'police', latitude: 18.5304, longitude: 73.8445, address: 'Fergusson College Road', contact: '020-25532900', city: 'Pune', district: 'Pune', state: 'Maharashtra', operational_hours: '24x7', services: ['Tourist Help', 'FIR'], verified: true },
+          
+          // Jaipur Safe Zones
+          { name: 'SMS Hospital', type: 'hospital', latitude: 26.9181, longitude: 75.7981, address: 'JLN Marg', contact: '0141-2516222', city: 'Jaipur', district: 'Jaipur', state: 'Rajasthan', operational_hours: '24x7', services: ['Emergency', 'Multi-Specialty'], verified: true },
+          { name: 'M.I. Road Police Station', type: 'police', latitude: 26.9151, longitude: 75.8140, address: 'M.I. Road', contact: '0141-2566777', city: 'Jaipur', district: 'Jaipur', state: 'Rajasthan', operational_hours: '24x7', services: ['Tourist Police', 'FIR'], verified: true },
+          
+          // Ahmedabad Safe Zones
+          { name: 'Civil Hospital', type: 'hospital', latitude: 23.0290, longitude: 72.5823, address: 'Asarwa', contact: '079-22680074', city: 'Ahmedabad', district: 'Ahmedabad', state: 'Gujarat', operational_hours: '24x7', services: ['Emergency', 'Trauma'], verified: true },
+          { name: 'CG Road Police Station', type: 'police', latitude: 23.0290, longitude: 72.5585, address: 'C.G. Road', contact: '079-26560100', city: 'Ahmedabad', district: 'Ahmedabad', state: 'Gujarat', operational_hours: '24x7', services: ['Tourist Safety'], verified: true },
+          
+          // Goa Safe Zones
+          { name: 'Goa Medical College Hospital', type: 'hospital', latitude: 15.4530, longitude: 73.8120, address: 'Bambolim', contact: '0832-2458700', city: 'Panaji', district: 'North Goa', state: 'Goa', operational_hours: '24x7', services: ['Emergency', 'Trauma', 'ICU'], verified: true },
+          { name: 'Calangute Police Station', type: 'police', latitude: 15.5392, longitude: 73.7549, address: 'Calangute Beach Road', contact: '0832-2277333', city: 'Calangute', district: 'North Goa', state: 'Goa', operational_hours: '24x7', services: ['Beach Patrol', 'Tourist Police'], verified: true },
+          
+          // Treatment Centres (De-addiction/Rehab)
+          { name: 'AIIMS National Drug Dependence Treatment Centre', type: 'treatment_centre', latitude: 28.5680, longitude: 77.2093, address: 'AIIMS Campus, Ansari Nagar', contact: '011-26593465', city: 'Delhi', district: 'New Delhi', state: 'Delhi', operational_hours: '09:00-17:00', services: ['De-addiction', 'Counseling', 'Rehabilitation'], verified: true },
+          { name: 'NIMHANS Centre for Addiction Medicine', type: 'treatment_centre', latitude: 12.9434, longitude: 77.5969, address: 'Hosur Road', contact: '080-26995000', city: 'Bangalore', district: 'Bangalore Urban', state: 'Karnataka', operational_hours: '08:00-16:00', services: ['Mental Health', 'De-addiction', 'Therapy'], verified: true },
+        ];
+
+        for (const zone of safeZonesSeeds) {
+          try {
+            await db.pool.query(
+              `INSERT INTO safe_zones(
+                name, type, latitude, longitude, address, contact, city, district, state, country, operational_hours, services, facilities, verified, active
+              ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+              [
+                zone.name,
+                zone.type,
+                zone.latitude,
+                zone.longitude,
+                zone.address,
+                zone.contact,
+                zone.city,
+                zone.district,
+                zone.state,
+                zone.country || 'India',
+                zone.operational_hours,
+                zone.services,
+                zone.facilities || null,
+                zone.verified,
+                zone.active !== undefined ? zone.active : true
+              ]
+            );
+          } catch (seedErr) {
+            console.warn('[DB] safe_zones seed failed:', seedErr && seedErr.message);
+          }
+        }
+        console.log('[DB] safe_zones seeded with sample data');
+      }
+    } catch (e) {
+      console.warn('[DB] could not seed safe_zones:', e && e.message);
+    }
+
+    // Safety ratings, aggregated score cells, and geo-targeted safety alerts
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS safety_ratings (
+          id SERIAL PRIMARY KEY,
+          passport_id VARCHAR(50),
+          score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+          tags TEXT[],
+          comment TEXT,
+          latitude DOUBLE PRECISION NOT NULL,
+          longitude DOUBLE PRECISION NOT NULL,
+          cell_id VARCHAR(32) NOT NULL,
+          cell_lat DOUBLE PRECISION NOT NULL,
+          cell_lon DOUBLE PRECISION NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_safety_ratings_cell ON safety_ratings(cell_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_ratings_passport ON safety_ratings(passport_id);
+        CREATE INDEX IF NOT EXISTS idx_safety_ratings_created ON safety_ratings(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS safety_score_cells (
+          cell_id VARCHAR(32) PRIMARY KEY,
+          cell_lat DOUBLE PRECISION NOT NULL,
+          cell_lon DOUBLE PRECISION NOT NULL,
+          avg_score DOUBLE PRECISION NOT NULL DEFAULT 0,
+          ratings_count INTEGER NOT NULL DEFAULT 0,
+          last_score DOUBLE PRECISION,
+          last_updated TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_safety_cells_ratings ON safety_score_cells(ratings_count);
+      `);
+      console.log('[DB] safety ratings/score cells ready');
+    } catch (e) {
+      console.warn('[DB] could not ensure safety ratings/score cells:', e && e.message);
+    }
+
+    try {
+      await db.pool.query(`
+        CREATE TABLE IF NOT EXISTS safety_alerts (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(200) NOT NULL,
+          category VARCHAR(40) NOT NULL, -- crime | accident | disaster | other
+          severity VARCHAR(20) DEFAULT 'medium', -- info | low | medium | high | critical
+          description TEXT,
+          latitude DOUBLE PRECISION NOT NULL,
+          longitude DOUBLE PRECISION NOT NULL,
+          radius_m INTEGER DEFAULT 1000,
+          status VARCHAR(20) DEFAULT 'active', -- active | resolved | expired
+          source VARCHAR(60),
+          starts_at TIMESTAMPTZ DEFAULT now(),
+          ends_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_safety_alerts_status ON safety_alerts(status);
+        CREATE INDEX IF NOT EXISTS idx_safety_alerts_geo ON safety_alerts(latitude, longitude);
+        CREATE INDEX IF NOT EXISTS idx_safety_alerts_category ON safety_alerts(category);
+      `);
+      console.log('[DB] safety alerts table ready');
+
+      // Seed a couple of active alerts for demo if empty
+      try {
+        const { rows: sCnt } = await db.pool.query('SELECT COUNT(*)::INT AS count FROM safety_alerts');
+        if ((sCnt?.[0]?.count || 0) === 0) {
+          await db.pool.query(`
+            INSERT INTO safety_alerts(title, category, severity, description, latitude, longitude, radius_m, status, source)
+            VALUES
+            ('Road Accident - Slow Down', 'accident', 'medium', 'Traffic disruption due to a multi-vehicle collision.', 28.6139, 77.2090, 1200, 'active', 'mock'),
+            ('Heavy Rainfall Alert', 'disaster', 'high', 'Potential waterlogging in low-lying areas. Exercise caution.', 19.0760, 72.8777, 5000, 'active', 'mock')
+            ON CONFLICT DO NOTHING;
+          `);
+          console.log('[DB] safety_alerts seeded with sample data');
+        }
+      } catch (seedErr) {
+        console.warn('[DB] safety_alerts seed failed:', seedErr && seedErr.message);
+      }
+    } catch (e) {
+      console.warn('[DB] could not ensure safety alerts table:', e && e.message);
     }
   } catch (err) {
     console.warn('[DB] ensureDatabaseShape encountered errors:', err && err.message);
@@ -776,6 +1372,21 @@ function formatWhatsAppAddress(number) {
   return number.startsWith('whatsapp:') ? number : `whatsapp:${number}`;
 }
 
+// --- Safety score cell helpers (simple grid, no PostGIS required) ---
+function gridCellFor(lat, lon, precision = 0.01) {
+  const p = Number(precision) || 0.01;
+  const clat = Math.floor(lat / p) * p;
+  const clon = Math.floor(lon / p) * p;
+  const fix = Math.max(0, String(p).includes('.') ? String(p).split('.')[1].length : 2);
+  const cellId = `${clat.toFixed(fix)}_${clon.toFixed(fix)}`;
+  return { cellId, cellLat: clat, cellLon: clon };
+}
+function degDeltaForRadiusMeters(lat, radiusMeters = 1000) {
+  const latDelta = radiusMeters / 111320; // ~ meters per degree latitude
+  const lonDelta = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180) || 1);
+  return { latDelta, lonDelta };
+}
+
 async function notifyEmergencyContacts({
   passportId,
   latitude = null,
@@ -881,6 +1492,16 @@ async function notifyEmergencyContacts({
         }
         if (!sent) {
           console.log('Emergency message not sent (no free channel available or send failed).');
+          // Auto-enqueue SMS for offline fallback retry
+          try {
+            await db.pool.query(
+              `INSERT INTO sms_queue(passport_id, phone_number, message, channel, status) VALUES($1,$2,$3,$4,'pending')`,
+              [passportId, normalized, messageBody, 'sms']
+            );
+            console.log(`[Auto-Enqueue] SMS queued for ${passportId} to ${normalized}`);
+          } catch (queueErr) {
+            console.error('[Auto-Enqueue] Failed to queue SMS:', queueErr && queueErr.message);
+          }
         }
       }
     }
@@ -989,6 +1610,47 @@ app.use("/uploads", express.static("uploads"));
 // Serve recordings so admin can fetch and play them
 app.use("/recordings", express.static(path.join(__dirname, "recordings")));
 
+app.post('/api/v1/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password required' });
+    }
+
+    const adminRow = await db.getAdminUserByEmail(email);
+    if (!adminRow || adminRow.is_active === false) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const passwordOk = await bcrypt.compare(password, adminRow.password_hash);
+    if (!passwordOk) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const token = issueAdminToken(adminRow);
+    res.cookie(ADMIN_TOKEN_COOKIE, token, ADMIN_COOKIE_OPTIONS);
+    db.touchAdminLastLogin(adminRow.id).catch(() => {});
+
+    return res.json({ admin: sanitizeAdminRow(adminRow) });
+  } catch (err) {
+    console.error('Admin login failed:', err && err.message);
+    return res.status(500).json({ message: 'Failed to login admin' });
+  }
+});
+
+app.post('/api/v1/admin/logout', (req, res) => {
+  try {
+    res.clearCookie(ADMIN_TOKEN_COOKIE, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+  } catch (e) {
+    console.debug('clearCookie failed:', e && e.message);
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/v1/admin/me', authenticateAdmin, (req, res) => {
+  res.json({ admin: req.admin });
+});
+
 // Simple health endpoint to debug tunnel / CORS issues
 app.get('/health', (req, res) => {
   res.json({ ok: true, time: Date.now(), ip: req.ip });
@@ -1022,79 +1684,126 @@ const profileStorage = multer.diskStorage({
 });
 const profileUpload = multer({ storage: profileStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// ---------------- Citizen Safety: Incidents REST API ----------------
-// Create incident
-app.post(
-  '/api/v1/incidents',
-  [
-    body('category').isString().isLength({ min: 3 }).withMessage('category required'),
-    body('description').optional().isString(),
-    body('latitude').optional().isFloat({ min: -90, max: 90 }),
-    body('longitude').optional().isFloat({ min: -180, max: 180 }),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-    try {
-      const payload = {
-        category: String(req.body.category).toLowerCase(),
-        sub_type: req.body.sub_type || null,
-        description: req.body.description || null,
-        latitude: req.body.latitude != null ? parseFloat(req.body.latitude) : null,
-        longitude: req.body.longitude != null ? parseFloat(req.body.longitude) : null,
-        reporter_type: req.body.reporter_type || 'citizen',
-        reporter_name: req.body.reporter_name || null,
-        reporter_contact: req.body.reporter_contact || null,
-        passport_id: req.body.passport_id || null,
-        media_urls: req.body.media_urls ? JSON.stringify(req.body.media_urls) : null,
-      };
-      const row = await db.createIncident(payload);
-      // Auto-forward certain categories
-      let forward = null;
-      if (['women_safety','street_animal','tourist_safety','fire','medical','police'].includes(payload.category)) {
-        forward = await govConnector.notifyIncident(row);
-        await db.createIncidentForward(row.id, forward.services || {});
-        await db.updateIncident(row.id, { status: 'forwarded', assigned_agency: payload.category });
-      }
-      return res.status(201).json({ incident: await db.getIncident(row.id), forward });
-    } catch (e) {
-      console.error('create incident failed:', e);
-      return res.status(500).json({ message: 'Failed to create incident' });
+// ---------------- Tourist Safety: Safety Score & Alerts API ----------------
+// Submit a neighborhood safety rating (tourist-only usage path)
+app.post('/api/v1/safety/ratings', async (req, res) => {
+  try {
+    const { score, latitude, longitude, passport_id, passportId, tags, comment, precision } = req.body || {};
+    const s = parseInt(score, 10);
+    if (!Number.isFinite(s) || s < 1 || s > 5) return res.status(400).json({ message: 'score must be 1..5' });
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ message: 'latitude/longitude required' });
+    const pid = (passport_id || passportId || '').trim() || null;
+    const p = Number(precision) || 0.01;
+    const cell = gridCellFor(lat, lon, p);
+
+    // Insert rating row
+    await db.pool.query(
+      `INSERT INTO safety_ratings(passport_id, score, tags, comment, latitude, longitude, cell_id, cell_lat, cell_lon)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [pid, s, Array.isArray(tags) ? tags : null, comment || null, lat, lon, cell.cellId, cell.cellLat, cell.cellLon]
+    );
+
+    // Upsert aggregate cell
+    await db.pool.query(
+      `INSERT INTO safety_score_cells(cell_id, cell_lat, cell_lon, avg_score, ratings_count, last_score)
+       VALUES($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (cell_id)
+       DO UPDATE SET
+         avg_score = ((safety_score_cells.avg_score * safety_score_cells.ratings_count) + EXCLUDED.last_score)
+                     / (safety_score_cells.ratings_count + 1),
+         ratings_count = safety_score_cells.ratings_count + 1,
+         last_score = EXCLUDED.last_score,
+         last_updated = now()`,
+      [cell.cellId, cell.cellLat, cell.cellLon, s, 1, s]
+    );
+
+    const q = await db.pool.query('SELECT cell_id, cell_lat, cell_lon, avg_score, ratings_count, last_updated FROM safety_score_cells WHERE cell_id = $1', [cell.cellId]);
+    return res.status(201).json({ cell: q.rows[0] });
+  } catch (e) {
+    console.error('rating insert failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to submit rating' });
+  }
+});
+
+// Fetch aggregated safety score cells around a location
+app.get('/api/v1/safety/score', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const radius = Math.min(parseInt(req.query.radius, 10) || 2000, 10000);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ message: 'lat/lon required' });
+    const { latDelta, lonDelta } = degDeltaForRadiusMeters(lat, radius);
+    const minLat = lat - latDelta, maxLat = lat + latDelta;
+    const minLon = lon - lonDelta, maxLon = lon + lonDelta;
+    const rs = await db.pool.query(
+      `SELECT cell_id, cell_lat, cell_lon, avg_score, ratings_count, last_updated
+       FROM safety_score_cells
+       WHERE cell_lat BETWEEN $1 AND $2 AND cell_lon BETWEEN $3 AND $4
+       ORDER BY ratings_count DESC, avg_score DESC
+       LIMIT 200`,
+      [minLat, maxLat, minLon, maxLon]
+    );
+    // Weighted average for the area
+    let sum = 0, count = 0;
+    rs.rows.forEach(r => { sum += (r.avg_score || 0) * (r.ratings_count || 0); count += (r.ratings_count || 0); });
+    const areaAvg = count > 0 ? Math.round((sum / count) * 10) / 10 : null;
+    return res.json({ cells: rs.rows, areaAvg });
+  } catch (e) {
+    return res.status(500).json({ message: 'Failed to fetch safety score' });
+  }
+});
+
+// List active safety alerts near a point (client polls periodically)
+app.get('/api/v1/safety/alerts', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const radius = Math.min(parseInt(req.query.radius, 10) || 3000, 20000);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ message: 'lat/lon required' });
+    const { latDelta, lonDelta } = degDeltaForRadiusMeters(lat, radius + 1000);
+    const minLat = lat - latDelta, maxLat = lat + latDelta;
+    const minLon = lon - lonDelta, maxLon = lon + lonDelta;
+    const q = await db.pool.query(
+      `SELECT id, title, category, severity, description, latitude, longitude, radius_m, status, source, starts_at, ends_at, updated_at
+       FROM safety_alerts
+       WHERE status = 'active'
+         AND latitude BETWEEN $1 AND $2 AND longitude BETWEEN $3 AND $4
+       ORDER BY severity DESC, updated_at DESC
+       LIMIT 200`,
+      [minLat, maxLat, minLon, maxLon]
+    );
+    return res.json({ alerts: q.rows });
+  } catch (e) {
+    return res.status(500).json({ message: 'Failed to fetch safety alerts' });
+  }
+});
+
+// Admin/testing: create a safety alert (guarded by optional secret)
+app.post('/api/v1/safety/alerts', async (req, res) => {
+  try {
+    const secret = process.env.ADMIN_SECRET || '';
+    if (secret && (req.headers['x-admin-secret'] !== secret)) return res.status(401).json({ message: 'Unauthorized' });
+    const { title, category, severity, description, latitude, longitude, radius_m, status, source, starts_at, ends_at } = req.body || {};
+    if (!title || !category || !Number.isFinite(parseFloat(latitude)) || !Number.isFinite(parseFloat(longitude))) {
+      return res.status(400).json({ message: 'title, category, latitude, longitude required' });
     }
-  }
-);
-
-// List incidents
-app.get('/api/v1/incidents', async (req, res) => {
-  try {
-    const { category, status, limit, offset } = req.query;
-    const items = await db.listIncidents({
-      category: category ? String(category).toLowerCase() : undefined,
-      status: status ? String(status).toLowerCase() : undefined,
-      limit: limit ? Math.min(parseInt(limit, 10) || 50, 200) : 50,
-      offset: offset ? parseInt(offset, 10) || 0 : 0,
-    });
-    return res.json({ incidents: items });
+    const ins = await db.pool.query(
+      `INSERT INTO safety_alerts(title, category, severity, description, latitude, longitude, radius_m, status, source, starts_at, ends_at)
+       VALUES($1,$2,$3,$4,$5,$6,COALESCE($7,1000),COALESCE($8,'active'),$9,COALESCE($10,now()),$11)
+       RETURNING id`,
+      [title, String(category).toLowerCase(), (severity || 'medium'), description || null, parseFloat(latitude), parseFloat(longitude), radius_m ? parseInt(radius_m, 10) : null, status || null, source || 'manual', starts_at || null, ends_at || null]
+    );
+    const id = ins.rows[0].id;
+    try { io.emit('safety_alerts:update', { type: 'created', id }); } catch (_) {}
+    return res.status(201).json({ id });
   } catch (e) {
-    return res.status(500).json({ message: 'Failed to list incidents' });
+    console.error('create safety alert failed:', e && e.message);
+    return res.status(500).json({ message: 'Failed to create alert' });
   }
 });
 
-// Update incident
-app.patch('/api/v1/incidents/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isFinite(id)) return res.status(400).json({ message: 'Invalid id' });
-    const patch = {};
-    ['status','assigned_agency','description','media_urls','sub_type'].forEach(k => {
-      if (k in req.body) patch[k] = req.body[k];
-    });
-    const updated = await db.updateIncident(id, patch);
-    return res.json({ incident: updated });
-  } catch (e) {
-    return res.status(500).json({ message: 'Failed to update incident' });
-  }
-});
 // Endpoint to save user profile
 app.post('/api/user/profile', profileUpload.fields([
   { name: 'passportMain', maxCount: 1 },
@@ -1289,14 +1998,32 @@ app.get('/api/user/profile', async (req, res) => {
 
     // Accept multiple identifiers: passportId (incl. WOMEN-<id>), email, aadhaar
     const qp = req.query || {};
-    const qpPassportId = qp.passportId || (req.cookies && (req.cookies.passportId || (req.cookies.womenUserId ? `WOMEN-${req.cookies.womenUserId}` : undefined)));
     const qpEmail = (qp.email || '').trim().toLowerCase();
     const aadhaarRaw = qp.aadhaar || qp.aadhaarId || qp.aadhaar_number || '';
     const qpAadhaar = normalizeGovernmentId(aadhaarRaw, 'aadhaar');
-    const qpServiceType = (qp.serviceType || '').toLowerCase();
+    const qpServiceType = (qp.serviceType || '').trim().toLowerCase();
+
+    const qpPassportIdRaw = (qp.passportId || '').trim();
+    let qpPassportId = qpPassportIdRaw || undefined;
+    if (!qpPassportId) {
+      if (qpServiceType === 'women_safety') {
+        if (req.cookies?.womenUserId) {
+          qpPassportId = `WOMEN-${req.cookies.womenUserId}`;
+        }
+      } else {
+        if (req.cookies?.passportId) {
+          qpPassportId = req.cookies.passportId;
+        }
+      }
+    }
 
     const womenMatch = qpPassportId ? String(qpPassportId).match(/^WOMEN-(\d+)$/i) : null;
-    const isWomenFlow = !!(womenMatch || qpServiceType === 'women_safety' || req.cookies?.womenUserId);
+    let isWomenFlow = false;
+    if (womenMatch) {
+      isWomenFlow = true;
+    } else if (qpServiceType === 'women_safety') {
+      isWomenFlow = true;
+    }
 
     // Helper: map women row to profile payload
     const mapWomen = async (w) => {
@@ -2549,26 +3276,78 @@ app.get('/api/family/profile', async (req, res) => {
 });
 // ...existing code...
 
-app.get("/api/v1/tourists", async (req, res) => {
+app.get("/api/v1/tourists", authenticateAdmin, async (req, res) => {
   try {
-    // This new query joins the tables to get the correct group name
-    const query = `
-            SELECT 
-                t.id, t.name, t.passport_id, t.emergency_contact, t.status, 
-                t.latitude, t.longitude, t.last_seen, t.profile_picture_url,
-                COALESCE(g.group_name, 'No Group') AS group_name 
-            FROM tourists t
-            LEFT JOIN group_members gm ON t.id = gm.tourist_id AND gm.status = 'accepted'
-            LEFT JOIN groups g ON gm.group_id = g.id
-            ORDER BY t.created_at DESC
-        `;
-    const result = await db.pool.query(query);
-    console.log(
-      "Dashboard requested the list of all tourists with correct group names."
-    );
-    res.json(result.rows);
+    const assigned = normalizeAdminService(req.admin?.assigned_service);
+    const includeTourists = assigned !== 'women';
+    const includeWomen = assigned !== 'tourist';
+
+    let tourists = [];
+    if (includeTourists) {
+      const touristResult = await db.pool.query(`
+        SELECT 
+          t.id,
+          t.name,
+          t.passport_id,
+          t.emergency_contact,
+          t.emergency_contact_1,
+          t.emergency_contact_2,
+          t.emergency_contact_email_1,
+          t.emergency_contact_email_2,
+          t.status,
+          t.latitude,
+          t.longitude,
+          t.last_seen,
+          t.profile_picture_url,
+          t.created_at,
+          NULL::timestamptz AS updated_at,
+          COALESCE(g.group_name, 'No Group') AS group_name
+        FROM tourists t
+        LEFT JOIN group_members gm ON t.id = gm.tourist_id AND gm.status = 'accepted'
+        LEFT JOIN groups g ON gm.group_id = g.id
+        ORDER BY t.created_at DESC
+      `);
+
+      tourists = (touristResult.rows || []).map((row) => ({
+        ...row,
+        service_type: row.service_type || 'tourist_safety',
+        source: 'tourist',
+      }));
+    }
+
+    let womenParticipants = [];
+    if (includeWomen) {
+      const womenResult = await db.pool.query(`
+        SELECT 
+          id,
+          name,
+          mobile_number,
+          email,
+          status,
+          latitude,
+          longitude,
+          last_seen,
+          profile_picture_url,
+          created_at,
+          updated_at,
+          is_verified
+        FROM women_users
+        ORDER BY created_at DESC
+      `);
+
+      womenParticipants = (womenResult.rows || [])
+        .map((row) => db.mapWomenUserRowToParticipant(row))
+        .filter(Boolean)
+        .map((participant) => ({
+          ...participant,
+          status: participant.status || 'active',
+        }));
+    }
+
+    console.log("Dashboard requested consolidated participant list for tourists and women safety.");
+    res.json([...tourists, ...womenParticipants]);
   } catch (err) {
-    console.error(err.message);
+    console.error('Failed to list participants', err && err.message);
     res.status(500).send("Server error");
   }
 });
@@ -2948,6 +3727,24 @@ app.post("/api/v1/alert/panic", async (req, res) => {
         });
       }
       setCurrentAlert(passportId, { type: 'panic', startedAt: Date.now(), lat: latitude, lon: longitude, services, source: 'panic-button' });
+      
+      // Auto-enqueue SMS fallback for women users
+      try {
+        const userRes = await db.pool.query('SELECT mobile_number, name FROM women_users WHERE id = $1', [womenId]);
+        if (userRes.rows.length > 0 && userRes.rows[0].mobile_number) {
+          const phone = String(userRes.rows[0].mobile_number).trim();
+          const userName = userRes.rows[0].name || 'User';
+          const mapLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
+          const message = `Emergency Alert: ${userName} has triggered a panic alert. Location: ${mapLink}`;
+          await db.pool.query(
+            `INSERT INTO sms_queue(passport_id, phone_number, message, channel, status) VALUES($1,$2,$3,$4,'pending')`,
+            [passportId, phone, message, 'sms']
+          );
+          console.log(`[Auto-Enqueue] Women panic SMS queued for ${passportId} to ${phone}`);
+        }
+      } catch (queueErr) {
+        console.error('[Auto-Enqueue] Failed to queue women panic SMS:', queueErr && queueErr.message);
+      }
     } else {
       await db.pool.query(
         "UPDATE tourists SET status = 'distress' WHERE passport_id = $1",
@@ -3385,6 +4182,23 @@ app.get('/api/v1/tourists/:passportId/locations', async (req, res) => {
     else if (unit === 'd') interval = `${Math.min(val, 30)} days`;
   }
   try {
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (!Number.isFinite(womenId)) {
+        return res.status(400).json({ message: 'Invalid women participant id' });
+      }
+
+      const q = await db.pool.query(
+        `SELECT latitude, longitude, accuracy, created_at
+         FROM women_location_history
+         WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '${interval}'
+         ORDER BY created_at ASC`,
+        [womenId]
+      );
+      return res.json({ locations: q.rows });
+    }
+
     const q = await db.pool.query(
       `SELECT latitude, longitude, created_at
        FROM location_history
@@ -3435,10 +4249,22 @@ app.post("/api/v1/auth/logout", async (req, res) => {
       .json({ message: "Passport ID is required to log out." });
   }
   try {
-    await db.pool.query(
-      "UPDATE tourists SET status = 'offline' WHERE passport_id = $1",
-      [passportId]
-    );
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (!Number.isFinite(womenId)) {
+        return res.status(400).json({ message: 'Invalid participant id' });
+      }
+      await db.pool.query(
+        "UPDATE women_users SET status = 'offline' WHERE id = $1",
+        [womenId]
+      );
+    } else {
+      await db.pool.query(
+        "UPDATE tourists SET status = 'offline' WHERE passport_id = $1",
+        [passportId]
+      );
+    }
 
     console.log(`User ${passportId} logged out.`);
 
@@ -3454,13 +4280,26 @@ app.post("/api/v1/auth/logout", async (req, res) => {
   }
 });
 
-app.post("/api/v1/tourists/:passportId/reset", async (req, res) => {
+app.post("/api/v1/tourists/:passportId/reset", authenticateAdmin, async (req, res) => {
   const { passportId } = req.params;
   try {
-    await db.pool.query(
-      "UPDATE tourists SET status = 'active' WHERE passport_id = $1",
-      [passportId]
-    );
+    if (!enforcePassportAccess(res, req.admin, passportId)) return;
+    const womenMatch = String(passportId).match(/^WOMEN-(\d+)$/i);
+    if (womenMatch) {
+      const womenId = parseInt(womenMatch[1], 10);
+      if (!Number.isFinite(womenId)) {
+        return res.status(400).json({ message: 'Invalid women participant id' });
+      }
+      await db.pool.query(
+        "UPDATE women_users SET status = 'active' WHERE id = $1",
+        [womenId]
+      );
+    } else {
+      await db.pool.query(
+        "UPDATE tourists SET status = 'active' WHERE passport_id = $1",
+        [passportId]
+      );
+    }
 
     // Remove any persisted forward markers so alert can be forwarded again next time
     try {
@@ -3599,15 +4438,16 @@ app.post('/api/v1/alert/upload-recording', (req, res) => {
 });
 
 // List recordings: optionally filter by passportId (or passport_id)
-app.get('/api/v1/recordings', async (req, res) => {
+app.get('/api/v1/recordings', authenticateAdmin, async (req, res) => {
   try {
-    const passportId = req.query.passportId || req.query.passport_id;
+    const passportId = req.query?.passportId || req.query?.passport_id;
+    if (passportId && !enforcePassportAccess(res, req.admin, passportId)) return;
     if (passportId) {
       const rows = await db.listRecordingsByPassport(passportId);
-      return res.status(200).json(rows);
+      return res.status(200).json(rows.filter((row) => adminCanAccessPassport(req.admin, row.passport_id)));
     }
     const rows = await db.listRecordings();
-    return res.status(200).json(rows);
+    return res.status(200).json(rows.filter((row) => adminCanAccessPassport(req.admin, row.passport_id)));
   } catch (e) {
     console.error('Failed to list recordings:', e && e.message);
     return res.status(500).json({ message: 'Server error' });
@@ -3870,9 +4710,12 @@ app.get('/api/family/women/stream/sessions', requireFamilyAuth, async (req, res)
 });
 
 // Delete a recording by id (removes DB row and file)
-app.delete('/api/v1/recordings/:id', async (req, res) => {
+app.delete('/api/v1/recordings/:id', authenticateAdmin, async (req, res) => {
   const { id } = req.params;
   try {
+    const lookup = await db.pool.query('SELECT passport_id, file_name FROM recordings WHERE id = $1 LIMIT 1', [id]);
+    if (!lookup.rows.length) return res.status(404).json({ message: 'Not found' });
+    if (!enforcePassportAccess(res, req.admin, lookup.rows[0].passport_id)) return;
     const rec = await db.deleteRecording(id);
     if (!rec) return res.status(404).json({ message: 'Not found' });
     // remove file
@@ -3886,9 +4729,12 @@ app.delete('/api/v1/recordings/:id', async (req, res) => {
 });
 
 // Delete by file name to support clients that only know the file name
-app.delete('/api/v1/recordings/file/:fileName', async (req, res) => {
+app.delete('/api/v1/recordings/file/:fileName', authenticateAdmin, async (req, res) => {
   const { fileName } = req.params;
   try {
+    const lookup = await db.pool.query('SELECT passport_id, file_name FROM recordings WHERE file_name = $1 LIMIT 1', [fileName]);
+    if (!lookup.rows.length) return res.status(404).json({ message: 'Not found' });
+    if (!enforcePassportAccess(res, req.admin, lookup.rows[0].passport_id)) return;
     const rec = await db.deleteRecordingByFileName(fileName);
     if (!rec) return res.status(404).json({ message: 'Not found' });
     const filePath = path.join(__dirname, 'recordings', rec.file_name);
@@ -4392,12 +5238,37 @@ app.post("/api/v1/safety/route", async (req, res) => {
       }
     });
 
-    console.log(`Route Safety Analysis Complete. Score: ${safetyScore}`);
+    console.log(`Route Safety Analysis Complete. POI score: ${safetyScore}`);
+
+    // Sample crowd-sourced safety cells along the route and compute an aggregated cell score
+    const cellPromises = uniqueSamplePoints.map(async (point) => {
+      const [lon, lat] = point;
+      try {
+        const cell = await db.getSafetyScoreForPoint(lat, lon);
+        return { lat, lon, cell };
+      } catch (e) {
+        return { lat, lon, cell: null };
+      }
+    });
+    const cellResults = await Promise.all(cellPromises);
+    const cellScores = cellResults.map(r => r.cell).filter(Boolean);
+    let combinedCellScore = null;
+    if (cellScores.length) {
+      const sum = cellScores.reduce((s, c) => s + (Number(c.avg_score || 0)), 0);
+      combinedCellScore = sum / cellScores.length; // average 1..5
+    }
+
+    // Normalize combined safety: combine POI-based score (normalized by route length) and cell score (1..5 scaled)
+    const normalizedPoiScore = Math.min(1, safetyScore / Math.max(1, uniqueSamplePoints.length * 4));
+    const normalizedCellScore = combinedCellScore ? ((combinedCellScore - 1) / 4) : 0.5; // 0..1
+    const combinedSafetyScore = Math.round(((normalizedPoiScore * 0.5) + (normalizedCellScore * 0.5)) * 100) / 100; // 0..1
 
     res.json({
       message: "Safe route calculated successfully",
       route: routeGeometry,
-      safetyScore: safetyScore,
+      poiSafetyScore: safetyScore,
+      cellScores,
+      combinedSafetyScore,
     });
   } catch (error) {
     console.error("Geoapify routing error:", {
@@ -4416,35 +5287,38 @@ app.post("/api/v1/safety/route", async (req, res) => {
 
 // wecodeblooded/backend-api/index.js
 
-app.post("/api/v1/alerts/forward-to-emergency", async (req, res) => {
+app.post("/api/v1/alerts/forward-to-emergency", authenticateAdmin, async (req, res) => {
   const { passportId } = req.body;
   try {
-    const tourist = await db.getTouristByPassportId(passportId);
-    if (!tourist || !tourist.latitude) {
+    if (!enforcePassportAccess(res, req.admin, passportId)) return;
+    const participant = await db.getTouristByPassportId(passportId);
+    if (!participant || participant.latitude == null || participant.longitude == null) {
       return res
         .status(404)
-        .json({ message: "Tourist location not available." });
+        .json({ message: "Participant location not available." });
     }
 
+    const participantLabel = participant.service_type === 'women_safety' ? 'Women Safety participant' : 'Tourist';
+
     console.log(
-      `MANUAL FORWARD: Anomaly alert for ${passportId}. Finding services...`
+      `MANUAL FORWARD: Alert for ${participantLabel} ${passportId}. Finding services...`
     );
     const services = await findNearbyServices(
-      tourist.latitude,
-      tourist.longitude
+      participant.latitude,
+      participant.longitude
     );
 
     if (services) {
       console.log("Found services:", services);
       io.emit("emergencyResponseDispatched", {
         passport_id: passportId,
-        message: `Anomaly alert for ${passportId} was manually forwarded.`,
+        message: `Emergency teams notified for ${participantLabel.toLowerCase()} ${passportId}.`,
         services,
       });
     }
     // Persist forward marker (use current status as type fallback)
     try {
-      const alertType = tourist.status || 'unknown';
+      const alertType = participant.status || 'unknown';
       await db.pool.query(
         `INSERT INTO alert_forwards(passport_id, alert_type, services) VALUES($1,$2,$3)
          ON CONFLICT (passport_id, alert_type) DO UPDATE SET forwarded_at = now(), services = EXCLUDED.services`,
@@ -4462,9 +5336,10 @@ app.post("/api/v1/alerts/forward-to-emergency", async (req, res) => {
 });
 
 // Retrieve alert history for a tourist
-app.get('/api/v1/alerts/:passportId/history', async (req, res) => {
+app.get('/api/v1/alerts/:passportId/history', authenticateAdmin, async (req, res) => {
   const { passportId } = req.params;
   try {
+    if (!enforcePassportAccess(res, req.admin, passportId)) return;
     const { rows } = await db.pool.query(`SELECT event_type, details, created_at FROM alert_history WHERE passport_id = $1 ORDER BY created_at DESC LIMIT 200`, [passportId]);
     res.json(rows);
   } catch(e) {
@@ -4474,10 +5349,10 @@ app.get('/api/v1/alerts/:passportId/history', async (req, res) => {
 });
 
 // Retrieve all forwarded alerts (optionally filter by current active statuses)
-app.get('/api/v1/alerts/forwarded', async (req, res) => {
+app.get('/api/v1/alerts/forwarded', authenticateAdmin, async (req, res) => {
   try {
     const { rows } = await db.pool.query('SELECT passport_id, alert_type, services, forwarded_at FROM alert_forwards ORDER BY forwarded_at DESC LIMIT 500');
-    res.json(rows);
+    res.json(rows.filter((row) => adminCanAccessPassport(req.admin, row.passport_id)));
   } catch (e) {
     console.error('Failed to list forwarded alerts:', e && e.message);
     res.status(500).json({ message: 'Failed to load forwarded alerts' });
@@ -4485,9 +5360,10 @@ app.get('/api/v1/alerts/forwarded', async (req, res) => {
 });
 
 // Per tourist forwarded services (latest)
-app.get('/api/v1/alerts/:passportId/forwarded-services', async (req, res) => {
+app.get('/api/v1/alerts/:passportId/forwarded-services', authenticateAdmin, async (req, res) => {
   const { passportId } = req.params;
   try {
+    if (!enforcePassportAccess(res, req.admin, passportId)) return;
     const { rows } = await db.pool.query('SELECT passport_id, alert_type, services, forwarded_at FROM alert_forwards WHERE passport_id = $1 ORDER BY forwarded_at DESC LIMIT 1', [passportId]);
     if (!rows.length) return res.status(404).json({ message: 'No forwarded record' });
     res.json(rows[0]);
@@ -4501,9 +5377,9 @@ app.get('/api/v1/alerts/:passportId/forwarded-services', async (req, res) => {
 app.get('/api/v1/alerts/:passportId/nearby-services', async (req, res) => {
   const { passportId } = req.params;
   try {
-    const tourist = await db.getTouristByPassportId(passportId);
-    if (!tourist || !tourist.latitude) return res.status(404).json({ message: 'Tourist location not available' });
-    const lists = await findNearbyServiceLists(Number(tourist.latitude), Number(tourist.longitude));
+    const participant = await db.getTouristByPassportId(passportId);
+    if (!participant || participant.latitude == null || participant.longitude == null) return res.status(404).json({ message: 'Participant location not available' });
+    const lists = await findNearbyServiceLists(Number(participant.latitude), Number(participant.longitude));
     res.json(lists);
   } catch (e) {
     console.error('Failed to get nearby services lists:', e.message);
@@ -4512,9 +5388,17 @@ app.get('/api/v1/alerts/:passportId/nearby-services', async (req, res) => {
 });
 
 // Reset all anomaly/distress statuses for a given group name (by group_name or groups table) and clear forwarded flags
-app.post('/api/v1/groups/:groupName/reset-alerts', async (req, res) => {
+app.post('/api/v1/groups/:groupName/reset-alerts', authenticateAdmin, async (req, res) => {
   const { groupName } = req.params;
   try {
+    const assigned = normalizeAdminService(req.admin?.assigned_service);
+    if (groupName === 'Women Safety') {
+      if (assigned === 'tourist') {
+        return res.status(403).json({ message: 'Forbidden for assigned team' });
+      }
+    } else if (assigned === 'women') {
+      return res.status(403).json({ message: 'Forbidden for assigned team' });
+    }
     // Resolve group id(s)
     const grp = await db.pool.query('SELECT id FROM groups WHERE group_name = $1 LIMIT 1', [groupName]);
     if (grp.rows.length === 0) {
@@ -4657,6 +5541,347 @@ cron.schedule("*/1 * * * *", async () => {
   }
 });
 
+app.use('/api/women', womenService);
+app.use('/api/v1/women', womenService);
+app.use('/api/v1/auth/me', authMeRouter);
+app.use('/api/v1/tourist-support', touristSupportRouter);
+// Area Alerts feature removed as per requirements
+// Tourist Nearby Assistance
+try {
+  const touristNearbyRouterLate = require('./routes/touristNearby');
+  app.use('/api/v1/tourist', touristNearbyRouterLate);
+  console.log('[TouristNearby] routes registered at /api/v1/tourist/nearby');
+} catch (e) {
+  console.warn('[TouristNearby] failed to register routes (late):', e && e.message);
+}
+
+// ==================== INCIDENT REPORTING API ====================
+// Multer configuration for incident media uploads
+const incidentStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'incidents');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const incidentUpload = multer({
+  storage: incidentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and videos are allowed'));
+    }
+  }
+});
+
+// POST /api/v1/incidents - Report a new incident
+app.post('/api/v1/incidents', incidentUpload.array('media', 5), async (req, res) => {
+  try {
+    const {
+      category,
+      subType,
+      description,
+      latitude,
+      longitude,
+      passportId,
+      reporterName,
+      reporterContact
+    } = req.body;
+
+    // Validate required fields
+    if (!category || !description) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Category and description are required' 
+      });
+    }
+
+    // Build media URLs array
+    const mediaUrls = req.files ? req.files.map(file => `/uploads/incidents/${file.filename}`) : [];
+
+    // Insert incident into database
+    const result = await db.pool.query(
+      `INSERT INTO incidents (
+        category, sub_type, description, latitude, longitude, 
+        passport_id, reporter_name, reporter_contact, 
+        reporter_type, media_urls, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`,
+      [
+        category,
+        subType || null,
+        description,
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null,
+        passportId || null,
+        reporterName || null,
+        reporterContact || null,
+        'tourist',
+        JSON.stringify(mediaUrls),
+        'new'
+      ]
+    );
+
+    const incident = result.rows[0];
+
+    // Notify government services (mock connector)
+    try {
+      const notification = await govConnector.notifyIncident(incident);
+      if (notification.forwarded && notification.services) {
+        await db.pool.query(
+          `INSERT INTO incident_forwards (incident_id, services) VALUES ($1, $2)`,
+          [incident.id, JSON.stringify(notification.services)]
+        );
+      }
+    } catch (notifyErr) {
+      console.error('[Incidents] Government notification failed:', notifyErr);
+    }
+
+    // Emit socket event for real-time updates
+    io.emit('newIncident', {
+      id: incident.id,
+      category: incident.category,
+      passportId: incident.passport_id,
+      status: incident.status
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Incident reported successfully',
+      incident: {
+        id: incident.id,
+        category: incident.category,
+        subType: incident.sub_type,
+        description: incident.description,
+        status: incident.status,
+        mediaUrls: JSON.parse(incident.media_urls || '[]'),
+        createdAt: incident.created_at
+      }
+    });
+  } catch (error) {
+    console.error('[Incidents] Error reporting incident:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to report incident',
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/v1/incidents - Get incidents (with optional filtering)
+app.get('/api/v1/incidents', authenticateAdmin, async (req, res) => {
+  try {
+    const { passportId, category, status, limit = 50, offset = 0 } = req.query;
+
+    let query = 'SELECT * FROM incidents WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (passportId) {
+      paramCount++;
+      query += ` AND passport_id = $${paramCount}`;
+      params.push(passportId);
+    }
+
+    if (category) {
+      paramCount++;
+      query += ` AND category = $${paramCount}`;
+      params.push(category);
+    }
+
+    if (status) {
+      paramCount++;
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+    }
+
+    query += ' ORDER BY created_at DESC';
+    
+    paramCount++;
+    query += ` LIMIT $${paramCount}`;
+    params.push(parseInt(limit));
+
+    paramCount++;
+    query += ` OFFSET $${paramCount}`;
+    params.push(parseInt(offset));
+
+    const result = await db.pool.query(query, params);
+
+    const incidents = result.rows
+      .filter((incident) => !incident.passport_id || adminCanAccessPassport(req.admin, incident.passport_id))
+      .map(incident => ({
+      id: incident.id,
+      category: incident.category,
+      subType: incident.sub_type,
+      description: incident.description,
+      latitude: incident.latitude,
+      longitude: incident.longitude,
+      reporterName: incident.reporter_name,
+      reporterContact: incident.reporter_contact,
+      passportId: incident.passport_id,
+      mediaUrls: JSON.parse(incident.media_urls || '[]'),
+      status: incident.status,
+      assignedAgency: incident.assigned_agency,
+      createdAt: incident.created_at,
+      updatedAt: incident.updated_at
+    }));
+
+    res.json({
+      success: true,
+      incidents,
+      count: incidents.length
+    });
+  } catch (error) {
+    console.error('[Incidents] Error fetching incidents:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch incidents',
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/v1/incidents/:id - Get a specific incident
+app.get('/api/v1/incidents/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.pool.query(
+      'SELECT * FROM incidents WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Incident not found'
+      });
+    }
+
+    const incident = result.rows[0];
+
+    if (incident.passport_id && !adminCanAccessPassport(req.admin, incident.passport_id)) {
+      return res.status(403).json({ success: false, message: 'Forbidden for assigned team' });
+    }
+
+    res.json({
+      success: true,
+      incident: {
+        id: incident.id,
+        category: incident.category,
+        subType: incident.sub_type,
+        description: incident.description,
+        latitude: incident.latitude,
+        longitude: incident.longitude,
+        reporterName: incident.reporter_name,
+        reporterContact: incident.reporter_contact,
+        passportId: incident.passport_id,
+        mediaUrls: JSON.parse(incident.media_urls || '[]'),
+        status: incident.status,
+        assignedAgency: incident.assigned_agency,
+        createdAt: incident.created_at,
+        updatedAt: incident.updated_at
+      }
+    });
+  } catch (error) {
+    console.error('[Incidents] Error fetching incident:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch incident',
+      error: error.message 
+    });
+  }
+});
+
+// PATCH /api/v1/incidents/:id - Update incident status
+app.patch('/api/v1/incidents/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const assignedAgency = req.body.assignedAgency ?? req.body.assigned_agency ?? null;
+
+    const existing = await db.pool.query('SELECT passport_id FROM incidents WHERE id = $1', [id]);
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Incident not found'
+      });
+    }
+
+    const { passport_id: existingPassportId } = existing.rows[0];
+    if (existingPassportId && !adminCanAccessPassport(req.admin, existingPassportId)) {
+      return res.status(403).json({ success: false, message: 'Forbidden for assigned team' });
+    }
+
+    const updates = [];
+    const params = [];
+    let paramCount = 0;
+
+    if (status) {
+      paramCount++;
+      updates.push(`status = $${paramCount}`);
+      params.push(status);
+    }
+
+    if (assignedAgency) {
+      paramCount++;
+      updates.push(`assigned_agency = $${paramCount}`);
+      params.push(assignedAgency);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No updates provided'
+      });
+    }
+
+    paramCount++;
+    updates.push(`updated_at = $${paramCount}`);
+    params.push(new Date());
+
+    paramCount++;
+    params.push(id);
+
+    const query = `UPDATE incidents SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+
+    const result = await db.pool.query(query, params);
+
+    const incident = result.rows[0];
+
+    res.json({
+      success: true,
+      message: 'Incident updated successfully',
+      incident: {
+        id: incident.id,
+        status: incident.status,
+        assignedAgency: incident.assigned_agency,
+        updatedAt: incident.updated_at
+      }
+    });
+  } catch (error) {
+    console.error('[Incidents] Error updating incident:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update incident',
+      error: error.message 
+    });
+  }
+});
+
 // Listen on all interfaces so other devices on the LAN can reach the API
 server.listen(port, '0.0.0.0', () => {
   const os = require('os');
@@ -4675,4 +5900,3 @@ server.listen(port, '0.0.0.0', () => {
   }
 });
 
-app.use('/api/women', womenService);

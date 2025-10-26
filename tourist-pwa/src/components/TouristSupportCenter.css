@@ -1,0 +1,528 @@
+/* Tourist Support Center Styles */
+
+.tourist-support {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  overflow-y: auto;
+}
+
+.tourist-support__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tourist-support__header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.75rem;
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+.tourist-support__header .muted {
+  color: #7f8c8d;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.tourist-support__passport {
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  background: #ecf0f1;
+  border-radius: 8px;
+  color: #34495e;
+  font-weight: 500;
+}
+
+/* Controls Section */
+.tourist-support__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tourist-support__control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tourist-support__control span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #34495e;
+}
+
+.tourist-support__control select,
+.tourist-support__control input {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.tourist-support__control select:focus,
+.tourist-support__control input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.tourist-support__control--search input {
+  background: #f8f9fa;
+}
+
+/* Content Layout */
+.tourist-support__content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 1024px) {
+  .tourist-support__content {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Helplines Section */
+.tourist-support__helplines,
+.tourist-support__chat {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+.tourist-support__section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.tourist-support__status {
+  padding: 1rem;
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 0.95rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.tourist-support__status--error {
+  background: #fee;
+  color: #c0392b;
+  border: 1px solid #e74c3c;
+}
+
+.tourist-support__helpline-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tourist-support__helpline-item {
+  padding: 1.25rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border-left: 4px solid #3498db;
+  transition: all 0.3s ease;
+}
+
+.tourist-support__helpline-item:hover {
+  background: #ecf0f1;
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+}
+
+.tourist-support__helpline-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+}
+
+.tourist-support__helpline-name {
+  font-weight: 700;
+  color: #2c3e50;
+  font-size: 1.05rem;
+  flex: 1;
+}
+
+.tourist-support__badge {
+  padding: 0.25rem 0.75rem;
+  background: #3498db;
+  color: white;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tourist-support__helpline-description {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.5;
+}
+
+.tourist-support__helpline-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.tourist-support__label {
+  font-weight: 600;
+  color: #7f8c8d;
+  margin-right: 0.5rem;
+}
+
+.tourist-support__phone {
+  color: #27ae60;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.05rem;
+  transition: color 0.3s ease;
+}
+
+.tourist-support__phone:hover {
+  color: #229954;
+  text-decoration: underline;
+}
+
+/* Chat Section */
+.tourist-support__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tourist-support__quick-button {
+  padding: 0.6rem 1rem;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tourist-support__quick-button:hover:not(:disabled) {
+  background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+}
+
+.tourist-support__quick-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tourist-support__conversation {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 300px;
+  max-height: 400px;
+  margin-bottom: 1rem;
+}
+
+.tourist-support__placeholder {
+  text-align: center;
+  color: #95a5a6;
+  padding: 2rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.tourist-support__message {
+  padding: 0.875rem 1.125rem;
+  border-radius: 12px;
+  max-width: 80%;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tourist-support__message--user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  margin-left: auto;
+}
+
+.tourist-support__message--assistant {
+  align-self: flex-start;
+  background: white;
+  color: #2c3e50;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tourist-support__message-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.tourist-support__message-meta {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.tourist-support__form {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.tourist-support__form input {
+  flex: 1;
+  padding: 0.875rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.tourist-support__form input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.tourist-support__form button {
+  padding: 0.875rem 1.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tourist-support__form button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.tourist-support__form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Suggested Helplines */
+.tourist-support__suggested {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #e8f5e9;
+  border-radius: 8px;
+  border-left: 4px solid #27ae60;
+}
+
+.tourist-support__suggested-title {
+  font-weight: 700;
+  color: #27ae60;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.tourist-support__suggested ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tourist-support__suggested li {
+  font-size: 0.9rem;
+  color: #2c3e50;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tourist-support__suggested-meta {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+}
+
+/* Scrollbar Styling */
+.tourist-support__helpline-list::-webkit-scrollbar,
+.tourist-support__conversation::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tourist-support__helpline-list::-webkit-scrollbar-track,
+.tourist-support__conversation::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.tourist-support__helpline-list::-webkit-scrollbar-thumb,
+.tourist-support__conversation::-webkit-scrollbar-thumb {
+  background: #bdc3c7;
+  border-radius: 4px;
+}
+
+.tourist-support__helpline-list::-webkit-scrollbar-thumb:hover,
+.tourist-support__conversation::-webkit-scrollbar-thumb:hover {
+  background: #95a5a6;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .tourist-support {
+    padding: 0.5rem;
+    gap: 1rem;
+  }
+
+  .tourist-support__header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .tourist-support__header h3 {
+    font-size: 1.5rem;
+  }
+
+  .tourist-support__controls {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+
+  .tourist-support__helplines,
+  .tourist-support__chat {
+    padding: 1rem;
+  }
+
+  .tourist-support__helpline-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tourist-support__quick {
+    flex-direction: column;
+  }
+
+  .tourist-support__quick-button {
+    width: 100%;
+  }
+
+  .tourist-support__message {
+    max-width: 90%;
+  }
+
+  .tourist-support__form {
+    flex-direction: column;
+  }
+
+  .tourist-support__form button {
+    width: 100%;
+  }
+}
+
+/* Loading Animation */
+.tourist-support__status::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 2px solid transparent;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tourist-support__status--error::before {
+  content: '⚠️';
+  animation: none;
+  margin-right: 8px;
+}
+
+/* Accessibility */
+.tourist-support__control select:focus-visible,
+.tourist-support__control input:focus-visible,
+.tourist-support__form input:focus-visible,
+.tourist-support__form button:focus-visible,
+.tourist-support__quick-button:focus-visible {
+  outline: 3px solid #3498db;
+  outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+  .tourist-support__chat,
+  .tourist-support__controls,
+  .tourist-support__form {
+    display: none;
+  }
+
+  .tourist-support__helplines {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}

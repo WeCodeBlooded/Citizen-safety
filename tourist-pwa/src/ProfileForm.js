@@ -22,7 +22,7 @@ const ErrorText = ({ children }) => (
   <div className="error-message" style={{ marginTop: 4 }}>{children}</div>
 );
 
-export default function ProfileForm({ backendUrl, initialEmail = '', initialPassportId = '' }) {
+export default function ProfileForm({ backendUrl, initialEmail = '', initialPassportId = '', activeServiceType = '' }) {
   const BACKEND_URL = useMemo(() => (backendUrl || ''), [backendUrl]);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
@@ -30,8 +30,18 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
   const [serverFiles, setServerFiles] = useState({ passportMain: null, passportSecondary: null, visaDetails: null });
   const [profileComplete, setProfileComplete] = useState(false);
   const [serviceType, setServiceType] = useState(() => {
+    if (activeServiceType) return activeServiceType;
     try { return localStorage.getItem('SERVICE_TYPE') || ''; } catch { return ''; }
   });
+  useEffect(() => {
+    if (!activeServiceType) return;
+    setServiceType(prev => {
+      if ((prev || '').toLowerCase() === activeServiceType.toLowerCase()) {
+        return prev;
+      }
+      return activeServiceType;
+    });
+  }, [activeServiceType]);
   // Try to read Women user context to enable email/Aadhaar lookup when no passportId exists
   const womenUser = useMemo(() => {
     try {
@@ -40,21 +50,34 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
     } catch { return null; }
   }, []);
 
-  const [form, setForm] = useState({
-    fullName: '',
-    contactNumber: '',
-    email: initialEmail || (womenUser?.email || ''),
-    passportId: initialPassportId || '',
-    country: '',
-    visaId: '',
-    visaExpiry: '',
-    emergencyPhone1: '',
-    emergencyEmail1: '',
-    emergencyPhone2: '',
-    emergencyEmail2: '',
-    passportMain: null,
-    passportSecondary: null, 
-    visaDetails: null,
+  const effectiveServiceType = useMemo(
+    () => activeServiceType || serviceType || '',
+    [activeServiceType, serviceType]
+  );
+  const normalizedServiceType = useMemo(
+    () => (effectiveServiceType || '').toLowerCase(),
+    [effectiveServiceType]
+  );
+  const isWomenService = normalizedServiceType === 'women_safety';
+
+  const [form, setForm] = useState(() => {
+    const initialEmailValue = initialEmail || (isWomenService ? (womenUser?.email || '') : '');
+    return {
+      fullName: '',
+      contactNumber: '',
+      email: initialEmailValue,
+      passportId: initialPassportId || '',
+      country: '',
+      visaId: '',
+      visaExpiry: '',
+      emergencyPhone1: '',
+      emergencyEmail1: '',
+      emergencyPhone2: '',
+      emergencyEmail2: '',
+      passportMain: null,
+      passportSecondary: null,
+      visaDetails: null,
+    };
   });
 
   // (header badge is rendered in pf-meta below)
@@ -82,15 +105,17 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
       try {
         // Build lookup params: prefer passportId; else email (and optionally Aadhaar) for non-tourist services
         const params = {};
-        const svc = (serviceType || '').trim();
+        const svc = (effectiveServiceType || '').trim();
         if (pid) {
           params.passportId = pid;
         } else {
-          // For women/general/citizen, allow email/Aadhaar lookup
-          const emailLookup = (form.email || initialEmail || womenUser?.email || '').trim();
+          const emailFallback = isWomenService ? (womenUser?.email || '') : '';
+          const emailLookup = (form.email || initialEmail || emailFallback).trim();
           if (emailLookup) params.email = emailLookup;
-          const aadhaarLookup = womenUser?.aadhaarNumber || womenUser?.aadhaar_number || '';
-          if (!params.email && aadhaarLookup) params.aadhaar = String(aadhaarLookup).trim();
+          if (isWomenService) {
+            const aadhaarLookup = womenUser?.aadhaarNumber || womenUser?.aadhaar_number || '';
+            if (!params.email && aadhaarLookup) params.aadhaar = String(aadhaarLookup).trim();
+          }
         }
         if (svc) params.serviceType = svc;
 
@@ -131,8 +156,15 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
         }
         if (typeof d.profileComplete === 'boolean') setProfileComplete(d.profileComplete);
         if (d.serviceType) {
-          setServiceType(d.serviceType);
-          try { localStorage.setItem('SERVICE_TYPE', d.serviceType); } catch {}
+          setServiceType((prev) => {
+            const incoming = d.serviceType;
+            const incomingLower = String(incoming).toLowerCase();
+            if (activeServiceType && activeServiceType.toLowerCase() !== incomingLower) {
+              return prev || activeServiceType;
+            }
+            try { localStorage.setItem('SERVICE_TYPE', incoming); } catch {}
+            return incoming;
+          });
         }
       } catch (e) {
         // Only set error if a lookup param was present and request failed
@@ -141,13 +173,13 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
       }
     })();
     return () => { cancelled = true; };
-  }, [BACKEND_URL, form.passportId, initialPassportId, form.email, initialEmail, serviceType, womenUser]);
+  }, [BACKEND_URL, form.passportId, initialPassportId, form.email, initialEmail, effectiveServiceType, womenUser, isWomenService, activeServiceType]);
 
   
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
   
-  const isTourist = (serviceType || '').toLowerCase() === 'tourist_safety';
+  const isTourist = normalizedServiceType === 'tourist_safety';
 
   const validate = () => {
     const e = {};
@@ -432,7 +464,7 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
         <div className="pf-meta">
           <h2 className="pf-title" style={{ display:'flex', alignItems:'center', gap:8 }}>
             My Profile
-            {serviceType ? (
+            {effectiveServiceType ? (
               <span style={{
                 fontSize: 12,
                 padding: '4px 8px',
@@ -440,7 +472,7 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
                 background: '#eef2ff',
                 color: '#3730a3',
                 border: '1px solid #c7d2fe',
-              }}>{serviceType.replace('_',' ').replace('_',' ')}</span>
+              }}>{effectiveServiceType.replace('_',' ').replace('_',' ')}</span>
             ) : null}
           </h2>
           <div className="pf-sub">Keep your emergency and travel details up to date.</div>
@@ -494,7 +526,7 @@ export default function ProfileForm({ backendUrl, initialEmail = '', initialPass
         </Field>
 
         {}
-        {isTourist && (
+  {isTourist && (
         <Field label="Country" htmlFor="country" required>
           <select id="country" value={form.country} onChange={(e) => update('country', e.target.value)} required={isTourist}>
             <option value="" disabled>Select your country</option>

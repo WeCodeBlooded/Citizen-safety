@@ -42,7 +42,8 @@ const serviceModules = [
     bgGradient: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
     bgImage: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1200&q=80',
     description: 'Community safety, local alerts, and incident reporting',
-    features: ['Community Alerts', 'Neighborhood Watch', 'Local Incidents', 'Safety Tips']
+    features: ['Community Alerts', 'Neighborhood Watch', 'Local Incidents', 'Safety Tips'],
+    comingSoon: true
   },
   {
     id: 'general_safety',
@@ -52,13 +53,14 @@ const serviceModules = [
     bgGradient: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
     bgImage: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&q=80',
     description: 'All-in-one safety platform with comprehensive features',
-    features: ['All Features', 'Multi-Module Access', 'Emergency Services', 'Complete Protection']
+    features: ['All Features', 'Multi-Module Access', 'Emergency Services', 'Complete Protection'],
+    comingSoon: true
   }
 ];
 
 export default function ServiceRegistration({ onSuccess, onSwitchToLogin }) {
   const BACKEND_URL = useMemo(() => getBackend(), []);
-  const [selectedService, setSelectedService] = useState('general_safety');
+  const [selectedService, setSelectedService] = useState('women_safety');
   const [step, setStep] = useState('select'); // select | register | verify
   const [form, setForm] = useState({
     name: '',
@@ -258,13 +260,20 @@ export default function ServiceRegistration({ onSuccess, onSwitchToLogin }) {
         {serviceModules.map(module => (
           <div
             key={module.id}
-            className={`service-card ${selectedService === module.id ? 'selected' : ''}`}
-            onClick={() => setSelectedService(module.id)}
+            className={`service-card ${selectedService === module.id ? 'selected' : ''} ${module.comingSoon ? 'coming-soon' : ''}`}
+            onClick={() => !module.comingSoon && setSelectedService(module.id)}
             style={{
               borderColor: selectedService === module.id ? module.color : '#e5e7eb',
-              backgroundColor: selectedService === module.id ? `${module.color}10` : '#fff'
+              backgroundColor: selectedService === module.id ? `${module.color}10` : '#fff',
+              cursor: module.comingSoon ? 'not-allowed' : 'pointer',
+              opacity: module.comingSoon ? 0.6 : 1
             }}
           >
+            {module.comingSoon && (
+              <div className="coming-soon-badge">
+                COMING SOON
+              </div>
+            )}
             <div className="service-card-icon" style={{ backgroundColor: module.color }}>
               {module.icon}
             </div>
@@ -286,8 +295,9 @@ export default function ServiceRegistration({ onSuccess, onSwitchToLogin }) {
           className="primary-button large"
           onClick={() => setStep('register')}
           style={{ backgroundColor: currentModule.color }}
+          disabled={currentModule.comingSoon}
         >
-          Continue with {currentModule.label}
+          {currentModule.comingSoon ? 'Coming Soon' : `Continue with ${currentModule.label}`}
         </button>
         
         <div className="login-link">

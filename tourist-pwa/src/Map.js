@@ -78,6 +78,35 @@ const MapControls = ({ userPosition, realTimeTracking, isMapEnlarged, route }) =
 };
 
 
+const MapSizeInvalidator = ({ isMapEnlarged, userPosition, memberCount, routeLength }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        map.invalidateSize();
+      } catch (error) {
+        console.warn('[Map] Failed to invalidate size:', error);
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [map, isMapEnlarged, userPosition?.latitude, userPosition?.longitude, memberCount, routeLength]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => {
+      try {
+        map.invalidateSize();
+      } catch {}
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [map]);
+
+  return null;
+};
+
+
 const RecenterButton = ({ userPosition }) => {
   const map = useMap();
   if (!userPosition) return null;
@@ -129,6 +158,12 @@ const Map = ({ userPosition, groupMembers, route, realTimeTracking, isMapEnlarge
       style={{ height: "100%", width: "100%" }}
     >
       <MapControls userPosition={userPosition} realTimeTracking={realTimeTracking} isMapEnlarged={isMapEnlarged} route={routeLatLon} />
+      <MapSizeInvalidator
+        isMapEnlarged={isMapEnlarged}
+        userPosition={userPosition}
+        memberCount={membersWithLocation.length}
+        routeLength={routeLatLon.length}
+      />
       <RecenterButton userPosition={userPosition} />
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -213,11 +248,22 @@ const Map = ({ userPosition, groupMembers, route, realTimeTracking, isMapEnlarge
         </Marker>
       ))}
       {routeLatLon && routeLatLon.length > 0 && (
-        <Polyline
-          positions={routeLatLon}
-          color="purple"
-          weight={5}
-        />
+        <>
+          {/* White shadow for highlight */}
+          <Polyline
+            positions={routeLatLon}
+            color="#fff"
+            weight={11}
+            opacity={0.7}
+          />
+          {/* Main route line */}
+          <Polyline
+            positions={routeLatLon}
+            color="purple"
+            weight={6}
+            opacity={0.95}
+          />
+        </>
       )}
     </MapContainer>
   );

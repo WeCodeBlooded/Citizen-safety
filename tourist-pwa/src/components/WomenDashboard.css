@@ -245,16 +245,10 @@
 .women-map-container {
   position: relative;
   width: 100%;
-  height: clamp(240px, 32vh, 360px);
-  border-radius: 22px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 44px -28px rgba(15, 23, 42, 0.28);
+  margin-top: 8px;
 }
 
 .women-map-container .leaflet-container {
-  height: 100%;
-  width: 100%;
   font-family: inherit;
 }
 

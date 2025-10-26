@@ -1,8 +1,17 @@
-
-// ...existing code...
+import ReportIncident from './components/ReportIncident';
+import ServiceRegistration from './components/ServiceRegistration';
+import EmailVerification from './components/EmailVerification';
+import Login from './components/Login';
+import Guidance from './components/Guidance';
+import WomenAuth from './components/WomenAuth';
+import WomenDashboard from './components/WomenDashboard';
+import HardwarePanicSettings from './components/HardwarePanicSettings';
+import OfflineSOS from './components/OfflineSOS';
+import TouristSafetyScoreAlerts from './components/TouristSafetyScoreAlerts';
+import Orbits from './components/Orbits';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 // Routing additions
-import { BrowserRouter as Router, Switch, Route, Link, Redirect } from 'react-router-dom';
+import { BrowserRouter as Router, Switch, Route, Redirect, Link } from 'react-router-dom';
 import "./App.css";
 import axios from "axios";
 import AlertModal from "./AlertModal";
@@ -12,17 +21,26 @@ import Map from "./Map";
 import FamilyLogin from "./components/FamilyLogin";
 import FamilyDashboard from "./components/FamilyDashboard";
 import ProfileForm from "./ProfileForm";
-import Login from './components/Login';
-import EmailVerification from './components/EmailVerification';
-import Orbits from './components/Orbits';
-import Guidance from './components/Guidance';
-import ReportIncident from './components/ReportIncident';
-import ServiceRegistration from './components/ServiceRegistration';
-import WomenDashboard from './components/WomenDashboard';
-import WomenAuth from './components/WomenAuth';
-import HardwarePanicSettings from './components/HardwarePanicSettings';
+import SafeZonesMap from './components/SafeZonesMap';
 import offlineLocationTracker from "./utils/offlineLocationTracker";
 import HardwareButtonDetector from "./services/hardwareButtonDetector";
+import TouristSupportCenterModule from "./components/TouristSupportCenter";
+import TouristIncidentReporting from './components/TouristIncidentReporting';
+import TouristNearbyAssistance from './components/TouristNearbyAssistance';
+
+const TouristSupportCenter = TouristSupportCenterModule?.default || TouristSupportCenterModule;
+
+const TOURIST_FEATURE_SECTIONS = [
+  { id: 'live', label: 'Live Location' },
+  { id: 'support', label: 'Support Center' },
+  { id: 'group', label: 'My Group' },
+  { id: 'panic', label: 'Panic Controls' },
+  { id: 'safezones', label: 'Safe Zones' },
+  { id: 'incidents', label: 'Report Incident' },
+  { id: 'nearby', label: 'Nearby Assistance' }
+];
+
+
 
 // Use http for local development (no TLS) to avoid ERR_SSL_PROTOCOL_ERROR.
 // You can override the backend URL at runtime by setting localStorage.setItem('BACKEND_URL', '<your-backend>')
@@ -469,7 +487,6 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-
   const go = (path) => {
     try { window.location.hash = path; } catch {}
   };
@@ -513,6 +530,24 @@ function App() {
   });
   const [pendingLoginContext, setPendingLoginContext] = useState(null);
   const [loggedInUserName, setLoggedInUserName] = useState("");
+  const [touristActivePanel, setTouristActivePanel] = useState('live');
+  const isTouristDashboard = serviceType === 'tourist_safety';
+
+  useEffect(() => {
+    if (!isTouristDashboard) {
+      setTouristActivePanel('live');
+    }
+  }, [isTouristDashboard]);
+
+  useEffect(() => {
+    if (!isTouristDashboard) return;
+    if (typeof window === 'undefined') return;
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (_) {
+      window.scrollTo(0, 0);
+    }
+  }, [touristActivePanel, isTouristDashboard]);
   // profilePicture is not used directly; the profile image is fetched separately
   const destInputRef = useRef(null);
   const [currentPosition, setCurrentPosition] = useState(null);
@@ -549,7 +584,7 @@ function App() {
   
   // Hardware Button Detector
   const hardwareDetectorRef = useRef(null);
-  const [hardwarePanicSettings, setHardwarePanicSettings] = useState(null);
+  const [, setHardwarePanicSettings] = useState(null);
   const [showHardwarePanicProgress, setShowHardwarePanicProgress] = useState(false);
   const [hardwarePanicProgress, setHardwarePanicProgress] = useState(0);
   
@@ -566,6 +601,15 @@ function App() {
     } catch { return true; }
   });
   const [locationSharingStatus, setLocationSharingStatus] = useState('idle'); // idle | sending | syncing | offline | error
+  
+  // --- Safe Route Destination Autocomplete State ---
+  const [destinationQuery, setDestinationQuery] = useState('');
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [selectedDestination, setSelectedDestination] = useState(null);
+  const destinationFetchTimeout = useRef(null);
+  const [destinationError, setDestinationError] = useState("");
+  const [destinationInputFocused, setDestinationInputFocused] = useState(false);
+  
   // Dislocation alert suppression: proximity + local snooze
   const DISLOCATION_PROXIMITY_OK_KM = 0.3; // treat as together within 300m
   const DISLOCATION_SNOOZE_MS = 2 * 60 * 1000; // 2 minutes default snooze to match backend 'yes'
@@ -887,9 +931,10 @@ function App() {
         }
       }
 
-      const responseData = loginResponse?.data || {};
-      const nextService = responseData.serviceType || serviceType || 'general_safety';
-      const nextUserType = responseData.userType || 'tourist';
+  const responseData = loginResponse?.data || {};
+  const nextService = responseData.serviceType || responseData.service_type || serviceType || 'general_safety';
+  const rawNextUserType = responseData.userType || responseData.user_type || 'tourist';
+  const nextUserType = (rawNextUserType || '').toLowerCase() || 'tourist';
 
       if (nextService) {
         setServiceType(nextService);
@@ -925,30 +970,52 @@ function App() {
     }
     try {
       const payload = { email: normalizedEmail, otp };
-      if (pendingLoginContext?.serviceType) payload.serviceType = pendingLoginContext.serviceType;
-      if (pendingLoginContext?.userType) payload.userType = pendingLoginContext.userType;
+      const pendingServiceType = pendingLoginContext?.serviceType;
+      const pendingUserType = pendingLoginContext?.userType;
+      if (pendingServiceType) {
+        payload.serviceType = pendingServiceType;
+        payload.service_type = pendingServiceType;
+      }
+      if (pendingUserType) {
+        payload.userType = pendingUserType;
+        payload.user_type = pendingUserType;
+      }
       const response = await axios.post(
         `${BACKEND_URL}/api/v1/auth/verify-otp`,
         payload
       );
       setPendingLoginContext(null);
-      const { token, name, serviceType: svc, userType: verifiedUserType, womenUser } = response.data;
+      const responseData = response.data || {};
+      const {
+        token,
+        name,
+        serviceType: svcCamel,
+        service_type: svcSnake,
+        userType: userTypeCamel,
+        user_type: userTypeSnake,
+        womenUser,
+        women_user: womenUserSnake
+      } = responseData;
+  const resolvedServiceType = svcCamel || svcSnake || pendingServiceType || serviceType || 'general_safety';
+  const verifiedUserType = (userTypeCamel || userTypeSnake || pendingUserType || '').toLowerCase() || 'tourist';
       // Ensure passportId first so downstream effects have it when userToken appears
-      const newPid = response.data.passportId || passportId;
+      const newPid = responseData.passportId || passportId;
       setPassportId(newPid);
       setLoggedInUserName(name);
       setUserToken(token);
-      if (svc) {
-        setServiceType(svc);
-        try { localStorage.setItem('SERVICE_TYPE', svc); } catch {}
+      if (resolvedServiceType) {
+        setServiceType(resolvedServiceType);
+        try { localStorage.setItem('SERVICE_TYPE', resolvedServiceType); } catch {}
       }
-      if (verifiedUserType === 'women' && womenUser) {
-        try { localStorage.setItem('WOMEN_USER', JSON.stringify(womenUser)); } catch {}
+      const normalizedWomenUser = womenUser || womenUserSnake;
+      if (verifiedUserType === 'women' && normalizedWomenUser) {
+        try { localStorage.setItem('WOMEN_USER', JSON.stringify(normalizedWomenUser)); } catch {}
         // Fetch women user avatar
         try { await fetchSidebarAvatar(null, 'women_safety'); } catch {}
       }
       if (verifiedUserType !== 'women') {
-        try { await fetchSidebarAvatar(newPid, svc); } catch {}
+        try { localStorage.removeItem('WOMEN_USER'); } catch {}
+        try { await fetchSidebarAvatar(newPid, resolvedServiceType); } catch {}
       }
     } catch (error) {
       setErrorMessage(error.response?.data?.message || "OTP verification failed.");
@@ -1100,6 +1167,110 @@ function App() {
       forceRefreshLocation();
     }
   }, [userToken, passportId, forceRefreshLocation]);
+
+  // --- Safe Route Destination Autocomplete Handlers ---
+  const fetchDestinationSuggestions = React.useCallback(async (query) => {
+    setDestinationError("");
+    console.log('[fetchDestinationSuggestions] Fetching suggestions for:', query);
+    const apiKey = process.env.REACT_APP_GEOAPIFY_KEY || 'YOUR_GEOAPIFY_API_KEY';
+    let url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=6&format=json&apiKey=${apiKey}`;
+    // Use currentPositionRef for bias if available
+    if (currentPositionRef.current) {
+      const { latitude, longitude } = currentPositionRef.current;
+      url += `&lat=${latitude}&lon=${longitude}`;
+      console.log('[fetchDestinationSuggestions] Biasing results to current location:', { latitude, longitude });
+    }
+    try {
+      console.log('[fetchDestinationSuggestions] Fetching from URL:', url);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      console.log('[fetchDestinationSuggestions] Received results:', data.results?.length || 0);
+      setDestinationSuggestions(data.results || []);
+      if (!data.results || data.results.length === 0) {
+        setDestinationError("No suggestions found.");
+      }
+    } catch (e) {
+      console.error('[fetchDestinationSuggestions] Error fetching suggestions:', e);
+      setDestinationSuggestions([]);
+      setDestinationError("Error fetching suggestions. Check your network or API key.");
+    }
+  }, []);
+
+  const handleDestinationInput = React.useCallback((e) => {
+    const value = e.target.value;
+    setDestinationQuery(value);
+    setSelectedDestination(null);
+    setDestinationError("");
+    if (destinationFetchTimeout.current) clearTimeout(destinationFetchTimeout.current);
+    if (!value || value.length < 2) {
+      setDestinationSuggestions([]);
+      setDestinationError("");
+      return;
+    }
+    destinationFetchTimeout.current = setTimeout(() => {
+      fetchDestinationSuggestions(value);
+    }, 300);
+  }, [fetchDestinationSuggestions]);
+
+  const handleSelectDestination = React.useCallback((suggestion) => {
+    console.log('[handleSelectDestination] Selected:', suggestion);
+    setSelectedDestination(suggestion);
+    setDestinationQuery(suggestion.formatted || suggestion.name || suggestion.address_line1 || '');
+    setDestinationSuggestions([]);
+  }, []);
+
+  const findSafeRoute = React.useCallback(async (destination) => {
+    console.log('[findSafeRoute] Finding route to:', destination);
+    setDestinationError("");
+    if (!currentPositionRef.current) {
+      setAlertMessage('Current location not available.');
+      setShowAlert(true);
+      return;
+    }
+    const apiKey = process.env.REACT_APP_GEOAPIFY_KEY || 'YOUR_GEOAPIFY_API_KEY';
+    const { latitude, longitude } = currentPositionRef.current;
+    const destLat = destination.lat || destination.latitude || (destination.geometry && destination.geometry.lat);
+    const destLon = destination.lon || destination.longitude || (destination.geometry && destination.geometry.lon);
+    if (destLat == null || destLon == null) {
+      setAlertMessage('Destination coordinates not found.');
+      setShowAlert(true);
+      return;
+    }
+    const url = `https://api.geoapify.com/v1/routing?waypoints=${latitude},${longitude}|${destLat},${destLon}&mode=walk&apiKey=${apiKey}`;
+    try {
+      setAlertMessage('Finding safe route...');
+      setShowAlert(true);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.features && data.features.length > 0) {
+        // Geoapify returns a GeoJSON LineString in geometry.coordinates [lon, lat]
+        let coords = data.features[0].geometry.coordinates;
+        if (!Array.isArray(coords) || coords.length === 0 || !Array.isArray(coords[0])) {
+          setSafeRoute([]);
+          setAlertMessage('Route data invalid or empty.');
+          setShowAlert(true);
+          console.error('[findSafeRoute] Invalid route coordinates:', coords);
+          return;
+        }
+        setSafeRoute(coords);
+        setAlertMessage('Route found!');
+        setShowAlert(true);
+        console.log('[findSafeRoute] Route coordinates:', coords);
+      } else {
+        setSafeRoute([]);
+        setAlertMessage('No route found.');
+        setShowAlert(true);
+        console.error('[findSafeRoute] No route found in API response:', data);
+      }
+    } catch (e) {
+      setSafeRoute([]);
+      setAlertMessage('Error fetching route. Check your network or API key.');
+      setShowAlert(true);
+      console.error('[findSafeRoute] Error:', e);
+    }
+  }, []);
 
   // Hardware Panic Trigger Handler
   const handleHardwarePanicTrigger = React.useCallback(async (triggerData) => {
@@ -1692,6 +1863,21 @@ function App() {
       fetchGroupInfo();
     }
   }, [userToken, fetchGroupInfo]);
+
+  useEffect(() => {
+    if (!userToken || !serviceType) {
+      return;
+    }
+    try {
+      const desiredPath = `/dashboard/${serviceType}`;
+      const currentPath = window.location.pathname;
+      if (currentPath !== desiredPath) {
+        window.history.replaceState(null, '', desiredPath);
+      }
+    } catch (navErr) {
+      console.warn('[navigation] Failed to sync dashboard route:', navErr);
+    }
+  }, [userToken, serviceType]);
 
   useEffect(() => {
     if (!userToken || !passportId) {
@@ -2369,6 +2555,912 @@ function App() {
   }
 
   // MAIN AUTHENTICATED APP VIEW WITH ROUTER
+  const headerNode = (
+    <header className={`app-header card${isTouristDashboard ? ' tourist-navbar' : ''}`}>
+      <div className="brand navbar-brand">
+        <img src="/logo.png" alt="logo" className="app-logo navbar-logo" />
+        <div className="navbar-title-group">
+          <h1 className="app-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {(() => {
+              switch (serviceType) {
+                case 'women_safety': return 'Women Safety';
+                case 'tourist_safety': return 'Tourist Safety';
+                case 'citizen_safety': return 'Citizen Safety';
+                case 'animal_safety': return 'Animal Safety';
+                case 'general_safety':
+                default: return 'Safety Dashboard';
+              }
+            })()}
+            {serviceType ? (
+              <span style={{
+                fontSize: 12,
+                padding: '4px 8px',
+                borderRadius: 999,
+                background: '#eef2ff',
+                color: '#3730a3',
+                border: '1px solid #c7d2fe'
+              }}>
+                {serviceType.replace('_', ' ').replace('_', ' ')}
+              </span>
+            ) : null}
+          </h1>
+          <p className="muted navbar-subtitle">Your safety companion on the go</p>
+        </div>
+      </div>
+
+      <div className="user-actions navbar-user-actions">
+        <button
+          aria-label="Open profile"
+          onClick={() => setIsProfileOpen(true)}
+          className="navbar-profile-btn"
+          title="My Profile"
+        >
+          <div className="pf-avatar navbar-avatar" aria-label="Profile avatar">{initials}</div>
+          <div className="navbar-passport-id">{
+            (() => {
+              const svc = (serviceType || '').toLowerCase();
+              if (svc === 'women_safety') {
+                let name = (loggedInUserName || '').trim();
+                if (!name) {
+                  try {
+                    const raw = localStorage.getItem('WOMEN_USER');
+                    if (raw) name = (JSON.parse(raw).name || '').trim();
+                  } catch {}
+                }
+                return name || 'My Profile';
+              }
+              return passportId;
+            })()
+          }</div>
+        </button>
+      </div>
+    </header>
+  );
+
+
+  const touristLeftSidebar = isTouristDashboard ? (
+    <aside className="tourist-left-menu" aria-label="Tourist dashboard navigation">
+      <h3 className="tourist-left-menu__title">Quick Access</h3>
+      <ul className="tourist-left-menu__list">
+        {TOURIST_FEATURE_SECTIONS.map((item) => {
+          const isActive = touristActivePanel === item.id;
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                className={`tourist-left-menu__link${isActive ? ' tourist-left-menu__link--active' : ''}`}
+                onClick={() => setTouristActivePanel(item.id)}
+              >
+                {item.label}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
+  ) : null;
+
+  const dashboardRoutes = (
+    <Switch>
+      <Route exact path="/">
+        <Redirect to={`/dashboard/${serviceType || 'general_safety'}`} />
+      </Route>
+      <Route path="/guidance">
+        <Guidance />
+      </Route>
+      <Route path="/dashboard/women_safety">
+        {/* Check if women user is authenticated */}
+        {(() => {
+          const womenUser = localStorage.getItem('WOMEN_USER');
+          if (!womenUser) {
+            return <WomenAuth onAuthSuccess={(user) => {
+              window.location.reload();
+            }} />;
+          }
+
+          const userData = JSON.parse(womenUser);
+          return (
+            <>
+              <section className="card hero-card" style={{ marginTop: 0 }}>
+                <div className="hero-top hero-flex">
+                  <div className="hero-info">
+                    <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      flexWrap: 'wrap',
+                      marginBottom: '8px',
+                      padding: '12px',
+                      background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                      borderRadius: '12px',
+                      border: '1px solid #bae6fd'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: locationSharingStatus === 'error' ? '#dc2626' :
+                               locationSharingStatus === 'offline' ? '#f59e0b' :
+                               locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
+                      }}>
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: locationSharingStatus === 'error' ? '#dc2626' :
+                                     locationSharingStatus === 'offline' ? '#f59e0b' :
+                                     locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
+                          animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                          boxShadow: '0 0 8px currentColor'
+                        }} />
+                        <span>
+                          {locationSharingStatus === 'sending' ? 'Sending...' :
+                           locationSharingStatus === 'syncing' ? 'Syncing...' :
+                           locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                           locationSharingStatus === 'error' ? 'Error' :
+                           isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                          Live Sharing
+                        </span>
+                        <label style={{
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: '56px',
+                          height: '32px',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
+                          <input
+                            type="checkbox"
+                            checked={isLiveLocationEnabled}
+                            onChange={toggleLiveLocation}
+                            style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                          />
+                          <span style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
+                            borderRadius: '32px',
+                            transition: 'all 0.3s ease',
+                            boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                          }}>
+                            <span style={{
+                              position: 'absolute',
+                              left: isLiveLocationEnabled ? '28px' : '4px',
+                              top: '4px',
+                              width: '24px',
+                              height: '24px',
+                              background: 'white',
+                              borderRadius: '50%',
+                              transition: 'left 0.3s ease',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                            }} />
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    <p className="muted">We track your location in real-time to keep you safe.</p>
+                  </div>
+                </div>
+              </section>
+
+              <WomenDashboard
+                user={{
+                  name: userData.name,
+                  id: userData.id,
+                  email: userData.email,
+                  mobileNumber: userData.mobileNumber,
+                  aadhaarNumber: userData.aadhaarNumber
+                }}
+                location={{
+                  address: locationName,
+                  latitude: currentPosition?.latitude,
+                  longitude: currentPosition?.longitude,
+                  coords: currentPosition ? {
+                    latitude: currentPosition.latitude,
+                    longitude: currentPosition.longitude,
+                    accuracy: currentPositionRef.current?.accuracy
+                  } : null
+                }}
+              />
+            </>
+          );
+        })()}
+      </Route>
+      <Route path="/hardware-panic-settings">
+        <div className="card" style={{ marginTop: 20 }}>
+          <HardwarePanicSettings passportId={passportId} />
+        </div>
+      </Route>
+      <Route path="/dashboard/:svc">
+        {(!isTouristDashboard || touristActivePanel === 'live') && (
+          <section className="card hero-card" id="live-location-section">
+            {isTouristDashboard && (
+              <div className="hero-card-with-sidebar">
+                {touristLeftSidebar}
+                <div className="hero-card-main-content">
+                  <div className="hero-top hero-flex">
+                    <div className="hero-info">
+                      <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  flexWrap: 'wrap',
+                  marginBottom: '8px',
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                  borderRadius: '12px',
+                  border: '1px solid #bae6fd'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: locationSharingStatus === 'error' ? '#dc2626' :
+                           locationSharingStatus === 'offline' ? '#f59e0b' :
+                           locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
+                  }}>
+                    <div style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      background: locationSharingStatus === 'error' ? '#dc2626' :
+                                 locationSharingStatus === 'offline' ? '#f59e0b' :
+                                 locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
+                      animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                      boxShadow: '0 0 8px currentColor'
+                    }} />
+                    <span>
+                      {locationSharingStatus === 'sending' ? 'Sending...' :
+                       locationSharingStatus === 'syncing' ? 'Syncing...' :
+                       locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                       locationSharingStatus === 'error' ? 'Error' :
+                       isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                      Live Sharing
+                    </span>
+                    <label style={{
+                      position: 'relative',
+                      display: 'inline-block',
+                      width: '56px',
+                      height: '32px',
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
+                      <input
+                        type="checkbox"
+                        checked={isLiveLocationEnabled}
+                        onChange={toggleLiveLocation}
+                        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
+                        borderRadius: '32px',
+                        transition: 'all 0.3s ease',
+                        boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          left: isLiveLocationEnabled ? '28px' : '4px',
+                          top: '4px',
+                          width: '24px',
+                          height: '24px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          transition: 'left 0.3s ease',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                        }} />
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label htmlFor="destination-search" style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Destination</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="destination-search"
+                      ref={destInputRef}
+                      type="text"
+                      value={destinationQuery || ''}
+                      onChange={handleDestinationInput}
+                      onFocus={() => setDestinationInputFocused(true)}
+                      onBlur={() => setTimeout(() => setDestinationInputFocused(false), 200)}
+                      placeholder="Enter destination (address, place, landmark)"
+                      autoComplete="off"
+                      className="input destination-search-input"
+                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: 0 }}
+                    />
+                    {(destinationInputFocused && destinationQuery.length >= 2) && (
+                      <ul className="suggestions-list" style={{ position: 'absolute', background: '#fff', zIndex: 4000, width: '100%', maxHeight: 220, overflowY: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: 6, marginTop: 2, padding: 0, listStyle: 'none', border: '1px solid #e0e7ef' }}>
+                        {destinationSuggestions.length > 0 ? (
+                          destinationSuggestions.map((s, idx) => (
+                            <li key={s.place_id || idx} style={{ padding: '10px 16px', cursor: 'pointer', borderBottom: idx < destinationSuggestions.length - 1 ? '1px solid #f1f5f9' : 'none' }} onClick={() => handleSelectDestination(s)} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
+                              <span style={{ fontWeight: 500, fontSize: '0.95em' }}>{s.formatted || s.name || s.address_line1}</span>
+                              <br />
+                              <span style={{ fontSize: '0.85em', color: '#64748b' }}>{s.address_line2 || s.city || s.country || ''}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li style={{ padding: '10px 16px', color: '#64748b', fontStyle: 'italic' }}>{destinationError || 'No suggestions found.'}</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <button
+                  className="primary-button hero-find-route"
+                  onClick={() => {
+                    if (destInputRef.current) {
+                      destInputRef.current.focus();
+                      destInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    if (selectedDestination) {
+                      findSafeRoute(selectedDestination);
+                    } else {
+                      setAlertMessage('Please select a destination from suggestions.');
+                      setShowAlert(true);
+                    }
+                  }}
+                  style={{ marginTop: 8 }}
+                >
+                  Find Safe Route
+                </button>
+                {/* ...existing code... */}
+              </div>
+              <div className="safety-score-display hero-score">
+                <div className="score-label">Your Current Safety Score</div>
+                <div className="score">{safetyScore !== null ? safetyScore : 'N/A'}</div>
+              </div>
+            </div>
+            {forwardedServices && isPanicMode && (
+              <div style={{ marginTop: 12, background: '#fff8e1', padding: 12, borderRadius: 8, border: '1px solid #facc15' }}>
+                <strong>Authorities Notified:</strong>{' '}
+                {Object.values(forwardedServices).map((s) => s && s.name).filter(Boolean).join(', ') || 'Details pending'}
+              </div>
+            )}
+            <div className="map-area card-section hero-map-area">
+              {currentPosition ? (
+                <>
+                  <div className="location-details">
+                    <p>
+                      <strong>{locationName}</strong>
+                    </p>
+                  </div>
+
+                  <div className="dashboard-map-wrapper">
+                    <Map
+                      userPosition={currentPosition}
+                      groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                      route={safeRoute}
+                      realTimeTracking={realTimeTracking}
+                      isMapEnlarged={false}
+                    />
+                  </div>
+
+                  <div className="dashboard-map-actions">
+                    <button
+                      onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
+                      className="primary-button"
+                      disabled={!safeRoute || safeRoute.length === 0}
+                      title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
+                    >
+                      {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
+                    </button>
+                    <button
+                      onClick={() => setIsMapEnlarged(true)}
+                      className="primary-button"
+                    >
+                      Enlarge Map
+                    </button>
+                  </div>
+
+                  {isMapEnlarged && (
+                    <div style={{
+                      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'rgba(0,0,0,0.6)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <div style={{ width: '95%', height: '90%', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ padding: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5' }}>
+                          <div style={{ fontWeight: 700 }}>Map - Navigation</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
+                            <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
+                          </div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <Map
+                            userPosition={currentPosition}
+                            groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                            route={safeRoute}
+                            realTimeTracking={realTimeTracking}
+                            isMapEnlarged
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                    </>
+                  ) : (
+                    <p className="status-text">Getting your location...</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            )}
+            {!isTouristDashboard && (
+              <>
+                <div className="hero-top hero-flex">
+                  <div className="hero-info">
+                    <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      flexWrap: 'wrap',
+                      marginBottom: '8px',
+                      padding: '12px',
+                      background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                      borderRadius: '12px',
+                      border: '1px solid #bae6fd'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: locationSharingStatus === 'error' ? '#dc2626' :
+                               locationSharingStatus === 'offline' ? '#f59e0b' :
+                               locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
+                      }}>
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: locationSharingStatus === 'error' ? '#dc2626' :
+                                     locationSharingStatus === 'offline' ? '#f59e0b' :
+                                     locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
+                          animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
+                          boxShadow: '0 0 8px currentColor'
+                        }} />
+                        <span>
+                          {locationSharingStatus === 'sending' ? 'Sending...' :
+                           locationSharingStatus === 'syncing' ? 'Syncing...' :
+                           locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                           locationSharingStatus === 'error' ? 'Error' :
+                           isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                          Live Sharing
+                        </span>
+                        <label style={{
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: '56px',
+                          height: '32px',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
+                          <input
+                            type="checkbox"
+                            checked={isLiveLocationEnabled}
+                            onChange={toggleLiveLocation}
+                            style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                          />
+                          <span style={{
+                            position: 'absolute',
+                            inset: 0,
+                            background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
+                            borderRadius: '32px',
+                            transition: 'all 0.3s ease',
+                            boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
+                          }}>
+                            <span style={{
+                              position: 'absolute',
+                              left: isLiveLocationEnabled ? '28px' : '4px',
+                              top: '4px',
+                              width: '24px',
+                              height: '24px',
+                              background: 'white',
+                              borderRadius: '50%',
+                              transition: 'left 0.3s ease',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                            }} />
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    <p className="muted">We track your location in real-time to keep you safe.</p>
+                    <button
+                      className="primary-button hero-find-route"
+                      onClick={() => {
+                        if (destInputRef.current) {
+                          destInputRef.current.focus();
+                          destInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }}
+                    >
+                      Find Safe Route
+                    </button>
+                  </div>
+                  <div className="safety-score-display hero-score">
+                    <div className="score-label">Your Current Safety Score</div>
+                    <div className="score">{safetyScore !== null ? safetyScore : 'N/A'}</div>
+                  </div>
+                </div>
+                {forwardedServices && isPanicMode && (
+                  <div style={{ marginTop: 12, background: '#fff8e1', padding: 12, borderRadius: 8, border: '1px solid #facc15' }}>
+                    <strong>Authorities Notified:</strong>{' '}
+                    {Object.values(forwardedServices).map((s) => s && s.name).filter(Boolean).join(', ') || 'Details pending'}
+                  </div>
+                )}
+                <div className="map-area card-section hero-map-area">
+                  {currentPosition ? (
+                    <>
+                      <div className="location-details">
+                        <p>
+                          <strong>{locationName}</strong>
+                        </p>
+                      </div>
+
+                      <div className="dashboard-map-wrapper">
+                        <Map
+                          userPosition={currentPosition}
+                          groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                          route={safeRoute}
+                          realTimeTracking={realTimeTracking}
+                          isMapEnlarged={false}
+                        />
+                      </div>
+
+                      <div className="dashboard-map-actions">
+                        <button
+                          onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
+                          className="primary-button"
+                          disabled={!safeRoute || safeRoute.length === 0}
+                          title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
+                        >
+                          {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
+                        </button>
+                        <button
+                          onClick={() => setIsMapEnlarged(true)}
+                          className="primary-button"
+                        >
+                          Enlarge Map
+                        </button>
+                      </div>
+
+                      {isMapEnlarged && (
+                        <div style={{
+                          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                          background: 'rgba(0,0,0,0.6)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          <div style={{ width: '95%', height: '90%', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ padding: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5' }}>
+                              <div style={{ fontWeight: 700 }}>Map - Navigation</div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
+                                <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
+                              </div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <Map
+                                userPosition={currentPosition}
+                                groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                                route={safeRoute}
+                                realTimeTracking={realTimeTracking}
+                                isMapEnlarged
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="status-text">Getting your location...</p>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {isTouristDashboard && touristActivePanel === 'support' && (
+          <section className="card" id="tourist-support-section">
+            <TouristSupportCenter
+              backendUrl={BACKEND_URL}
+              passportId={passportId}
+            />
+          </section>
+        )}
+
+        {serviceType !== 'women_safety' && (!isTouristDashboard || touristActivePanel === 'group') && (
+          <section className="card" id="group-section">
+            <h3>Your Group</h3>
+            {groupInfo ? (
+              <div>
+                <h4>{groupInfo.group_name}</h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0 12px 0' }}>
+                  <button className="primary-button" style={{ background: 'linear-gradient(90deg,#f97316,#ef4444)' }} onClick={handleDeleteGroup} disabled={groupActionLoading}>
+                    {groupActionLoading ? 'Deleting…' : 'Delete Group'}
+                  </button>
+                </div>
+                <ul className="member-list" style={{ marginBottom: 12 }}>
+                  {(groupInfo.members || []).map((member, index) => (
+                    <li key={index} className="member-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ flex: 1 }}>{member.name || member.passport_id || 'Member'}{member.status === 'pending' ? ' (pending)' : ''}</span>
+                      {member.status === 'pending' && member.email && (
+                        <button style={{ padding: '6px 10px', fontSize: '.7rem', background: 'linear-gradient(90deg,#6366f1,#8b5cf6)' }} onClick={() => handleCancelInvite(member.email)}>Cancel</button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="invite-form" style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Invite member by email"
+                  />
+                  <button onClick={handleInviteMember} className="primary-button" disabled={inviteLoading}>{inviteLoading ? 'Sending…' : 'Invite'}</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                {(pendingInvites || []).length > 0 && (
+                  <div className="pending-invites">
+                    <h4>Pending Invitations</h4>
+                    {(pendingInvites || []).map((invite) => (
+                      <div key={invite.group_id} className="invite-item">
+                        <span>
+                          You've been invited to join <strong>{invite.group_name}</strong>
+                        </span>
+                        <button onClick={() => handleAcceptInvite(invite.group_id)}>
+                          Accept
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p>You are not in a group yet.</p>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="Enter New Group Name"
+                />
+                <button
+                  onClick={handleCreateGroup}
+                  className="primary-button"
+                >
+                  Create Group
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {isTouristDashboard && touristActivePanel === 'panic' && (
+          <section className="card" id="tourist-panic-panel">
+            <h3>Panic Controls</h3>
+            <p className="muted" style={{ marginBottom: 16 }}>
+              Trigger an alert instantly or review your hardware panic settings. Use the quick actions below for the fastest response.
+            </p>
+            <div className="panic-panel-grid">
+              <div className="panic-panel-card">
+                <h4>Instant SOS</h4>
+                <p>Send a panic alert to your trusted contacts and command center.</p>
+                {isPanicMode ? (
+                  <button
+                    onClick={handleCancelPanic}
+                    className="cancel-button"
+                    style={{ width: '100%', marginTop: 8 }}
+                  >
+                    Cancel Active Alert
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePanic}
+                    className="panic-button"
+                    style={{ width: '100%', marginTop: 8 }}
+                    disabled={loadingPanic}
+                  >
+                    {loadingPanic ? (isOnline ? 'Sending…' : 'Queueing…') : (isOnline ? 'Trigger Panic Alert' : 'Queue Alert (Offline)')}
+                  </button>
+                )}
+                {/* Offline SOS UI (tourist-only) */}
+                {serviceType === 'tourist_safety' && (
+                  <div style={{ marginTop: 12 }}>
+                    <OfflineSOS passportId={passportId} backendUrl={BACKEND_URL} />
+                  </div>
+                )}
+                {isRecording && (
+                  <p className="recording-indicator" style={{ marginTop: 8 }}>◉ Recording audio…</p>
+                )}
+              </div>
+              <div className="panic-panel-card">
+                <h4>Hardware Pattern</h4>
+                <p>Configure how many button presses activate the hardware panic trigger on your wearable or phone.</p>
+                <Link to="/hardware-panic-settings" className="tourist-link-button">
+                  Open Hardware Settings
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Safe Zones Map - Tourist Only */}
+        {isTouristDashboard && touristActivePanel === 'safezones' && (
+          <section className="card" id="tourist-safezones-panel">
+            <SafeZonesMap />
+          </section>
+        )}
+
+        {/* Incident Reporting - Tourist Only */}
+        {isTouristDashboard && touristActivePanel === 'incidents' && (
+          <section className="card" id="tourist-incidents-panel">
+            <TouristIncidentReporting
+              backendUrl={BACKEND_URL}
+              passportId={passportId}
+              currentLocation={currentPosition}
+            />
+          </section>
+        )}
+
+        {/* Safety Score & Alerts - Tourist Only */}
+        {isTouristDashboard && touristActivePanel === 'safety' && (
+          <section className="card" id="tourist-safety-panel">
+            <TouristSafetyScoreAlerts
+              backendUrl={BACKEND_URL}
+              passportId={passportId}
+              currentLocation={currentPosition}
+            />
+          </section>
+        )}
+
+        {isTouristDashboard && touristActivePanel === 'alerts' && (
+          <section className="card" id="tourist-alerts-panel">
+          </section>
+        )}
+
+        {isTouristDashboard && touristActivePanel === 'nearby' && (
+          <section className="card" id="tourist-nearby-panel">
+            <TouristNearbyAssistance backendUrl={BACKEND_URL} currentLocation={currentPosition} />
+          </section>
+        )}
+      </Route>
+    </Switch>
+  );
+
+  const rightSidebar = (
+    <aside className="card sidebar" id="panic-controls">
+      <div className="profile-block">
+        <label htmlFor="sidebarProfileImageInput" style={{ cursor: 'pointer', display: 'block' }}>
+          <ProfileImage
+            relativeUrl={sidebarProfileImageUrl}
+            alt="Profile"
+            className="profile-picture-large"
+            style={{ pointerEvents: 'none' }}
+          />
+          <input
+            id="sidebarProfileImageInput"
+            type="file"
+            accept="image/jpeg, image/png"
+            style={{ display: 'none' }}
+            onChange={onSidebarProfileImageChange}
+            disabled={sidebarProfileImageUploading}
+          />
+        </label>
+        <h3>{loggedInUserName}</h3>
+        <div className="muted">{passportId}</div>
+      </div>
+
+      {serviceType === 'tourist_safety' && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-number">
+              {groupInfo?.members?.length || 0}
+            </div>
+            <div className="muted">Members</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-number">
+              {(pendingInvites || []).length}
+            </div>
+            <div className="muted">Invites</div>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={forceRefreshLocation}
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'linear-gradient(90deg,#3b82f6,#0ea5e9)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+      >
+        Refresh Precise Location
+      </button>
+
+      <div style={{ marginTop: 16 }}>
+        {showHardwarePanicProgress && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            borderRadius: '8px',
+            border: '2px solid #fbbf24'
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400e', marginBottom: '6px' }}>
+              🔘 Hardware Panic Pattern Detected
+            </div>
+            <div style={{
+              width: '100%',
+              height: '6px',
+              background: '#fed7aa',
+              borderRadius: '3px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${hardwarePanicProgress}%`,
+                height: '100%',
+                background: '#f59e0b',
+                transition: 'width 0.3s ease',
+                borderRadius: '3px'
+              }} />
+            </div>
+          </div>
+        )}
+
+        {isPanicMode ? (
+          <button
+            onClick={handleCancelPanic}
+            className="cancel-button big"
+          >
+            Cancel Alert
+          </button>
+        ) : (
+          <button
+            onClick={handlePanic}
+            className="panic-button big"
+            disabled={loadingPanic}
+          >
+            {loadingPanic
+              ? (isOnline ? 'Sending...' : 'Queueing...')
+              : (serviceType === 'women_safety'
+                  ? (isOnline ? 'SOS' : 'SOS (Offline)')
+                  : (isOnline ? 'PANIC' : 'PANIC (Offline)'))}
+          </button>
+        )}
+        {isRecording && (
+          <p className="recording-indicator">◉ Recording audio...</p>
+        )}
+      </div>
+
+      <div style={{ marginTop: 4 }}>
+        <button onClick={handleLogout} className="logout-button">
+          Logout
+        </button>
+      </div>
+    </aside>
+  );
   return (
     <Router>
     <div className="App">
@@ -2383,71 +3475,9 @@ function App() {
           onResponse={handleDislocationResponse}
         />
       )}
+      <div className={`app-container${isTouristDashboard ? ' tourist-shell' : ''}`}>
+        {!isTouristDashboard && <Orbits />}
 
-      <div className="app-container">
-        <Orbits />
-        <header className="app-header card">
-          <div className="brand navbar-brand">
-            <img src="/logo.png" alt="logo" className="app-logo navbar-logo" />
-            <div className="navbar-title-group">
-              <h1 className="app-title" style={{ display:'flex', alignItems:'center', gap:8 }}>
-                {(() => {
-                  switch (serviceType) {
-                    case 'women_safety': return 'Women Safety';
-                    case 'tourist_safety': return 'Tourist Safety';
-                    case 'citizen_safety': return 'Citizen Safety';
-                    case 'animal_safety': return 'Animal Safety';
-                    case 'general_safety':
-                    default: return 'Safety Dashboard';
-                  }
-                })()}
-                {serviceType ? (
-                  <span style={{
-                    fontSize: 12,
-                    padding: '4px 8px',
-                    borderRadius: 999,
-                    background: '#eef2ff',
-                    color: '#3730a3',
-                    border: '1px solid #c7d2fe'
-                  }}>
-                    {serviceType.replace('_',' ').replace('_',' ')}
-                  </span>
-                ) : null}
-              </h1>
-              <p className="muted navbar-subtitle">Your safety companion on the go</p>
-            </div>
-          </div>
-          <div className="user-actions navbar-user-actions">
-            <button
-              aria-label="Open profile"
-              onClick={() => setIsProfileOpen(true)}
-              className="navbar-profile-btn"
-              title="My Profile"
-            >
-              <div className="pf-avatar navbar-avatar" aria-label="Profile avatar">{initials}</div>
-              <div className="navbar-passport-id">{
-                (() => {
-                  const svc = (serviceType || '').toLowerCase();
-                  if (svc === 'women_safety') {
-                    // Prefer loggedInUserName; fallback to WOMEN_USER from localStorage
-                    let name = (loggedInUserName || '').trim();
-                    if (!name) {
-                      try {
-                        const raw = localStorage.getItem('WOMEN_USER');
-                        if (raw) name = (JSON.parse(raw).name || '').trim();
-                      } catch {}
-                    }
-                    return name || 'My Profile';
-                  }
-                  // For other services keep existing behavior (passportId)
-                  return passportId;
-                })()
-              }</div>
-            </button>
-          </div>
-        </header>
-
-        {/* Global Profile modal overlay (visible on any dashboard route) */}
         {isProfileOpen && (
           <div
             role="dialog"
@@ -2471,522 +3501,34 @@ function App() {
                 backendUrl={BACKEND_URL}
                 initialEmail={email}
                 initialPassportId={passportId}
+                activeServiceType={serviceType}
               />
             </div>
           </div>
         )}
 
-        <div className="columns">
-          <main>
-            <Switch>
-              <Route exact path="/">
-                <Redirect to={`/dashboard/${serviceType || 'general_safety'}`} />
-              </Route>
-              <Route path="/guidance">
-                <Guidance />
-              </Route>
-              <Route path="/dashboard/women_safety">
-                {/* Check if women user is authenticated */}
-                {(() => {
-                  const womenUser = localStorage.getItem('WOMEN_USER');
-                  if (!womenUser) {
-                    return <WomenAuth onAuthSuccess={(user) => {
-                      window.location.reload(); // Reload to show dashboard
-                    }} />;
-                  }
-                  
-                  const userData = JSON.parse(womenUser);
-                  return (
-                    <>
-                      {/* Live Location control panel for Women Safety dashboard */}
-                      <section className="card hero-card" style={{ marginTop: 0 }}>
-                        <div className="hero-top hero-flex">
-                          <div className="hero-info">
-                            <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
-                            {/* Live Location Toggle and Status */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '16px',
-                              flexWrap: 'wrap',
-                              marginBottom: '8px',
-                              padding: '12px',
-                              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                              borderRadius: '12px',
-                              border: '1px solid #bae6fd'
-                            }}>
-                              {/* Status indicator */}
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                fontSize: '0.9rem',
-                                fontWeight: 600,
-                                color: locationSharingStatus === 'error' ? '#dc2626' : 
-                                       locationSharingStatus === 'offline' ? '#f59e0b' :
-                                       locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
-                              }}>
-                                <div style={{
-                                  width: '10px',
-                                  height: '10px',
-                                  borderRadius: '50%',
-                                  background: locationSharingStatus === 'error' ? '#dc2626' : 
-                                             locationSharingStatus === 'offline' ? '#f59e0b' :
-                                             locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
-                                  animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
-                                  boxShadow: '0 0 8px currentColor'
-                                }} />
-                                <span>
-                                  {locationSharingStatus === 'sending' ? 'Sending...' :
-                                   locationSharingStatus === 'syncing' ? 'Syncing...' :
-                                   locationSharingStatus === 'offline' ? 'Queued (Offline)' :
-                                   locationSharingStatus === 'error' ? 'Error' :
-                                   isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
-                                </span>
-                              </div>
-                              
-                              {/* Toggle switch with label */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                                  Live Sharing
-                                </span>
-                                <label style={{
-                                  position: 'relative',
-                                  display: 'inline-block',
-                                  width: '56px',
-                                  height: '32px',
-                                  cursor: 'pointer',
-                                  flexShrink: 0
-                                }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
-                                  <input
-                                    type="checkbox"
-                                    checked={isLiveLocationEnabled}
-                                    onChange={toggleLiveLocation}
-                                    style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-                                  />
-                                  <span style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
-                                    borderRadius: '32px',
-                                    transition: 'all 0.3s ease',
-                                    boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
-                                  }}>
-                                    <span style={{
-                                      position: 'absolute',
-                                      left: isLiveLocationEnabled ? '28px' : '4px',
-                                      top: '4px',
-                                      width: '24px',
-                                      height: '24px',
-                                      background: 'white',
-                                      borderRadius: '50%',
-                                      transition: 'left 0.3s ease',
-                                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                                    }} />
-                                  </span>
-                                </label>
-                              </div>
-                            </div>
-                            <p className="muted">We track your location in real-time to keep you safe.</p>
-                          </div>
-                        </div>
-                      </section>
-
-                      <WomenDashboard 
-                        user={{ 
-                          name: userData.name, 
-                          id: userData.id,
-                          email: userData.email,
-                          mobileNumber: userData.mobileNumber,
-                          aadhaarNumber: userData.aadhaarNumber 
-                        }} 
-                        location={{
-                          address: locationName,
-                          latitude: currentPosition?.latitude,
-                          longitude: currentPosition?.longitude,
-                          coords: currentPosition ? {
-                            latitude: currentPosition.latitude,
-                            longitude: currentPosition.longitude,
-                            accuracy: currentPositionRef.current?.accuracy
-                          } : null
-                        }} 
-                      />
-                    </>
-                  );
-                })()}
-              </Route>
-              <Route path="/hardware-panic-settings">
-                <div className="card" style={{ marginTop: 20 }}>
-                  <HardwarePanicSettings passportId={passportId} />
-                </div>
-              </Route>
-              <Route path="/dashboard/:svc">
-                <section className="card hero-card">
-                  <div className="hero-top hero-flex">
-                    <div className="hero-info">
-                      <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
-                      {/* Live Location Toggle and Status */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '16px',
-                        flexWrap: 'wrap',
-                        marginBottom: '8px',
-                        padding: '12px',
-                        background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                        borderRadius: '12px',
-                        border: '1px solid #bae6fd'
-                      }}>
-                        {/* Status indicator */}
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '0.9rem',
-                          fontWeight: 600,
-                          color: locationSharingStatus === 'error' ? '#dc2626' : 
-                                 locationSharingStatus === 'offline' ? '#f59e0b' :
-                                 locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
-                        }}>
-                          <div style={{
-                            width: '10px',
-                            height: '10px',
-                            borderRadius: '50%',
-                            background: locationSharingStatus === 'error' ? '#dc2626' : 
-                                       locationSharingStatus === 'offline' ? '#f59e0b' :
-                                       locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
-                            animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
-                            boxShadow: '0 0 8px currentColor'
-                          }} />
-                          <span>
-                            {locationSharingStatus === 'sending' ? 'Sending...' :
-                             locationSharingStatus === 'syncing' ? 'Syncing...' :
-                             locationSharingStatus === 'offline' ? 'Queued (Offline)' :
-                             locationSharingStatus === 'error' ? 'Error' :
-                             isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
-                          </span>
-                        </div>
-                        
-                        {/* Toggle switch with label */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                            Live Sharing
-                          </span>
-                          <label style={{
-                            position: 'relative',
-                            display: 'inline-block',
-                            width: '56px',
-                            height: '32px',
-                            cursor: 'pointer',
-                            flexShrink: 0
-                          }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
-                            <input
-                              type="checkbox"
-                              checked={isLiveLocationEnabled}
-                              onChange={toggleLiveLocation}
-                              style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
-                            />
-                            <span style={{
-                              position: 'absolute',
-                              inset: 0,
-                              background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
-                              borderRadius: '32px',
-                              transition: 'all 0.3s ease',
-                              boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
-                            }}>
-                              <span style={{
-                                position: 'absolute',
-                                left: isLiveLocationEnabled ? '28px' : '4px',
-                                top: '4px',
-                                width: '24px',
-                                height: '24px',
-                                background: 'white',
-                                borderRadius: '50%',
-                                transition: 'left 0.3s ease',
-                                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                              }} />
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-                      <p className="muted">We track your location in real-time to keep you safe.</p>
-                      <button
-                        className="primary-button hero-find-route"
-                        onClick={() => {
-                          if (destInputRef.current) {
-                            destInputRef.current.focus();
-                            destInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-                          }
-                        }}
-                      >
-                        Find Safe Route
-                      </button>
-                    </div>
-                    <div className="safety-score-display hero-score">
-                      <div className="score-label">Your Current Safety Score</div>
-                      <div className="score">{safetyScore !== null ? safetyScore : "N/A"}</div>
-                    </div>
-                  </div>
-                  {forwardedServices && isPanicMode && (
-                    <div style={{ marginTop: 12, background:'#fff8e1', padding:12, borderRadius:8, border:'1px solid #facc15' }}>
-                      <strong>Authorities Notified:</strong>{' '}
-                      {Object.values(forwardedServices).map(s => s && s.name).filter(Boolean).join(', ') || 'Details pending'}
-                    </div>
-                  )}
-                  <div className="map-area card-section hero-map-area">
-                    {currentPosition ? (
-                      <>
-                        <div className="location-details">
-                          <p>
-                            <strong>{locationName}</strong>
-                          </p>
-                        </div>
-
-                        {/* Small preview map (non-interactive) */}
-                        <div style={{ height: '300px', width: '100%', marginTop: '20px', overflow: 'hidden' }}>
-                          <Map
-                            userPosition={currentPosition}
-                            // Exclude current user so they are not rendered twice ("You are here" + name)
-                            groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter(m => m.passport_id !== passportId)}
-                            route={safeRoute}
-                            realTimeTracking={realTimeTracking}
-                            isMapEnlarged={false} // preview is not interactive
-                          />
-                        </div>
-
-                        <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                          <button
-                            onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
-                            className="primary-button"
-                          >
-                            {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
-                          </button>
-                          <button
-                            onClick={() => setIsMapEnlarged(true)}
-                            className="primary-button"
-                          >
-                            Enlarge Map
-                          </button>
-                        </div>
-
-                        {/* Fullscreen overlay when map is enlarged */}
-                        {isMapEnlarged && (
-                          <div style={{
-                            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                            background: 'rgba(0,0,0,0.6)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                          }}>
-                            <div style={{ width: '95%', height: '90%', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                              <div style={{ padding: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5' }}>
-                                <div style={{ fontWeight: 700 }}>Map - Navigation</div>
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                  <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
-                                  <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
-                                </div>
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <Map
-                                  userPosition={currentPosition}
-                                  // Exclude current user from group markers in enlarged map too
-                                  groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter(m => m.passport_id !== passportId)}
-                                  route={safeRoute}
-                                  realTimeTracking={realTimeTracking}
-                                  isMapEnlarged={true} // interactive map
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="status-text">Getting your location...</p>
-                    )}
-                  </div>
-                </section>
-
-                {/* Hide group section for women_safety */}
-                {serviceType !== 'women_safety' && (
-                  <section className="card">
-                    <h3>Your Group</h3>
-                    {groupInfo ? (
-                      <div>
-                        <h4>{groupInfo.group_name}</h4>
-                        <div style={{ display:'flex', gap:8, flexWrap:'wrap', margin:'6px 0 12px 0' }}>
-                          <button className="primary-button" style={{ background:'linear-gradient(90deg,#f97316,#ef4444)' }} onClick={handleDeleteGroup} disabled={groupActionLoading}>
-                            {groupActionLoading ? 'Deleting…' : 'Delete Group'}
-                          </button>
-                        </div>
-                        <ul className="member-list" style={{ marginBottom:12 }}>
-                          {(groupInfo.members || []).map((member, index) => (
-                            <li key={index} className="member-item" style={{ display:'flex', gap:8, alignItems:'center' }}>
-                              <span style={{ flex:1 }}>{member.name || member.passport_id || 'Member'}{member.status === 'pending' ? ' (pending)' : ''}</span>
-                              {member.status === 'pending' && member.email && (
-                                <button style={{ padding:'6px 10px', fontSize:'.7rem', background:'linear-gradient(90deg,#6366f1,#8b5cf6)' }} onClick={() => handleCancelInvite(member.email)}>Cancel</button>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                        <div className="invite-form" style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                          <input
-                            type="email"
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                            placeholder="Invite member by email"
-                          />
-                          <button onClick={handleInviteMember} className="primary-button" disabled={inviteLoading}>{inviteLoading ? 'Sending…' : 'Invite'}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        {(pendingInvites || []).length > 0 && (
-                          <div className="pending-invites">
-                            <h4>Pending Invitations</h4>
-                            {(pendingInvites || []).map((invite) => (
-                              <div key={invite.group_id} className="invite-item">
-                                <span>
-                                  You've been invited to join{" "}
-                                  <strong>{invite.group_name}</strong>
-                                </span>
-                                <button
-                                  onClick={() => handleAcceptInvite(invite.group_id)}
-                                >
-                                  Accept
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <p>You are not in a group yet.</p>
-                        <input
-                          type="text"
-                          value={newGroupName}
-                          onChange={(e) => setNewGroupName(e.target.value)}
-                          placeholder="Enter New Group Name"
-                        />
-                        <button
-                          onClick={handleCreateGroup}
-                          className="primary-button"
-                        >
-                          Create Group
-                        </button>
-                      </div>
-                    )}
-                  </section>
-                )}
-              </Route>
-            </Switch>
-          </main>
-
-          <aside className="card sidebar">
-            <div className="profile-block">
-              <label htmlFor="sidebarProfileImageInput" style={{ cursor: 'pointer', display: 'block' }}>
-                <ProfileImage
-                  relativeUrl={sidebarProfileImageUrl}
-                  alt="Profile"
-                  className="profile-picture-large"
-                  style={{ pointerEvents: 'none' }}
-                />
-                <input
-                  id="sidebarProfileImageInput"
-                  type="file"
-                  accept="image/jpeg, image/png"
-                  style={{ display: 'none' }}
-                  onChange={onSidebarProfileImageChange}
-                  disabled={sidebarProfileImageUploading}
-                />
-              </label>
-              <h3>{loggedInUserName}</h3>
-              <div className="muted">{passportId}</div>
+        {isTouristDashboard ? (
+          <div className="tourist-dashboard-bg">
+            {headerNode}
+            <div className="tourist-layout">
+              <main className="tourist-dashboard-content">
+                {dashboardRoutes}
+              </main>
+              {/* Always render the right sidebar for all tourist dashboard panels */}
+              {rightSidebar}
             </div>
-            {/* (removed duplicate sidebar profile image logic) */}
-
-            {serviceType === 'tourist_safety' && (
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {groupInfo?.members?.length || 0}
-                  </div>
-                  <div className="muted">Members</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-number">
-                    {(pendingInvites || []).length}
-                  </div>
-                  <div className="muted">Invites</div>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={forceRefreshLocation}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'linear-gradient(90deg,#3b82f6,#0ea5e9)', color:'#fff', fontWeight:600, border:'none', cursor:'pointer' }}
-            >
-              Refresh Precise Location
-            </button>
-
-            <div style={{ marginTop: 16 }}>
-              {/* Hardware Panic Progress Indicator */}
-              {showHardwarePanicProgress && (
-                <div style={{
-                  marginBottom: '12px',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                  borderRadius: '8px',
-                  border: '2px solid #fbbf24'
-                }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400e', marginBottom: '6px' }}>
-                    🔘 Hardware Panic Pattern Detected
-                  </div>
-                  <div style={{
-                    width: '100%',
-                    height: '6px',
-                    background: '#fed7aa',
-                    borderRadius: '3px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${hardwarePanicProgress}%`,
-                      height: '100%',
-                      background: '#f59e0b',
-                      transition: 'width 0.3s ease',
-                      borderRadius: '3px'
-                    }} />
-                  </div>
-                </div>
-              )}
-              
-              {isPanicMode ? (
-                <button
-                  onClick={handleCancelPanic}
-                  className="cancel-button big" // You'll need to style this class
-                >
-                  Cancel Alert
-                </button>
-              ) : (
-                <button
-                  onClick={handlePanic}
-                  className="panic-button big"
-                  disabled={loadingPanic}
-                >
-                  {loadingPanic
-                    ? (isOnline ? "Sending..." : "Queueing...")
-                    : (serviceType === 'women_safety'
-                        ? (isOnline ? 'SOS' : 'SOS (Offline)')
-                        : (isOnline ? 'PANIC' : 'PANIC (Offline)'))}
-                </button>
-              )}
-              {isRecording && (
-                <p className="recording-indicator">◉ Recording audio...</p>
-              )}
+          </div>
+        ) : (
+          <>
+            {headerNode}
+            <div className="columns">
+              <main>
+                {dashboardRoutes}
+              </main>
+              {rightSidebar}
             </div>
-
-            <div style={{ marginTop: 4 }}>
-              <button onClick={handleLogout} className="logout-button">
-                Logout
-              </button>
-            </div>
-          </aside>
-        </div>
+          </>
+        )}
       </div>
     </div>
   </Router>
