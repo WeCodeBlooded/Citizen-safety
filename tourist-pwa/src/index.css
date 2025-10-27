@@ -145,7 +145,7 @@ body {
 
 
 h1, h2, h3, h4, h5, h6 { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 700; color: #1e293b; letter-spacing: -0.02em; line-height: 1.2; }
-h1 { font-size: 2rem; margin: 0 0 12px 0; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+h1 { font-size: 2rem; margin: 0 0 12px 0; font-weight: 800; background: black; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 h2 { font-size: 1.5rem; margin: 0 0 10px 0; color: #1e293b; }
 h3 { font-size: 1.25rem; margin: 0 0 8px 0; color: #334155; }
 p { font-size: 1rem; color: #475569; line-height: 1.6; }

@@ -29,18 +29,23 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
   if (authState === "login") {
     const theme = serviceType || 'tourist_safety';
     return (
-      <div className={`auth-screen has-brand theme-${theme}`}>
-  <div className="auth-brand">SurakshaChakra</div>
-        <div className="auth-subtag">Secure your journey. Rejoin your safety dashboard.</div>
-        
-        <form className="auth-card" onSubmit={handleLoginSubmit} noValidate>
-          <h2 className="auth-title">Login</h2>
-          <p className="auth-lead">Enter your registered email address to receive an OTP.</p>
-          
-          <div className="auth-form-fields">
-            <div className="auth-field">
-              <label>Email Address</label>
+      <div className={`login-screen theme-${theme}`}>
+        <div className="login-shell">
+          <div className="login-brand-block">
+            <div className="login-logo">SurakshaChakra</div>
+            <div className="login-tagline">Secure your journey. Rejoin your safety dashboard.</div>
+          </div>
+
+          <form className="login-card" onSubmit={handleLoginSubmit} noValidate>
+            <header className="login-card-header">
+              <h1>Login</h1>
+              <p>Enter your registered email address to receive an OTP.</p>
+            </header>
+
+            <div className="login-field">
+              <label htmlFor="login-email">Email address</label>
               <input
+                id="login-email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
@@ -48,26 +53,24 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
                 required
                 autoFocus
               />
-              {errorMessage && <div className="auth-error" role="alert">{errorMessage}</div>}
+              {errorMessage && <div className="login-error" role="alert">{errorMessage}</div>}
             </div>
-            
+
             <button
-              className="auth-primary-btn"
+              className="login-primary"
               disabled={loadingLogin || !email.trim()}
               aria-busy={loadingLogin}
               type="submit"
             >
               {loadingLogin ? 'Sending OTP…' : 'Send OTP'}
             </button>
-            
-            <div className="auth-secondary-link">
-              Don't have an account? <span onClick={onSwitchToRegister}>Register</span>
+
+            <div className="login-links">
+              <span className="login-link" onClick={onSwitchToRegister}>Don't have an account? Register</span>
+              <span className="login-link muted" onClick={onSwitchToFamily}>Family member login</span>
             </div>
-            <div className="auth-inline-links">
-              Or <span onClick={onSwitchToFamily}>Family Member Login</span>
-            </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     );
   }
@@ -75,17 +78,21 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
   if (authState === "verifyOtp") {
     const theme = serviceType || 'tourist_safety';
     return (
-      <div className={`auth-screen has-brand theme-${theme}`}>
-  <div className="auth-brand">SurakshaChakra</div>
-        <div className="auth-subtag">Enter the code sent to your registered email.</div>
-        
-        <form className="auth-card" onSubmit={handleOtpSubmit} noValidate>
-          <h2 className="auth-title">Enter OTP</h2>
-          <p className="auth-lead">We've sent a 6‑digit verification code.</p>
-          
-          <div className="auth-form-fields">
-            <div className="auth-field">
-              <label>Registered Email</label>
+      <div className={`login-screen theme-${theme}`}>
+        <div className="login-shell">
+          <div className="login-brand-block">
+            <div className="login-logo">SurakshaChakra</div>
+            <div className="login-tagline">Enter the code sent to your registered email.</div>
+          </div>
+
+          <form className="login-card" onSubmit={handleOtpSubmit} noValidate>
+            <header className="login-card-header">
+              <h1>Enter OTP</h1>
+              <p>We've sent a 6-digit verification code.</p>
+            </header>
+
+            <div className="login-field">
+              <label>Registered email</label>
               <input
                 value={email}
                 readOnly
@@ -93,17 +100,18 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
                 type="email"
               />
             </div>
-            
+
             {passportId && (
-              <div className="auth-field">
+              <div className="login-field">
                 <label>Account ID</label>
                 <input value={passportId} readOnly placeholder="Assigned ID" type="text" />
               </div>
             )}
 
-            <div className="auth-field">
-              <label>OTP Code</label>
+            <div className="login-field">
+              <label htmlFor="login-otp">OTP code</label>
               <input
+                id="login-otp"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 placeholder="Enter 6-digit OTP"
@@ -111,18 +119,16 @@ export default function Login({ onLogin, onVerifyOtp, onSwitchToRegister, onSwit
                 maxLength="6"
                 required
               />
-              {errorMessage && <div className="auth-error" role="alert">{errorMessage}</div>}
+              {errorMessage && <div className="login-error" role="alert">{errorMessage}</div>}
             </div>
-            
-            <button className="auth-primary-btn" disabled={!otp.trim()} type="submit">
+
+            <button className="login-primary" disabled={!otp.trim()} type="submit">
               Login
             </button>
-            
-            <div className="auth-small-note">
-              Didn't receive it? Check spam or request again later.
-            </div>
-          </div>
-        </form>
+
+            <div className="login-note">Didn't receive it? Check spam or request again later.</div>
+          </form>
+        </div>
       </div>
     );
   }
