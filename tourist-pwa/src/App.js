@@ -3379,7 +3379,7 @@ function App() {
                         Call Support
                       </button>
                       <button type="button" className="tourist-quick-action" onClick={() => setTouristActivePanel('safety')}>
-                        Health Check
+                        Community Feedback
                       </button>
                     </div>
                   </div>
