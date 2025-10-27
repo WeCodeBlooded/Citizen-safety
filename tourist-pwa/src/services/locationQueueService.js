@@ -223,24 +223,43 @@ class LocationQueueService {
    * Get backend URL
    */
   getBackendURL() {
+    const sanitize = (value) => {
+      if (!value) return null;
+      let candidate = value.trim();
+      if (!candidate) return null;
+      if (!/^https?:\/\//i.test(candidate)) {
+        candidate = `http://${candidate.replace(/^\/+/,'')}`;
+      }
+      try {
+        const parsed = new URL(candidate);
+        return parsed.origin;
+      } catch (err) {
+        console.warn('[LocationQueueService] Failed to sanitize backend URL:', err?.message || err);
+        return null;
+      }
+    };
+
     try {
       const stored = localStorage.getItem('BACKEND_URL');
-      if (stored && stored.trim()) {
-        return stored.trim();
+      const normalized = sanitize(stored);
+      if (normalized) {
+        return normalized;
       }
     } catch (e) {
       // ignore
     }
 
+    const fallbackLocal = sanitize(process.env.REACT_APP_BACKEND_URL) || 'http://localhost:3001';
+
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:3001';
+        return fallbackLocal;
       }
       return `${window.location.protocol}//${hostname}:3001`;
     }
 
-    return 'http://localhost:3001';
+    return fallbackLocal;
   }
 
   /**

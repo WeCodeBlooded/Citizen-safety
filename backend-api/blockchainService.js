@@ -1,67 +1,36 @@
-const { ethers } = require("ethers");
+const core = require("./blockchain");
 
-
-const HARDHAT_RPC_URL = "http://127.0.0.1:8545"; 
-const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-const PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-
-
-const provider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
-
-
-const signer = new ethers.Wallet(PRIVATE_KEY, provider);
-
-
-
-
-const contractABI = [
-  {
-    inputs: [
-      { internalType: "string", name: "_name", type: "string" },
-      { internalType: "string", name: "_passportId", type: "string" },
-    ],
-    name: "createId",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  
-  {
-    inputs: [{ internalType: "string", name: "_groupId", type: "string" }],
-    name: "createGroup",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-];
-
-
-const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
-
-
-const mintDigitalId = async (name, passportId) => {
+async function mintDigitalId(name, passportId, options = {}) {
   try {
-    console.log("Minting Digital ID on the blockchain...");
-    const tx = await contract.createId(name, passportId);
-    await tx.wait(); 
-    console.log("Digital ID minted successfully! Transaction:", tx.hash);
-    return tx.hash;
-  } catch (error) {
-    console.error("Error minting Digital ID:", error);
-  }
-};
-
-const mintGroupId = async (groupId) => {
-    try {
-        console.log(`Minting Group ID ${groupId} on the blockchain...`);
-        const tx = await contract.createGroup(groupId);
-        await tx.wait(); 
-        console.log("Group ID minted successfully! Transaction:", tx.hash);
-        return tx.hash;
-    } catch (error) {
-        console.error("Error minting Group ID:", error);
+    const result = await core.mintDigitalId(name, passportId, options);
+    if (result && result.txHash) {
+      console.log("[blockchain] Digital ID minted", result.txHash);
     }
+    return result;
+  } catch (error) {
+    console.error("[blockchain] mintDigitalId failed", error?.message || error);
+    return null;
+  }
+}
+
+async function mintGroupId(groupId, metadataURI = "") {
+  try {
+    const result = await core.mintGroupId(groupId, metadataURI);
+    if (result && result.txHash) {
+      console.log("[blockchain] Group ID minted", result.txHash);
+    }
+    return result;
+  } catch (error) {
+    console.error("[blockchain] mintGroupId failed", error?.message || error);
+    return null;
+  }
+}
+
+module.exports = {
+  ...core,
+  mintDigitalId,
+  mintGroupId
 };
 
-module.exports = { mintDigitalId, mintGroupId };
+
+

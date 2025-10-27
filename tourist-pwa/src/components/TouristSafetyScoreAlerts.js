@@ -25,7 +25,7 @@ const colorForScore = (score) => {
   return `rgb(${r},${g},${b})`;
 };
 
-export default function TouristSafetyScoreAlerts({ backendUrl = 'http://localhost:3001', passportId, currentLocation }) {
+export default function TouristSafetyScoreAlerts({ backendUrl = process.env.REACT_APP_BACKEND_URL, passportId, currentLocation }) {
   const mapRef = useRef(null);
   const cellsLayerRef = useRef(null);
   const userMarkerRef = useRef(null);

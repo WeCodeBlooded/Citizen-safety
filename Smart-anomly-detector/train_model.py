@@ -1,204 +1,214 @@
-# train_model.py
-"""
-Train models on merged gps_logs.csv and gps_data.csv.
-Saves:
- - model/scaler.pkl
- - model/isolation_forest.pkl
- - model/dbscan.pkl
- - model/feature_cols.pkl
- - model/model_metadata.json
-Also logs to MLflow if available.
+"""Train the Smart Anomaly Detector offline model suite.
+
+This script ingests historic GPS traces plus contextual incident reports,
+engineers session-level features, and fits both an Isolation Forest (primary
+ML detector) and a DBSCAN density model used for secondary scoring. All model
+artifacts, metadata, and the hotspot index are saved to the model/ directory.
 """
 
-import os
 import json
-import math
-import joblib
-import pandas as pd
-import numpy as np
-from collections import Counter
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import IsolationForest
-from sklearn.cluster import DBSCAN
-from datetime import datetime
-from math import radians, cos, sin, asin, sqrt
+import os
+from datetime import datetime, timezone
 
-# Paths
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.cluster import DBSCAN
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+
+from feature_engineering import (
+    DEFAULT_GRID_SIZE,
+    build_hotspot_index,
+    compute_session_features,
+    load_points_from_dataframe,
+    save_hotspot_index,
+)
+
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODEL_DIR = os.path.join(BASE_DIR, "model")
+HOTSPOT_PATH = os.path.join(MODEL_DIR, "hotspot_index.json")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# ----------------------
-# Helper functions
-# ----------------------
-def haversine_km(p1, p2):
-    lat1, lon1 = p1[0], p1[1]
-    lat2, lon2 = p2[0], p2[1]
-    R = 6371.0
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    return R * c
 
-def detect_stops(points, threshold_km=0.2, dwell_seconds=300):
-    """Return list of stop coords detected for a session"""
-    stops = []
-    for i in range(len(points)-1):
-        p0 = (points[i]['lat'], points[i]['lon'])
-        p1 = (points[i+1]['lat'], points[i+1]['lon'])
-        dt = (pd.to_datetime(points[i+1]['timestamp']) - pd.to_datetime(points[i]['timestamp'])).total_seconds()
-        if haversine_km(p0, p1) < threshold_km and dt > dwell_seconds:
-            stops.append(p0)
-    return stops
+def _normalise_gps_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure a GPS dataframe has the expected schema."""
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["session_id", "lat", "lon", "timestamp"])
 
-def extract_features_for_session(points):
-    """points: list of dicts with lat, lon, timestamp"""
-    feats = {}
-    # sort by timestamp
-    pts = sorted(points, key=lambda x: pd.to_datetime(x['timestamp']))
-    # speeds (km/h)
-    speeds = []
-    dists = []
-    for i in range(len(pts)-1):
-        p0 = (pts[i]['lat'], pts[i]['lon'])
-        p1 = (pts[i+1]['lat'], pts[i+1]['lon'])
-        dist_km = haversine_km(p0, p1)
-        dt_hours = (pd.to_datetime(pts[i+1]['timestamp']) - pd.to_datetime(pts[i]['timestamp'])).total_seconds() / 3600.0
-        if dt_hours > 0:
-            speeds.append(dist_km / dt_hours)
-        dists.append(dist_km)
-    feats['avg_speed'] = float(np.mean(speeds)) if speeds else 0.0
-    feats['max_speed'] = float(np.max(speeds)) if speeds else 0.0
-    feats['std_speed'] = float(np.std(speeds)) if speeds else 0.0
-    total_distance = float(np.sum(dists)) if dists else 0.0
-    feats['total_distance'] = total_distance
+    cols = [c.strip().lower() for c in df.columns]
+    df.columns = cols
+    if "session_id" not in df.columns:
+        if len(df.columns) != 4:
+            raise RuntimeError(
+                "gps csv must have columns session_id,lat,lon,timestamp or be four-column without headers"
+            )
+        df.columns = ["session_id", "lat", "lon", "timestamp"]
+    required = ["session_id", "lat", "lon", "timestamp"]
+    df = df.dropna(subset=required).copy()
+    df["session_id"] = df["session_id"].astype(int)
+    df["lat"] = df["lat"].astype(float)
+    df["lon"] = df["lon"].astype(float)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df.dropna(subset=["timestamp"])
+    return df[required]
 
-    # route deviation: ratio actual / straight-line
-    straight_km = haversine_km((pts[0]['lat'], pts[0]['lon']), (pts[-1]['lat'], pts[-1]['lon'])) if len(pts) >= 2 else 0.0
-    feats['route_deviation_ratio'] = float(total_distance / (straight_km + 1e-6))
 
-    # stops
-    stop_locs = detect_stops(pts)
-    feats['isolated_stops'] = int(len(stop_locs))
-
-    # night fraction
-    hours = [pd.to_datetime(p['timestamp']).hour for p in pts]
-    night_points = sum(1 for h in hours if h < 6 or h > 22)
-    feats['night_fraction'] = float(night_points / len(pts)) if pts else 0.0
-
-    # location entropy
-    grid = [(round(p['lat'], 3), round(p['lon'], 3)) for p in pts]
-    counts = Counter(grid)
-    probs = [c/len(pts) for c in counts.values()] if pts else [0.0]
-    entropy = -sum(p * math.log(p) for p in probs if p>0) if probs else 0.0
-    feats['location_entropy'] = float(entropy)
-
-    # time features (from first point)
-    first_ts = pd.to_datetime(pts[0]['timestamp'])
-    feats['hour'] = int(first_ts.hour)
-    feats['day_of_week'] = int(first_ts.weekday())
-
-    # inactivity / time_since_last (we will set time_since_last to 0 for training; backend can compute live)
-    feats['time_since_last'] = 0.0
-
-    # placeholder features for integrations (crime_rate, event_density)
-    feats['crime_rate_local'] = 0.0
-    feats['event_density_local'] = 0.0
-
-    return feats
-
-# ----------------------
-# Main training
-# ----------------------
-def main():
-    # Load both CSVs if present
+def load_gps_sessions() -> pd.DataFrame:
+    frames = []
     logs_path = os.path.join(DATA_DIR, "gps_logs.csv")
     data_path = os.path.join(DATA_DIR, "gps_data.csv")
 
-    dfs = []
     if os.path.exists(logs_path):
         df_logs = pd.read_csv(logs_path)
-        # ensure timestamps have consistent ISO format
-        df_logs['timestamp'] = pd.to_datetime(df_logs['timestamp']).dt.strftime("%Y-%m-%dT%H:%M:%S")
-        dfs.append(df_logs)
+        frames.append(_normalise_gps_df(df_logs))
     if os.path.exists(data_path):
-        df_data = pd.read_csv(data_path, header=0)
-        # gps_data format in your example doesn't have headers. If it does have headers, adjust.
-        # We'll try to infer: If there are 4 columns, assume session_id, lat, lon, timestamp
-        if df_data.shape[1] == 4:
-            df_data.columns = ['session_id','lat','lon','timestamp']
-            df_data['timestamp'] = pd.to_datetime(df_data['timestamp']).dt.strftime("%Y-%m-%dT%H:%M:%S")
-            dfs.append(df_data)
-        else:
-            raise RuntimeError("gps_data.csv shape unexpected. Ensure it has 4 columns: session_id,lat,lon,timestamp")
+        df_data = pd.read_csv(data_path)
+        frames.append(_normalise_gps_df(df_data))
 
-    if not dfs:
-        raise RuntimeError("No GPS CSVs found in data/ folder. Please place gps_logs.csv or gps_data.csv")
+    if not frames:
+        raise RuntimeError("No GPS CSVs found in data/. Provide gps_logs.csv or gps_data.csv.")
 
-    merged = pd.concat(dfs, ignore_index=True)
+    merged = pd.concat(frames, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["session_id", "timestamp", "lat", "lon"])
+    return merged
 
-    # Build session-level rows
+
+def load_reviews() -> pd.DataFrame:
+    reviews_path = os.path.join(DATA_DIR, "reviews_reports.csv")
+    if not os.path.exists(reviews_path):
+        return pd.DataFrame()
+    df = pd.read_csv(reviews_path)
+    required = {"lat", "lon", "severity_score"}
+    if not required.issubset(df.columns):
+        return pd.DataFrame()
+    df = df.dropna(subset=list(required)).copy()
+    df["lat"] = df["lat"].astype(float)
+    df["lon"] = df["lon"].astype(float)
+    df["severity_score"] = df["severity_score"].astype(float)
+    return df
+
+
+def main():
+    print("📦 Loading GPS sessions …")
+    gps_df = load_gps_sessions()
+    session_points = load_points_from_dataframe(gps_df)
+    if not session_points:
+        raise RuntimeError("No session data available after preprocessing.")
+
+    print("📊 Loaded", len(session_points), "sessions (", len(gps_df), "points )")
+
+    print("🛰️ Building hotspot index …")
+    reviews_df = load_reviews()
+    hotspot_index = None
+    if not reviews_df.empty:
+        grid_size = float(os.getenv("HOTSPOT_GRID_SIZE", DEFAULT_GRID_SIZE))
+        hotspot_index = build_hotspot_index(reviews_df, grid_size=grid_size)
+        save_hotspot_index(hotspot_index, HOTSPOT_PATH)
+        print(
+            "   Hotspot grid size:", grid_size,
+            "| cells:", len(hotspot_index.get("cells", {})),
+        )
+    else:
+        hotspot_index = None
+        if os.path.exists(HOTSPOT_PATH):
+            os.remove(HOTSPOT_PATH)
+        print("   No incident reviews found; hotspot features disabled.")
+
+    print("🧮 Engineering features …")
     feature_rows = []
-    for sid, group in merged.groupby('session_id'):
-        points = group.sort_values('timestamp').to_dict(orient='records')
-        feats = extract_features_for_session(points)
-        feats['session_id'] = int(sid)
+    for session_id, points in session_points.items():
+        feats = compute_session_features(points, session_id=session_id, hotspot_index=hotspot_index)
         feature_rows.append(feats)
 
     features_df = pd.DataFrame(feature_rows).fillna(0.0)
+    if features_df.empty:
+        raise RuntimeError("Feature dataframe is empty. Check input data quality.")
 
-    # Stable feature order - pick columns we engineered
-    feature_cols = ['session_id','avg_speed','max_speed','std_speed','total_distance',
-                    'route_deviation_ratio','isolated_stops','night_fraction','location_entropy',
-                    'hour','day_of_week','time_since_last','crime_rate_local','event_density_local']
-    feature_cols = [c for c in feature_cols if c in features_df.columns]
+    feature_cols = [
+        "session_id",
+        "avg_speed",
+        "max_speed",
+        "std_speed",
+        "total_distance",
+        "route_deviation_ratio",
+        "isolated_stops",
+        "night_fraction",
+        "location_entropy",
+        "hour",
+        "day_of_week",
+        "time_since_last",
+        "crime_rate_local",
+        "event_density_local",
+    ]
+    missing_cols = [c for c in feature_cols if c not in features_df.columns]
+    if missing_cols:
+        raise RuntimeError(f"Missing engineered feature columns: {missing_cols}")
+
     X = features_df[feature_cols].copy()
+    X.pop("session_id")
 
-    # scale (drop session_id from scaling)
-    sess = X['session_id'].values.reshape(-1,1)
-    X_nosess = X.drop(columns=['session_id']) if 'session_id' in X.columns else X
     scaler = StandardScaler()
-    Xs = scaler.fit_transform(X_nosess.values)
+    Xs = scaler.fit_transform(X.values)
 
-    # Train IsolationForest on session features (not session_id)
-    iso = IsolationForest(n_estimators=200, contamination=0.05, random_state=42)
+    n_sessions = len(features_df)
+    base_contamination = float(os.getenv("IFOREST_CONTAMINATION", "0.05"))
+    contamination = max(0.01, min(0.2, base_contamination))
+    if contamination * n_sessions < 1:
+        contamination = max(0.01, min(0.2, 2.0 / max(n_sessions, 10)))
+
+    iso = IsolationForest(
+        n_estimators=300,
+        contamination=contamination,
+        random_state=42,
+        bootstrap=False,
+        max_samples="auto",
+    )
     iso.fit(Xs)
 
-    # DBSCAN fit on same scaled features
-    dbs = DBSCAN(eps=1.5, min_samples=2).fit(Xs)
+    eps = float(os.getenv("DBSCAN_EPS", "2.5"))
+    min_samples = int(os.getenv("DBSCAN_MIN_SAMPLES", "3"))
+    dbs = DBSCAN(eps=eps, min_samples=min_samples)
+    dbs.fit(Xs)
 
-    # Save artifacts
+    print("💾 Saving artifacts …")
     joblib.dump(scaler, os.path.join(MODEL_DIR, "scaler.pkl"))
     joblib.dump(iso, os.path.join(MODEL_DIR, "isolation_forest.pkl"))
     joblib.dump(dbs, os.path.join(MODEL_DIR, "dbscan.pkl"))
     joblib.dump(feature_cols, os.path.join(MODEL_DIR, "feature_cols.pkl"))
 
-    # Save metadata
+    decision_scores = iso.decision_function(Xs)
     metadata = {
-        "trained_at": datetime.utcnow().isoformat(),
-        "n_sessions": int(len(features_df)),
-        "feature_cols": feature_cols
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "n_sessions": int(n_sessions),
+        "gps_points": int(len(gps_df)),
+        "feature_cols": feature_cols,
+        "iforest": {
+            "contamination": float(contamination),
+            "n_estimators": int(iso.n_estimators),
+            "decision_score_min": float(np.min(decision_scores)),
+            "decision_score_max": float(np.max(decision_scores)),
+            "decision_score_median": float(np.median(decision_scores)),
+        },
+        "dbscan": {
+            "eps": float(eps),
+            "min_samples": int(min_samples),
+            "n_clusters": int(len(set(label for label in dbs.labels_ if label >= 0))),
+            "noise_ratio": float((dbs.labels_ == -1).sum() / len(dbs.labels_)),
+        },
+        "hotspot": {
+            "enabled": bool(hotspot_index),
+            "grid_size": float(hotspot_index.get("grid_size")) if hotspot_index else None,
+            "cells": int(len(hotspot_index.get("cells", {}))) if hotspot_index else 0,
+        },
     }
-    with open(os.path.join(MODEL_DIR, "model_metadata.json"), "w") as f:
-        json.dump(metadata, f, indent=2)
+    with open(os.path.join(MODEL_DIR, "model_metadata.json"), "w", encoding="utf-8") as fh:
+        json.dump(metadata, fh, indent=2)
 
     print("✅ Training complete. Models saved to", MODEL_DIR)
-    print("Metadata:", metadata)
+    print(json.dumps(metadata, indent=2))
 
-    # (Optional) log to mlflow if available
-    try:
-        import mlflow, mlflow.sklearn
-        mlflow.set_experiment("tourist_safety")
-        with mlflow.start_run():
-            mlflow.log_params({"n_sessions": metadata['n_sessions'], "n_features": len(feature_cols)-1})
-            mlflow.sklearn.log_model(iso, "isolation_forest")
-            mlflow.log_artifact(os.path.join(MODEL_DIR, "model_metadata.json"))
-            print("✅ logged to mlflow")
-    except Exception:
-        # mlflow optional
-        pass
 
 if __name__ == "__main__":
     main()

@@ -40,63 +40,104 @@ const TOURIST_FEATURE_SECTIONS = [
   { id: 'nearby', label: 'Nearby Assistance' }
 ];
 
+const DEFAULT_BACKEND_PORT = process.env.REACT_APP_BACKEND_PORT || '3001';
 
+const deriveDefaultBackendUrl = () => {
+  const envValue = (process.env.REACT_APP_BACKEND_URL || '').trim();
+  if (envValue) {
+    return envValue;
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol = 'http:', hostname = 'localhost', port } = window.location;
+    if (/^(localhost|127\.0\.0\.1)$/i.test(hostname)) {
+      return `${protocol}//${hostname}:${DEFAULT_BACKEND_PORT}`;
+    }
+    const targetPort = port ? `:${port}` : '';
+    return `${protocol}//${hostname}${targetPort}`;
+  }
+  return `http://localhost:${DEFAULT_BACKEND_PORT}`;
+};
 
-// Use http for local development (no TLS) to avoid ERR_SSL_PROTOCOL_ERROR.
-// You can override the backend URL at runtime by setting localStorage.setItem('BACKEND_URL', '<your-backend>')
-// Default backend selection: prefer localhost when running locally.
-const FALLBACK_NGROK = "http://localhost:3001";
-const DEFAULT_BACKEND =
-  (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost')
-    ? 'http://localhost:3001'
-    : FALLBACK_NGROK;
+const sanitizeBackendUrl = (rawValue, fallbackValue) => {
+  const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+  if (!value) {
+    return fallbackValue;
+  }
+  let candidate = value;
+  if (!/^https?:\/\//i.test(candidate)) {
+    const protocolGuess =
+      (typeof window !== 'undefined' && window.location && window.location.protocol) || 'http:';
+    candidate = `${protocolGuess}//${candidate.replace(/^\/+/, '')}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.pathname && parsed.pathname !== '/') {
+      console.warn(
+        `[config] BACKEND_URL included path '${parsed.pathname}', trimming to origin.`
+      );
+    }
+    return parsed.origin;
+  } catch (error) {
+    console.warn('[config] Failed to parse BACKEND_URL, resetting to fallback.', error?.message || error);
+    return fallbackValue;
+  }
+};
 
-// Read raw value from localStorage (if present) and sanitize it to avoid
-// malformed values like " https://..." which create requests to
-// "http://%20https/..." and cause ERR_NAME_NOT_RESOLVED.
-let _rawBackend = DEFAULT_BACKEND;
+const DEFAULT_BACKEND = deriveDefaultBackendUrl();
+
+let rawBackendUrl = DEFAULT_BACKEND;
 if (typeof window !== 'undefined') {
   try {
-    const v = localStorage.getItem('BACKEND_URL');
-    if (v) _rawBackend = v;
-  } catch (e) {
-    // ignore localStorage access errors
+    const stored = localStorage.getItem('BACKEND_URL');
+    if (stored) {
+      rawBackendUrl = stored;
+    }
+  } catch (error) {
+    console.warn('[config] Unable to read BACKEND_URL from storage:', error?.message || error);
   }
 }
-let BACKEND_URL = (typeof _rawBackend === 'string' ? _rawBackend.trim() : DEFAULT_BACKEND) || DEFAULT_BACKEND;
-// Normalize scheme-less or malformed values
-if (!/^https?:\/\//i.test(BACKEND_URL)) {
-  console.warn('[config] BACKEND_URL lacked protocol, defaulting to', DEFAULT_BACKEND);
-  BACKEND_URL = DEFAULT_BACKEND;
-}
+
+let BACKEND_URL = sanitizeBackendUrl(rawBackendUrl, DEFAULT_BACKEND);
 
 try {
   const parsed = new URL(BACKEND_URL);
-  if (parsed.pathname && parsed.pathname !== '/') {
-    console.warn(`[config] BACKEND_URL included path '${parsed.pathname}', trimming to origin.`);
+  if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname) && parsed.port !== String(DEFAULT_BACKEND_PORT)) {
+    const newUrl = `${parsed.protocol}//${parsed.hostname}:${DEFAULT_BACKEND_PORT}`;
+    console.warn(
+      `[config] Normalizing BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for local backend access.`
+    );
+    BACKEND_URL = newUrl;
   }
-  BACKEND_URL = parsed.origin;
 } catch (error) {
-  console.warn('[config] Failed to parse BACKEND_URL, resetting to default.', error?.message || error);
-  BACKEND_URL = DEFAULT_BACKEND;
+  console.warn('[config] BACKEND_URL normalization failed:', error?.message || error);
 }
-// If the frontend is being opened from a LAN IP (e.g., 192.168.x.x) and BACKEND_URL still points to localhost,
-// remote devices will try to reach their own localhost instead of the dev machine. Automatically rewrite.
+
 try {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    const isLocalhostBackend = /(^|\b)localhost\b/i.test(BACKEND_URL);
     const isLoopbackFrontend = /^(localhost|127\.0\.0\.1)$/i.test(host);
+    const isLocalhostBackend = /(^|\b)localhost\b/i.test(BACKEND_URL);
     if (!isLoopbackFrontend && isLocalhostBackend) {
-      const newUrl = `${window.location.protocol}//${host}:3001`;
-      console.warn(`[config] Rewriting BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for LAN access.`);
+      const newUrl = `${window.location.protocol}//${host}:${DEFAULT_BACKEND_PORT}`;
+      console.warn(
+        `[config] Rewriting BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for LAN access.`
+      );
       BACKEND_URL = newUrl;
     }
   }
-} catch (e) {
-  // ignore
+} catch (error) {
+  console.warn('[config] BACKEND_URL rewrite for LAN failed:', error?.message || error);
 }
+
 console.log('[config] Using BACKEND_URL =', BACKEND_URL);
+
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.setItem('BACKEND_URL', BACKEND_URL);
+  } catch (error) {
+    console.warn('[config] Failed to persist BACKEND_URL:', error?.message || error);
+  }
+}
 
 // Ensure axios sends cookies for session handling and add the ngrok skip header globally
 axios.defaults.withCredentials = true;
@@ -253,6 +294,7 @@ function App() {
     const smoothLat = avg.lat / len;
     const smoothLon = avg.lon / len;
     setCurrentPosition({ latitude: smoothLat, longitude: smoothLon });
+    setLastLocationTimestamp(Date.now());
     currentPositionRef.current = { latitude: smoothLat, longitude: smoothLon, accuracy };
     lastAcceptedPosRef.current = { lat: latitude, lon: longitude, time: Date.now(), accuracy };
   };
@@ -571,8 +613,12 @@ function App() {
   const [pendingInvites, setPendingInvites] = useState([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [groupActionLoading, setGroupActionLoading] = useState(false);
+  const [safeZoneSummary, setSafeZoneSummary] = useState({ count: null, nearest: null, loading: false, error: null });
+  const [lastLocationTimestamp, setLastLocationTimestamp] = useState(null);
+  const [emergencyContactCount, setEmergencyContactCount] = useState(0);
   const [showGeoAlert, setShowGeoAlert] = useState(false);
   const [geoAlertData, setGeoAlertData] = useState(null);
+  const [dislocationPrompts, setDislocationPrompts] = useState([]);
   const [locationName, setLocationName] = useState("");
   const [safetyScore, setSafetyScore] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -615,22 +661,65 @@ function App() {
   const DISLOCATION_SNOOZE_MS = 2 * 60 * 1000; // 2 minutes default snooze to match backend 'yes'
 
   // helpers for snooze persistence
-  const getSnoozeKey = (groupName) => `disloc_snooze_${groupName || 'unknown'}`;
-  const isGroupSnoozed = (groupName) => {
-    try {
-      const raw = localStorage.getItem(getSnoozeKey(groupName));
-      if (!raw) return false;
-      const until = Number(raw);
-      if (!until) return false;
-      if (Date.now() < until) return true;
-      // expired -> cleanup
-      localStorage.removeItem(getSnoozeKey(groupName));
-      return false;
-    } catch { return false; }
-  };
-  const snoozeGroup = (groupName, ms = DISLOCATION_SNOOZE_MS) => {
-    try { localStorage.setItem(getSnoozeKey(groupName), String(Date.now() + ms)); } catch {}
-  };
+  const getSnoozeKey = React.useCallback(
+    (groupName) => `disloc_snooze_${groupName || 'unknown'}`,
+    []
+  );
+  const isGroupSnoozed = React.useCallback(
+    (groupName) => {
+      try {
+        const raw = localStorage.getItem(getSnoozeKey(groupName));
+        if (!raw) return false;
+        const until = Number(raw);
+        if (!until) return false;
+        if (Date.now() < until) return true;
+        // expired -> cleanup
+        localStorage.removeItem(getSnoozeKey(groupName));
+        return false;
+      } catch {
+        return false;
+      }
+    },
+    [getSnoozeKey]
+  );
+  const snoozeGroup = React.useCallback(
+    (groupName, ms = DISLOCATION_SNOOZE_MS) => {
+      try {
+        localStorage.setItem(
+          getSnoozeKey(groupName),
+          String(Date.now() + ms)
+        );
+      } catch {}
+    },
+    [getSnoozeKey, DISLOCATION_SNOOZE_MS]
+  );
+
+  const submitDislocationResponse = React.useCallback(
+    async ({ groupName, response, alertId }) => {
+      if (!passportId) return;
+      try {
+        await axios.post(
+          `${BACKEND_URL}/api/v1/groups/dislocation-response`,
+          {
+            groupName,
+            passportId,
+            response,
+            alertId,
+          },
+          {
+            withCredentials: true,
+            headers: { 'ngrok-skip-browser-warning': 'true' },
+          }
+        );
+      } catch (error) {
+        console.warn(
+          '[dislocation] Failed to submit response via HTTP:',
+          error?.message || error
+        );
+      }
+    },
+    [passportId]
+  );
 
   // Toggle live location sharing
   const toggleLiveLocation = () => {
@@ -721,6 +810,49 @@ function App() {
     if (parts.length === 1) return parts[0][0].toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }, [loggedInUserName]);
+
+  const lastCheckInLabel = useMemo(() => {
+    if (!lastLocationTimestamp) return '—';
+    const diffSeconds = Math.max(0, Math.round((Date.now() - lastLocationTimestamp) / 1000));
+    if (diffSeconds < 60) return '<1m';
+    if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m`;
+    if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h`;
+    return `${Math.floor(diffSeconds / 86400)}d`;
+  }, [lastLocationTimestamp]);
+
+  const safeZoneCountLabel = useMemo(() => {
+    if (safeZoneSummary.loading && safeZoneSummary.count === null) return '…';
+    if (safeZoneSummary.count == null) return '0';
+    return String(safeZoneSummary.count);
+  }, [safeZoneSummary]);
+
+  const nearestSafeZoneLabel = useMemo(() => {
+    if (safeZoneSummary.loading) return 'Fetching nearby safe zones…';
+    if (!safeZoneSummary.count) return 'No safe zones within 5 km';
+    if (typeof safeZoneSummary.nearest === 'number') {
+      if (safeZoneSummary.nearest < 1) {
+        const meters = Math.max(50, Math.round(safeZoneSummary.nearest * 1000));
+        return `${meters} m away`;
+      }
+      return `${safeZoneSummary.nearest.toFixed(1)} km away`;
+    }
+    return 'Within 5 km radius';
+  }, [safeZoneSummary]);
+
+  const touristDisplayName = useMemo(() => {
+    if (!loggedInUserName) return 'Traveler';
+    const trimmed = loggedInUserName.trim();
+    if (!trimmed) return 'Traveler';
+    const first = trimmed.split(/\s+/)[0];
+    return first || 'Traveler';
+  }, [loggedInUserName]);
+
+  const locationStatusColor = useMemo(() => {
+    if (locationSharingStatus === 'error') return '#dc2626';
+    if (locationSharingStatus === 'offline') return '#f59e0b';
+    if (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') return '#3b82f6';
+    return isLiveLocationEnabled ? '#10b981' : '#94a3b8';
+  }, [locationSharingStatus, isLiveLocationEnabled]);
 
   // Sidebar profile image state and upload logic (depends on passportId)
   const [sidebarProfileImageUrl, setSidebarProfileImageUrl] = useState("");
@@ -821,6 +953,87 @@ function App() {
     } catch { return null; }
   }, [currentPosition, groupInfo, passportId]);
 
+  const presentDislocationAlert = React.useCallback(
+    (incoming, options = {}) => {
+      if (!incoming) return false;
+      const { ignoreProximityCheck = false } = options || {};
+
+      const dislocatedMemberRaw =
+        incoming.dislocatedMember || incoming.dislocated_member;
+      if (!dislocatedMemberRaw) {
+        return false;
+      }
+
+      const groupName = incoming.groupName || incoming.group_name;
+      if (groupName && isGroupSnoozed(groupName)) {
+        console.log(
+          `[dislocationAlert] Ignoring alert for ${groupName} because it is snoozed locally.`
+        );
+        return false;
+      }
+
+      const distanceRaw =
+        incoming.distance ?? incoming.distanceKm ?? incoming.distance_km;
+      const parsedDistance =
+        typeof distanceRaw === "number" ? distanceRaw : parseFloat(distanceRaw);
+      const proximityDistance = Number.isFinite(parsedDistance)
+        ? parsedDistance
+        : nearestGroupDistanceKm();
+
+      if (
+        !ignoreProximityCheck &&
+        proximityDistance != null &&
+        proximityDistance <= DISLOCATION_PROXIMITY_OK_KM
+      ) {
+        console.log(
+          "[dislocationAlert] Suppressing due to proximity:",
+          proximityDistance
+        );
+        return false;
+      }
+
+      const promptKey = groupName ? `group:${groupName}` : "group:unknown";
+      const normalizedAlert = {
+        id:
+          incoming.alertId ||
+          incoming.id ||
+          `disloc-${groupName || "unknown"}-${Date.now()}`,
+        alertId: incoming.alertId || incoming.id || null,
+        promptKey,
+        groupName,
+        dislocatedMember: dislocatedMemberRaw,
+        otherMember: incoming.otherMember || incoming.other_member || "group",
+        distance:
+          distanceRaw !== undefined && distanceRaw !== null
+            ? String(distanceRaw)
+            : "",
+        message: incoming.message,
+      };
+
+      setDislocationPrompts((prev) => {
+        const base = Array.isArray(prev) ? prev : [];
+        const filtered = base.filter((entry) => {
+          if (normalizedAlert.alertId && entry.alertId) {
+            return entry.alertId !== normalizedAlert.alertId;
+          }
+          return entry.promptKey !== promptKey;
+        });
+        return [...filtered, normalizedAlert];
+      });
+      setGeoAlertData(normalizedAlert);
+      setShowGeoAlert(true);
+      return true;
+    },
+    [
+      isGroupSnoozed,
+      nearestGroupDistanceKm,
+      setDislocationPrompts,
+      setGeoAlertData,
+      setShowGeoAlert,
+      DISLOCATION_PROXIMITY_OK_KM,
+    ]
+  );
+
   // When the map is enlarged (fullscreen overlay), disable page scroll
   useEffect(() => {
     if (isMapEnlarged) {
@@ -847,6 +1060,9 @@ function App() {
           group_name: data.group_name || data.groupName || "Unnamed Group",
           members: Array.isArray(data.members) ? data.members : [],
         };
+        if (data.pendingDislocationAlert) {
+          safe.pendingDislocationAlert = data.pendingDislocationAlert;
+        }
         setGroupInfo(safe.group_id ? safe : null);
         if (!safe.group_id) {
           console.warn("Group object received without group_id, treating as no group", data);
@@ -854,6 +1070,11 @@ function App() {
         // No need to refresh invites if we have a group
         if (safe.group_id) {
           setPendingInvites([]);
+          if (data.pendingDislocationAlert) {
+            presentDislocationAlert(data.pendingDislocationAlert, {
+              ignoreProximityCheck: true,
+            });
+          }
           return;
         }
       }
@@ -877,7 +1098,18 @@ function App() {
     } catch (error) {
       console.warn("Could not fetch group info:", error?.message || error);
     }
-  }, [passportId]);
+  }, [passportId, presentDislocationAlert]);
+
+  useEffect(() => {
+    if (!isTouristDashboard) {
+      setEmergencyContactCount(0);
+      return;
+    }
+    const count = Array.isArray(groupInfo?.members)
+      ? groupInfo.members.filter(Boolean).length
+      : 0;
+    setEmergencyContactCount(count);
+  }, [groupInfo, isTouristDashboard]);
 
 
   // Registration is delegated to RegisterForm component now; removed unused handleRegister
@@ -1044,6 +1276,7 @@ function App() {
       setPendingInvites([]);
       setErrorMessage("");
       setAuthState("login");
+  setDislocationPrompts([]);
       
       // Clear women user from localStorage
       try {
@@ -1057,23 +1290,53 @@ function App() {
 
   // Removed inline profile picture upload from header; handled within profile flow if needed.
 
-  const handleDislocationResponse = (response) => {
-    if (socketRef.current && geoAlertData) {
+  const handleDislocationResponse = (response, alertPayload = null) => {
+    const payload = alertPayload || geoAlertData;
+    if (!payload) {
+      return;
+    }
+
+    if (socketRef.current) {
       socketRef.current.emit("dislocationResponse", {
-        groupName: geoAlertData.groupName,
+        groupName: payload.groupName,
         passportId: passportId,
-        response: response, // 'yes' or 'no'
+        response: response,
+        alertId: payload.alertId || payload.id || null,
       });
     }
-    // Local snooze to avoid repeated popups immediately
-    if (geoAlertData && geoAlertData.groupName) {
-      // Match backend: 'yes' -> 2 minutes, 'no' -> 5 minutes
+
+    submitDislocationResponse({
+      groupName: payload.groupName,
+      response,
+      alertId: payload.alertId || payload.id || null,
+    });
+
+    if (payload.groupName) {
       const ms = String(response).toLowerCase() === 'no' ? (5 * 60 * 1000) : (2 * 60 * 1000);
-      snoozeGroup(geoAlertData.groupName, ms);
+      snoozeGroup(payload.groupName, ms);
     }
-    // Close the modal immediately after responding
-    setShowGeoAlert(false);
-    setGeoAlertData(null);
+
+    const promptKey =
+      payload.promptKey || (payload.groupName ? `group:${payload.groupName}` : null);
+    setDislocationPrompts((prev) => {
+      if (!Array.isArray(prev)) {
+        return [];
+      }
+      return prev.filter((entry) => {
+        if (payload.alertId && entry.alertId) {
+          return entry.alertId !== payload.alertId;
+        }
+        if (promptKey) {
+          return entry.promptKey !== promptKey;
+        }
+        return entry.id !== payload.id;
+      });
+    });
+
+    if (!alertPayload || (geoAlertData && geoAlertData.groupName === payload.groupName)) {
+      setShowGeoAlert(false);
+      setGeoAlertData(null);
+    }
   };
 
   const handleCloseAlert = () => {
@@ -1121,6 +1384,7 @@ function App() {
           const { latitude, longitude, accuracy } = position.coords;
           console.log('[forceRefreshLocation] Fresh reading:', { latitude, longitude, accuracy, attempt: attemptNo, highAccuracy });
           setCurrentPosition({ latitude, longitude });
+          setLastLocationTimestamp(Date.now());
           currentPositionRef.current = { latitude, longitude, accuracy };
           fetchLocationName(latitude, longitude);
           // push immediate update via offline tracker (no await in sync callback)
@@ -1167,6 +1431,45 @@ function App() {
       forceRefreshLocation();
     }
   }, [userToken, passportId, forceRefreshLocation]);
+
+  useEffect(() => {
+    if (!isTouristDashboard) return;
+    if (!currentPosition?.latitude || !currentPosition?.longitude) return;
+
+    let cancelled = false;
+    setSafeZoneSummary((prev) => ({ ...prev, loading: true, error: null }));
+
+    const fetchNearbyZones = async () => {
+      try {
+        const res = await axios.get(`${BACKEND_URL}/api/v1/safe-zones/nearby`, {
+          params: {
+            lat: currentPosition.latitude,
+            lon: currentPosition.longitude,
+            radius: 5,
+            limit: 12,
+          },
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+        });
+
+        if (cancelled) return;
+        const zones = Array.isArray(res.data?.data) ? res.data.data : [];
+        const nearestDistance = zones.length && typeof zones[0]?.distance === 'number'
+          ? zones[0].distance
+          : null;
+        setSafeZoneSummary({ count: zones.length, nearest: nearestDistance, loading: false, error: null });
+      } catch (error) {
+        if (cancelled) return;
+        setSafeZoneSummary((prev) => ({ ...prev, loading: false, error: error?.message || 'Failed to load safe zones' }));
+      }
+    };
+
+    const timer = setTimeout(fetchNearbyZones, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isTouristDashboard, currentPosition?.latitude, currentPosition?.longitude]);
 
   // --- Safe Route Destination Autocomplete Handlers ---
   const fetchDestinationSuggestions = React.useCallback(async (query) => {
@@ -1910,51 +2213,19 @@ function App() {
 
     socket.on("dislocationAlert", (alertData) => {
       console.log("Received Dislocation Alert:", alertData);
-      const groupName = alertData.groupName || alertData.group_name;
-      // Suppress if snoozed locally
-      if (groupName && isGroupSnoozed(groupName)) return;
-      // Proximity suppression
-      const nearestKm = nearestGroupDistanceKm();
-      if (nearestKm != null && nearestKm <= DISLOCATION_PROXIMITY_OK_KM) {
-        console.log('Suppressing dislocationAlert due to proximity:', nearestKm);
-        return;
+      const handled = presentDislocationAlert(alertData);
+      if (!handled) {
+        console.log(
+          "[dislocationAlert] Alert ignored (snoozed, proximate, or invalid)."
+        );
       }
-      // Normalize payload to show in GeoFenceAlertModal (interactive)
-      const normalized = {
-        groupName,
-        dislocatedMember: alertData.dislocatedMember || alertData.dislocated_member || 'A member',
-        otherMember: alertData.otherMember || alertData.other_member || 'group',
-        distance: String(alertData.distance || alertData.distanceKm || ''),
-        message: alertData.message,
-      };
-      setGeoAlertData(normalized);
-      setShowGeoAlert(true);
     });
 
     socket.on("geoFenceAlert", (alertData) => {
       console.log("Received Geo-Fence Alert:", alertData);
-      // Only treat group-dislocation alerts here; other types show as-is
-      const isGroupDislocation = alertData?.type === 'group-dislocation' || !!alertData?.dislocatedMember;
-      const groupName = alertData.groupName || alertData.group_name;
-      if (isGroupDislocation) {
-        if (groupName && isGroupSnoozed(groupName)) return;
-        const nearestKm = nearestGroupDistanceKm();
-        if (nearestKm != null && nearestKm <= DISLOCATION_PROXIMITY_OK_KM) {
-          console.log('Suppressing geoFenceAlert (dislocation) due to proximity:', nearestKm);
-          return;
-        }
-        const normalized = {
-          groupName,
-          dislocatedMember: alertData.dislocatedMember || 'A member',
-          otherMember: alertData.otherMember || 'group',
-          distance: String(alertData.distance || alertData.distanceKm || ''),
-          message: alertData.message,
-        };
-        setGeoAlertData(normalized);
-        setShowGeoAlert(true);
+      if (presentDislocationAlert(alertData)) {
         return;
       }
-      // Non-dislocation geo-fence alerts
       setGeoAlertData(alertData);
       setShowGeoAlert(true);
     });
@@ -2129,7 +2400,13 @@ function App() {
       if (socketRef.current) socketRef.current.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- socket/geolocation lifecycle managed manually
-  }, [userToken, passportId, serviceType]);
+  }, [
+    userToken,
+    passportId,
+    serviceType,
+    presentDislocationAlert,
+    submitDislocationResponse,
+  ]);
 
   // Geolocation tracking for women users (no passportId, uses email/aadhaar)
   useEffect(() => {
@@ -2571,24 +2848,23 @@ function App() {
                 default: return 'Safety Dashboard';
               }
             })()}
-            {serviceType ? (
-              <span style={{
-                fontSize: 12,
-                padding: '4px 8px',
-                borderRadius: 999,
-                background: '#eef2ff',
-                color: '#3730a3',
-                border: '1px solid #c7d2fe'
-              }}>
-                {serviceType.replace('_', ' ').replace('_', ' ')}
-              </span>
-            ) : null}
           </h1>
           <p className="muted navbar-subtitle">Your safety companion on the go</p>
         </div>
       </div>
 
       <div className="user-actions navbar-user-actions">
+        {isTouristDashboard && (
+          <button
+            type="button"
+            className={`navbar-panic-button${isPanicMode ? ' navbar-panic-button--active' : ''}`}
+            onClick={isPanicMode ? handleCancelPanic : handlePanic}
+            disabled={loadingPanic}
+            title={isPanicMode ? 'Cancel active SOS alert' : 'Trigger emergency SOS'}
+          >
+            {loadingPanic ? 'Processing…' : (isPanicMode ? 'Cancel SOS' : 'SOS Panic')}
+          </button>
+        )}
         <button
           aria-label="Open profile"
           onClick={() => setIsProfileOpen(true)}
@@ -2618,17 +2894,17 @@ function App() {
   );
 
 
-  const touristLeftSidebar = isTouristDashboard ? (
-    <aside className="tourist-left-menu" aria-label="Tourist dashboard navigation">
-      <h3 className="tourist-left-menu__title">Quick Access</h3>
-      <ul className="tourist-left-menu__list">
+  const touristFeatureMenu = isTouristDashboard ? (
+    <nav className="tourist-feature-menu" aria-label="Tourist dashboard navigation">
+      <div className="tourist-feature-menu__label">Feature Shortcuts</div>
+      <ul className="tourist-feature-menu__list">
         {TOURIST_FEATURE_SECTIONS.map((item) => {
           const isActive = touristActivePanel === item.id;
           return (
             <li key={item.id}>
               <button
                 type="button"
-                className={`tourist-left-menu__link${isActive ? ' tourist-left-menu__link--active' : ''}`}
+                className={`tourist-feature-menu__link${isActive ? ' tourist-feature-menu__link--active' : ''}`}
                 onClick={() => setTouristActivePanel(item.id)}
               >
                 {item.label}
@@ -2637,7 +2913,7 @@ function App() {
           );
         })}
       </ul>
-    </aside>
+    </nav>
   ) : null;
 
   const dashboardRoutes = (
@@ -2781,229 +3057,225 @@ function App() {
       </Route>
       <Route path="/dashboard/:svc">
         {(!isTouristDashboard || touristActivePanel === 'live') && (
-          <section className="card hero-card" id="live-location-section">
-            {isTouristDashboard && (
-              <div className="hero-card-with-sidebar">
-                {touristLeftSidebar}
-                <div className="hero-card-main-content">
-                  <div className="hero-top hero-flex">
-                    <div className="hero-info">
-                      <h2 style={{ margin: 0, marginBottom: '8px' }}>Live Location</h2>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  flexWrap: 'wrap',
-                  marginBottom: '8px',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                  borderRadius: '12px',
-                  border: '1px solid #bae6fd'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                    color: locationSharingStatus === 'error' ? '#dc2626' :
-                           locationSharingStatus === 'offline' ? '#f59e0b' :
-                           locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981'
-                  }}>
-                    <div style={{
-                      width: '10px',
-                      height: '10px',
-                      borderRadius: '50%',
-                      background: locationSharingStatus === 'error' ? '#dc2626' :
-                                 locationSharingStatus === 'offline' ? '#f59e0b' :
-                                 locationSharingStatus === 'syncing' || locationSharingStatus === 'sending' ? '#3b82f6' : '#10b981',
-                      animation: (locationSharingStatus === 'syncing' || locationSharingStatus === 'sending') ? 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' : 'none',
-                      boxShadow: '0 0 8px currentColor'
-                    }} />
-                    <span>
-                      {locationSharingStatus === 'sending' ? 'Sending...' :
-                       locationSharingStatus === 'syncing' ? 'Syncing...' :
-                       locationSharingStatus === 'offline' ? 'Queued (Offline)' :
-                       locationSharingStatus === 'error' ? 'Error' :
-                       isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
-                    </span>
+          <section className={`card hero-card${isTouristDashboard ? ' tourist-hero-card' : ''}`} id="live-location-section">
+            {isTouristDashboard ? (
+              <div className="tourist-hero">
+                <div className="tourist-hero__intro">
+                  <div className="tourist-hero__welcome">
+                    <h2>Welcome back, {touristDisplayName}!</h2>
+                    <p>Your current location: <span>{locationName || 'Detecting location…'}</span></p>
                   </div>
+                  <div className="tourist-hero__stats-grid">
+                    <article className="tourist-stat-card">
+                      <span className="tourist-stat-card__label">Safety Score</span>
+                      <span className="tourist-stat-card__value">{safetyScore !== null ? safetyScore : '—'}</span>
+                      <span className="tourist-stat-card__hint">Updated every minute</span>
+                    </article>
+                    <article className="tourist-stat-card">
+                      <span className="tourist-stat-card__label">Emergency Contacts</span>
+                      <span className="tourist-stat-card__value">{emergencyContactCount}</span>
+                      <span className="tourist-stat-card__hint">{emergencyContactCount > 0 ? 'Trusted circle ready' : 'Add your trusted circle'}</span>
+                    </article>
+                    <article className="tourist-stat-card">
+                      <span className="tourist-stat-card__label">Safe Zones Nearby</span>
+                      <span className="tourist-stat-card__value">{safeZoneCountLabel}</span>
+                      <span className="tourist-stat-card__hint">{nearestSafeZoneLabel}</span>
+                    </article>
+                    <article className="tourist-stat-card">
+                      <span className="tourist-stat-card__label">Last Check-in</span>
+                      <span className="tourist-stat-card__value">{lastCheckInLabel}</span>
+                      <span className="tourist-stat-card__hint">Auto synced</span>
+                    </article>
+                  </div>
+                </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', opacity: isPanicMode ? 0.6 : 1, pointerEvents: isPanicMode ? 'none' : 'auto' }} title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                      Live Sharing
-                    </span>
-                    <label style={{
-                      position: 'relative',
-                      display: 'inline-block',
-                      width: '56px',
-                      height: '32px',
-                      cursor: 'pointer',
-                      flexShrink: 0
-                    }} title={isPanicMode ? 'Location sharing is locked during an active alert' : (isLiveLocationEnabled ? 'Click to pause location sharing' : 'Click to enable location sharing')}>
-                      <input
-                        type="checkbox"
-                        checked={isLiveLocationEnabled}
-                        onChange={toggleLiveLocation}
-                        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                <div className="tourist-hero__body">
+                  <div className="tourist-live-card">
+                    <div className="tourist-live-card__status-bar">
+                      <div
+                        className="tourist-live-card__status-indicator"
+                        style={{ background: locationStatusColor, boxShadow: `0 0 12px ${locationStatusColor}` }}
                       />
-                      <span style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: isLiveLocationEnabled ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1',
-                        borderRadius: '32px',
-                        transition: 'all 0.3s ease',
-                        boxShadow: isLiveLocationEnabled ? '0 2px 8px rgba(16, 185, 129, 0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.1)'
-                      }}>
-                        <span style={{
-                          position: 'absolute',
-                          left: isLiveLocationEnabled ? '28px' : '4px',
-                          top: '4px',
-                          width: '24px',
-                          height: '24px',
-                          background: 'white',
-                          borderRadius: '50%',
-                          transition: 'left 0.3s ease',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
-                        }} />
-                      </span>
-                    </label>
-                  </div>
-                </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label htmlFor="destination-search" style={{ fontWeight: 600, display: 'block', marginBottom: 4 }}>Destination</label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      id="destination-search"
-                      ref={destInputRef}
-                      type="text"
-                      value={destinationQuery || ''}
-                      onChange={handleDestinationInput}
-                      onFocus={() => setDestinationInputFocused(true)}
-                      onBlur={() => setTimeout(() => setDestinationInputFocused(false), 200)}
-                      placeholder="Enter destination (address, place, landmark)"
-                      autoComplete="off"
-                      className="input destination-search-input"
-                      style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #cbd5e1', marginBottom: 0 }}
-                    />
-                    {(destinationInputFocused && destinationQuery.length >= 2) && (
-                      <ul className="suggestions-list" style={{ position: 'absolute', background: '#fff', zIndex: 4000, width: '100%', maxHeight: 220, overflowY: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: 6, marginTop: 2, padding: 0, listStyle: 'none', border: '1px solid #e0e7ef' }}>
-                        {destinationSuggestions.length > 0 ? (
-                          destinationSuggestions.map((s, idx) => (
-                            <li key={s.place_id || idx} style={{ padding: '10px 16px', cursor: 'pointer', borderBottom: idx < destinationSuggestions.length - 1 ? '1px solid #f1f5f9' : 'none' }} onClick={() => handleSelectDestination(s)} onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}>
-                              <span style={{ fontWeight: 500, fontSize: '0.95em' }}>{s.formatted || s.name || s.address_line1}</span>
-                              <br />
-                              <span style={{ fontSize: '0.85em', color: '#64748b' }}>{s.address_line2 || s.city || s.country || ''}</span>
-                            </li>
-                          ))
-                        ) : (
-                          <li style={{ padding: '10px 16px', color: '#64748b', fontStyle: 'italic' }}>{destinationError || 'No suggestions found.'}</li>
-                        )}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-                <button
-                  className="primary-button hero-find-route"
-                  onClick={() => {
-                    if (destInputRef.current) {
-                      destInputRef.current.focus();
-                      destInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                    if (selectedDestination) {
-                      findSafeRoute(selectedDestination);
-                    } else {
-                      setAlertMessage('Please select a destination from suggestions.');
-                      setShowAlert(true);
-                    }
-                  }}
-                  style={{ marginTop: 8 }}
-                >
-                  Find Safe Route
-                </button>
-                {/* ...existing code... */}
-              </div>
-              <div className="safety-score-display hero-score">
-                <div className="score-label">Your Current Safety Score</div>
-                <div className="score">{safetyScore !== null ? safetyScore : 'N/A'}</div>
-              </div>
-            </div>
-            {forwardedServices && isPanicMode && (
-              <div style={{ marginTop: 12, background: '#fff8e1', padding: 12, borderRadius: 8, border: '1px solid #facc15' }}>
-                <strong>Authorities Notified:</strong>{' '}
-                {Object.values(forwardedServices).map((s) => s && s.name).filter(Boolean).join(', ') || 'Details pending'}
-              </div>
-            )}
-            <div className="map-area card-section hero-map-area">
-              {currentPosition ? (
-                <>
-                  <div className="location-details">
-                    <p>
-                      <strong>{locationName}</strong>
-                    </p>
-                  </div>
-
-                  <div className="dashboard-map-wrapper">
-                    <Map
-                      userPosition={currentPosition}
-                      groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
-                      route={safeRoute}
-                      realTimeTracking={realTimeTracking}
-                      isMapEnlarged={false}
-                    />
-                  </div>
-
-                  <div className="dashboard-map-actions">
-                    <button
-                      onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
-                      className="primary-button"
-                      disabled={!safeRoute || safeRoute.length === 0}
-                      title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
-                    >
-                      {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
-                    </button>
-                    <button
-                      onClick={() => setIsMapEnlarged(true)}
-                      className="primary-button"
-                    >
-                      Enlarge Map
-                    </button>
-                  </div>
-
-                  {isMapEnlarged && (
-                    <div style={{
-                      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                      background: 'rgba(0,0,0,0.6)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      <div style={{ width: '95%', height: '90%', background: '#fff', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ padding: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f5f5f5' }}>
-                          <div style={{ fontWeight: 700 }}>Map - Navigation</div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
-                            <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
-                          </div>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Map
-                            userPosition={currentPosition}
-                            groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
-                            route={safeRoute}
-                            realTimeTracking={realTimeTracking}
-                            isMapEnlarged
+                      <div className="tourist-live-card__status-text">
+                        {locationSharingStatus === 'sending' ? 'Sending…' :
+                         locationSharingStatus === 'syncing' ? 'Syncing…' :
+                         locationSharingStatus === 'offline' ? 'Queued (Offline)' :
+                         locationSharingStatus === 'error' ? 'Error' :
+                         isLiveLocationEnabled ? 'Sharing Location' : 'Paused'}
+                      </div>
+                      <div className="tourist-live-card__status-toggle" title={isPanicMode ? 'Location sharing is locked during an active alert' : undefined}>
+                        <span className="tourist-live-card__toggle-label">Live Sharing</span>
+                        <label className={`tourist-live-card__toggle${isLiveLocationEnabled ? ' tourist-live-card__toggle--on' : ''}${isPanicMode ? ' tourist-live-card__toggle--disabled' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={isLiveLocationEnabled}
+                            onChange={toggleLiveLocation}
+                            disabled={isPanicMode}
                           />
-                        </div>
+                          <span />
+                        </label>
                       </div>
                     </div>
-                  )}
-                    </>
-                  ) : (
-                    <p className="status-text">Getting your location...</p>
-                  )}
+
+                    <div className="tourist-live-card__destination">
+                      <div className="tourist-live-card__destination-header">
+                        <span>Destination</span>
+                        <small>Find the safest path to your next stop</small>
+                      </div>
+                      <div className="tourist-live-card__destination-input">
+                        <input
+                          id="destination-search"
+                          ref={destInputRef}
+                          type="text"
+                          value={destinationQuery || ''}
+                          onChange={handleDestinationInput}
+                          onFocus={() => setDestinationInputFocused(true)}
+                          onBlur={() => setTimeout(() => setDestinationInputFocused(false), 200)}
+                          placeholder="Enter destination (address, place, landmark)"
+                          autoComplete="off"
+                        />
+                        {(destinationInputFocused && destinationQuery.length >= 2) && (
+                          <ul className="suggestions-list">
+                            {destinationSuggestions.length > 0 ? (
+                              destinationSuggestions.map((s, idx) => (
+                                <li
+                                  key={s.place_id || idx}
+                                  onClick={() => handleSelectDestination(s)}
+                                >
+                                  <span className="suggestions-list__primary">{s.formatted || s.name || s.address_line1}</span>
+                                  <span className="suggestions-list__secondary">{s.address_line2 || s.city || s.country || ''}</span>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="suggestions-list__empty">{destinationError || 'No suggestions found.'}</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="tourist-live-card__destination-actions">
+                        <button
+                          className="primary-button"
+                          onClick={() => {
+                            if (destInputRef.current) {
+                              destInputRef.current.focus();
+                              destInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                            if (selectedDestination) {
+                              findSafeRoute(selectedDestination);
+                            } else {
+                              setAlertMessage('Please select a destination from suggestions.');
+                              setShowAlert(true);
+                            }
+                          }}
+                        >
+                          Find Safe Route
+                        </button>
+                        <button
+                          type="button"
+                          className="tourist-live-card__secondary"
+                          onClick={() => setTouristActivePanel('nearby')}
+                        >
+                          Explore Area
+                        </button>
+                      </div>
+                    </div>
+
+                    {forwardedServices && isPanicMode && (
+                      <div className="tourist-live-card__alert">
+                        <strong>Authorities Notified:</strong>{' '}
+                        {Object.values(forwardedServices).map((s) => s && s.name).filter(Boolean).join(', ') || 'Details pending'}
+                      </div>
+                    )}
+
+                    <div className="tourist-live-card__map">
+                      <div className="tourist-live-card__location-header">
+                        <span className="tourist-live-card__location-title">Live Location</span>
+                        <span className="tourist-live-card__location-subtitle">{locationName || 'Getting your location…'}</span>
+                      </div>
+                      {currentPosition ? (
+                        <>
+                          <div className="dashboard-map-wrapper">
+                            <Map
+                              userPosition={currentPosition}
+                              groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                              route={safeRoute}
+                              realTimeTracking={realTimeTracking}
+                              isMapEnlarged={false}
+                            />
+                          </div>
+                          <div className="dashboard-map-actions">
+                            <button
+                              onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
+                              className="primary-button"
+                              disabled={!safeRoute || safeRoute.length === 0}
+                              title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
+                            >
+                              {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
+                            </button>
+                            <button
+                              onClick={() => setIsMapEnlarged(true)}
+                              className="primary-button"
+                            >
+                              Enlarge Map
+                            </button>
+                          </div>
+
+                          {isMapEnlarged && (
+                            <div className="tourist-map-overlay">
+                              <div className="tourist-map-overlay__panel">
+                                <div className="tourist-map-overlay__header">
+                                  <div className="tourist-map-overlay__title">Map - Navigation</div>
+                                  <div className="tourist-map-overlay__actions">
+                                    <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
+                                    <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
+                                  </div>
+                                </div>
+                                <div className="tourist-map-overlay__body">
+                                  <Map
+                                    userPosition={currentPosition}
+                                    groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                                    route={safeRoute}
+                                    realTimeTracking={realTimeTracking}
+                                    isMapEnlarged
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="status-text">Getting your location...</p>
+                      )}
+                    </div>
+
+                    <div className="tourist-quick-actions">
+                      <button
+                        type="button"
+                        className="tourist-quick-action tourist-quick-action--alert"
+                        onClick={isPanicMode ? handleCancelPanic : handlePanic}
+                        disabled={loadingPanic}
+                      >
+                        {isPanicMode ? 'Cancel Alert' : (loadingPanic ? (isOnline ? 'Sending…' : 'Queueing…') : 'Emergency Alert')}
+                      </button>
+                      <button type="button" className="tourist-quick-action" onClick={forceRefreshLocation}>
+                        Share Location
+                      </button>
+                      <button type="button" className="tourist-quick-action" onClick={() => setTouristActivePanel('support')}>
+                        Call Support
+                      </button>
+                      <button type="button" className="tourist-quick-action" onClick={() => setTouristActivePanel('safety')}>
+                        Health Check
+                      </button>
+                    </div>
+
+                    <div className="tourist-safety-tip">
+                      <strong>Safety Tip</strong>
+                      <p>Always share your live location with trusted contacts when exploring new areas.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-            )}
-            {!isTouristDashboard && (
+            ) : (
               <>
                 <div className="hero-top hero-flex">
                   <div className="hero-info">
@@ -3353,78 +3625,70 @@ function App() {
   );
 
   const rightSidebar = (
-    <aside className="card sidebar" id="panic-controls">
-      <div className="profile-block">
-        <label htmlFor="sidebarProfileImageInput" style={{ cursor: 'pointer', display: 'block' }}>
-          <ProfileImage
-            relativeUrl={sidebarProfileImageUrl}
-            alt="Profile"
-            className="profile-picture-large"
-            style={{ pointerEvents: 'none' }}
-          />
-          <input
-            id="sidebarProfileImageInput"
-            type="file"
-            accept="image/jpeg, image/png"
-            style={{ display: 'none' }}
-            onChange={onSidebarProfileImageChange}
-            disabled={sidebarProfileImageUploading}
-          />
-        </label>
-        <h3>{loggedInUserName}</h3>
-        <div className="muted">{passportId}</div>
+    <aside className={`card sidebar${isTouristDashboard ? ' tourist-sidebar' : ''}`} id="panic-controls">
+      <div className="tourist-sidebar__profile">
+        <div className="tourist-sidebar__avatar-shell">
+          <label htmlFor="sidebarProfileImageInput" className="tourist-sidebar__avatar-label">
+            <ProfileImage
+              relativeUrl={sidebarProfileImageUrl}
+              alt="Profile"
+              className="profile-picture-large"
+              style={{ pointerEvents: 'none' }}
+            />
+            <input
+              id="sidebarProfileImageInput"
+              type="file"
+              accept="image/jpeg, image/png"
+              style={{ display: 'none' }}
+              onChange={onSidebarProfileImageChange}
+              disabled={sidebarProfileImageUploading}
+            />
+          </label>
+        </div>
+        <div className="tourist-sidebar__identity">
+          <h3>{loggedInUserName || 'Traveler'}</h3>
+          <div className="tourist-sidebar__passport">{passportId}</div>
+        </div>
+        <ul className="tourist-sidebar__status-list">
+          <li className="tourist-sidebar__status tourist-sidebar__status--success">✔ Verified Identity</li>
+          <li className={`tourist-sidebar__status${emergencyContactCount > 0 ? ' tourist-sidebar__status--success' : ' tourist-sidebar__status--pending'}`}>
+            {emergencyContactCount > 0 ? '✔ Emergency Contacts Ready' : '⚠ Add Emergency Contacts'}
+          </li>
+          <li className={`tourist-sidebar__status${isLiveLocationEnabled ? ' tourist-sidebar__status--success' : ' tourist-sidebar__status--pending'}`}>
+            {isLiveLocationEnabled ? '✔ Location Sharing Active' : '⚠ Location Sharing Paused'}
+          </li>
+        </ul>
+        <button type="button" className="tourist-sidebar__edit" onClick={() => setIsProfileOpen(true)}>
+          Edit Profile
+        </button>
       </div>
 
       {serviceType === 'tourist_safety' && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-number">
-              {groupInfo?.members?.length || 0}
-            </div>
-            <div className="muted">Members</div>
+        <div className="tourist-sidebar__stats">
+          <div className="tourist-sidebar__stat">
+            <span>{groupInfo?.members?.length || 0}</span>
+            <small>Group Members</small>
           </div>
-          <div className="stat-card">
-            <div className="stat-number">
-              {(pendingInvites || []).length}
-            </div>
-            <div className="muted">Invites</div>
+          <div className="tourist-sidebar__stat">
+            <span>{(pendingInvites || []).length}</span>
+            <small>Invites</small>
           </div>
         </div>
       )}
 
       <button
         onClick={forceRefreshLocation}
-        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, background: 'linear-gradient(90deg,#3b82f6,#0ea5e9)', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+        className="tourist-sidebar__refresh"
       >
         Refresh Precise Location
       </button>
 
-      <div style={{ marginTop: 16 }}>
+      <div className="tourist-sidebar__panic">
         {showHardwarePanicProgress && (
-          <div style={{
-            marginBottom: '12px',
-            padding: '12px',
-            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-            borderRadius: '8px',
-            border: '2px solid #fbbf24'
-          }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400e', marginBottom: '6px' }}>
-              🔘 Hardware Panic Pattern Detected
-            </div>
-            <div style={{
-              width: '100%',
-              height: '6px',
-              background: '#fed7aa',
-              borderRadius: '3px',
-              overflow: 'hidden'
-            }}>
-              <div style={{
-                width: `${hardwarePanicProgress}%`,
-                height: '100%',
-                background: '#f59e0b',
-                transition: 'width 0.3s ease',
-                borderRadius: '3px'
-              }} />
+          <div className="tourist-sidebar__panic-progress">
+            <div className="tourist-sidebar__panic-progress-title">🔘 Hardware Panic Pattern Detected</div>
+            <div className="tourist-sidebar__panic-progress-bar">
+              <div style={{ width: `${hardwarePanicProgress}%` }} />
             </div>
           </div>
         )}
@@ -3432,14 +3696,14 @@ function App() {
         {isPanicMode ? (
           <button
             onClick={handleCancelPanic}
-            className="cancel-button big"
+            className="cancel-button big tourist-sidebar__panic-button"
           >
             Cancel Alert
           </button>
         ) : (
           <button
             onClick={handlePanic}
-            className="panic-button big"
+            className="panic-button big tourist-sidebar__panic-button"
             disabled={loadingPanic}
           >
             {loadingPanic
@@ -3454,11 +3718,9 @@ function App() {
         )}
       </div>
 
-      <div style={{ marginTop: 4 }}>
-        <button onClick={handleLogout} className="logout-button">
-          Logout
-        </button>
-      </div>
+      <button onClick={handleLogout} className="logout-button tourist-sidebar__logout">
+        Logout
+      </button>
     </aside>
   );
   return (
@@ -3466,6 +3728,50 @@ function App() {
     <div className="App">
       {showAlert && (
         <AlertModal message={alertMessage} onClose={handleCloseAlert} />
+      )}
+      {dislocationPrompts.length > 0 && (
+        <div className="dislocation-prompt-stack">
+          {dislocationPrompts.map((prompt) => (
+            <div key={prompt.id} className="dislocation-prompt-card">
+              <div className="dislocation-prompt-title">Group Dislocation Alert</div>
+              <p className="dislocation-prompt-body">
+                {prompt.dislocatedMember} is approximately&nbsp;
+                <strong>{prompt.distance || 'unknown'}</strong>&nbsp;km away from&nbsp;
+                <strong>{prompt.otherMember}</strong>.
+              </p>
+              {prompt.groupName && (
+                <p className="dislocation-prompt-meta">Group: {prompt.groupName}</p>
+              )}
+              <p className="dislocation-prompt-question">Are you aware of this separation?</p>
+              <div className="dislocation-prompt-actions">
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-no"
+                  onClick={() => handleDislocationResponse('no', prompt)}
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-yes"
+                  onClick={() => handleDislocationResponse('yes', prompt)}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-view"
+                  onClick={() => {
+                    setGeoAlertData(prompt);
+                    setShowGeoAlert(true);
+                  }}
+                >
+                  View Map
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
       {showGeoAlert && (
         <GeoFenceAlertModal
@@ -3512,6 +3818,7 @@ function App() {
             {headerNode}
             <div className="tourist-layout">
               <main className="tourist-dashboard-content">
+                {touristFeatureMenu}
                 {dashboardRoutes}
               </main>
               {/* Always render the right sidebar for all tourist dashboard panels */}

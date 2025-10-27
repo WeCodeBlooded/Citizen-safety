@@ -27,7 +27,7 @@ const SafeZonesMap = () => {
   const markerClusterGroupRef = useRef(null);
   const userMarkerRef = useRef(null);
 
-  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:3001';
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
   // Define marker colors by type
   const markerColors = {

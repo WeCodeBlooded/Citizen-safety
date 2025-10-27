@@ -5,8 +5,8 @@ import './WomenContacts.css';
 // Resolve backend URL - same logic as WomenDashboard
 const resolveBackendUrl = () => {
   const FALLBACK = (typeof window !== 'undefined' && window.location.hostname === 'localhost')
-    ? 'http://localhost:3001'
-    : 'http://localhost:3001';
+    ? process.env.REACT_APP_BACKEND_URL
+    : process.env.REACT_APP_BACKEND_URL;
   let value = FALLBACK;
   try {
     const stored = localStorage.getItem('BACKEND_URL');

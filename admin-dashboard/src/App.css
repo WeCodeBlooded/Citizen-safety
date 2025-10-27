@@ -328,6 +328,8 @@ html, body, #root, .App {
 .tourist-item.anomaly, .alert-item.anomaly,
 .tourist-item.anomaly_risk_area, .alert-item.anomaly_risk_area,
 .tourist-item.anomaly_ml, .alert-item.anomaly_ml,
+.tourist-item.anomaly_hotspot, .alert-item.anomaly_hotspot,
+.tourist-item.anomaly_open_water, .alert-item.anomaly_open_water,
 .tourist-item.anomaly_dislocation, .alert-item.anomaly_dislocation,
 .tourist-item.anomaly_inactive, .alert-item.anomaly_inactive {
   border-left: 6px solid var(--amber-500);
