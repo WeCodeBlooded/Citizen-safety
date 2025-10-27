@@ -54,6 +54,81 @@ const anomalyInactiveIcon = new L.Icon({
   iconSize: [25,41], iconAnchor:[12,41], popupAnchor:[1,-34], shadowUrl:"https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png", shadowSize:[41,41]
 });
 
+const DEFAULT_BACKEND_PORT = process.env.REACT_APP_BACKEND_PORT || '3001';
+
+const deriveBackendUrl = () => {
+  const envValue = (process.env.REACT_APP_BACKEND_URL || '').trim();
+  if (envValue) {
+    return envValue;
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol = 'http:', hostname = 'localhost', port } = window.location;
+    if (/^(localhost|127\.0\.0\.1)$/i.test(hostname)) {
+      const effectivePort = port || DEFAULT_BACKEND_PORT;
+      return `${protocol}//${hostname}:${effectivePort}`;
+    }
+    const targetPort = port ? `:${port}` : '';
+    return `${protocol}//${hostname}${targetPort}`;
+  }
+  return `http://localhost:${DEFAULT_BACKEND_PORT}`;
+};
+
+const sanitizeBackendUrl = (rawValue, fallbackValue) => {
+  const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+  if (!value) {
+    return fallbackValue;
+  }
+  let candidate = value;
+  if (!/^https?:\/\//i.test(candidate)) {
+    const protocolGuess =
+      (typeof window !== 'undefined' && window.location && window.location.protocol) || 'http:';
+    candidate = `${protocolGuess}//${candidate.replace(/^\/+/, '')}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.pathname && parsed.pathname !== '/') {
+      console.warn(`[config] BACKEND_URL included path '${parsed.pathname}', trimming to origin.`);
+    }
+    return parsed.origin;
+  } catch (error) {
+    console.warn('[config] Failed to parse BACKEND_URL, resetting to fallback.', error?.message || error);
+    return fallbackValue;
+  }
+};
+
+const fallbackBackendUrl = deriveBackendUrl();
+let computedBackendUrl = fallbackBackendUrl;
+if (typeof window !== 'undefined') {
+  try {
+    const stored = localStorage.getItem('ADMIN_BACKEND_URL');
+    if (stored) {
+      computedBackendUrl = stored;
+    }
+  } catch (error) {
+    console.warn('[config] Unable to read ADMIN_BACKEND_URL from storage:', error?.message || error);
+  }
+}
+
+computedBackendUrl = sanitizeBackendUrl(computedBackendUrl, fallbackBackendUrl);
+
+try {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const isLoopbackFrontend = /^(localhost|127\.0\.0\.1)$/i.test(host);
+    const isLocalhostBackend = /(^|\b)localhost\b/i.test(computedBackendUrl);
+    if (!isLoopbackFrontend && isLocalhostBackend) {
+      const newUrl = `${window.location.protocol}//${host}:${DEFAULT_BACKEND_PORT}`;
+      console.warn(`[config] Rewriting BACKEND_URL from '${computedBackendUrl}' to '${newUrl}' for LAN access.`);
+      computedBackendUrl = newUrl;
+    }
+  }
+} catch (error) {
+  console.warn('[config] BACKEND_URL rewrite for LAN failed:', error?.message || error);
+}
+
+const BACKEND_URL = computedBackendUrl;
+console.log('[config] Admin dashboard using BACKEND_URL =', BACKEND_URL);
+
 function MapController({ center, zoom }) {
     const map = useMap();
     useEffect(() => {
@@ -100,9 +175,6 @@ const Transition = React.forwardRef(function Transition(props, ref) {
     return <Slide direction="up" ref={ref} {...props} />;
 });
 
-
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const WOMEN_PASSPORT_PREFIX = 'WOMEN-';
 const BLOCKCHAIN_POLL_INTERVAL_MS = 30000;
 

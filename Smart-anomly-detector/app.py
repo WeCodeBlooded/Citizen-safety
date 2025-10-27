@@ -14,6 +14,8 @@ import os
 import time
 import json
 import math
+from collections import defaultdict, deque
+
 import joblib
 import asyncio
 import sqlite3  
@@ -28,6 +30,12 @@ from shapely.geometry import shape, Point
 from shapely.prepared import prep
 from typing import List, Optional
 from math import radians, sin, cos, asin, sqrt
+
+from feature_engineering import (
+    DEFAULT_HOTSPOT_RADIUS,
+    compute_session_features,
+    load_hotspot_index,
+)
 
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -53,6 +61,13 @@ try:
     explainer = shap.TreeExplainer(iso)
 except Exception:
     explainer = None  # fallback later
+
+HOTSPOT_INDEX_PATH = os.path.join(MODEL_DIR, "hotspot_index.json")
+hotspot_index = load_hotspot_index(HOTSPOT_INDEX_PATH)
+try:
+    HOTSPOT_RADIUS = max(0, int(os.getenv("HOTSPOT_RADIUS_CELLS", str(DEFAULT_HOTSPOT_RADIUS))))
+except Exception:
+    HOTSPOT_RADIUS = DEFAULT_HOTSPOT_RADIUS
 
 # In-memory & persisted zones
 ZONES_FILE = os.path.join(DATA_DIR, "zones.json")
@@ -120,6 +135,11 @@ def load_sessions_from_csv():
 # -------------------------
 last_seen = {}  # session_id -> datetime
 group_members = {}  # group_id -> { user_id: (lat, lon, timestamp) }
+try:
+    SESSION_HISTORY_SIZE = max(10, int(os.getenv("SESSION_HISTORY_SIZE", "120")))
+except Exception:
+    SESSION_HISTORY_SIZE = 120
+session_history = defaultdict(lambda: deque(maxlen=SESSION_HISTORY_SIZE))
 
 # -------------------------
 # API models
@@ -321,120 +341,152 @@ def model_metadata():
 
 @app.post("/predict")
 def predict_point(p: GPSLog):
-    # parse timestamp
-    ts = pd.to_datetime(p.timestamp)
-    # build feature vector matching training (we trained on session-level features),
-    # but here we use simple derived features using this single point + time features
-    # For best results, backend should call /predict/window with many points or call /predict/live/{session_id}
-    hour = int(ts.hour)
-    dow = int(ts.weekday())
-    # Try to reconstruct expected feature list order (feature_cols includes 'session_id' too)
-    # We drop session_id for scaling
-    raw_dict = {}
-    # minimal per-point derived fields
-    raw_dict['avg_speed'] = 0.0
-    raw_dict['max_speed'] = 0.0
-    raw_dict['std_speed'] = 0.0
-    raw_dict['total_distance'] = 0.0
-    raw_dict['route_deviation_ratio'] = 0.0
-    raw_dict['isolated_stops'] = 0
-    raw_dict['night_fraction'] = 1.0 if (hour < 6 or hour > 22) else 0.0
-    raw_dict['location_entropy'] = 0.0
-    raw_dict['hour'] = hour
-    raw_dict['day_of_week'] = dow
-    raw_dict['time_since_last'] = 0.0
-    raw_dict['crime_rate_local'] = 0.0
-    raw_dict['event_density_local'] = 0.0
+    try:
+        ts = pd.to_datetime(p.timestamp, utc=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid timestamp format")
+    if pd.isna(ts):
+        raise HTTPException(status_code=400, detail="Timestamp could not be parsed")
+    ts_local = ts.to_pydatetime().replace(tzinfo=None)
 
-    # Build feature array in the same order used in train
-    # feature_cols likely contains 'session_id' as first entry; remove it
-    fcols = [c for c in feature_cols if c != 'session_id']
-    X_raw = np.array([[ float(raw_dict.get(c, 0.0)) for c in fcols ]])
+    buf = session_history[p.session_id]
+    buf.append({
+        "lat": float(p.lat),
+        "lon": float(p.lon),
+        "timestamp": ts_local.isoformat(),
+    })
 
-    # scale & predict
+    features = compute_session_features(
+        list(buf),
+        session_id=p.session_id,
+        hotspot_index=hotspot_index,
+        hotspot_radius=HOTSPOT_RADIUS,
+    )
+    features["hour"] = int(ts_local.hour)
+    features["day_of_week"] = int(ts_local.weekday())
+    if len(buf) >= 2:
+        prev_ts = pd.to_datetime(buf[-2]["timestamp"], utc=True)
+        prev_ts = prev_ts.to_pydatetime().replace(tzinfo=None)
+        delta_minutes = max(0.0, (ts_local - prev_ts).total_seconds() / 60.0)
+    else:
+        delta_minutes = 0.0
+    features["time_since_last"] = float(delta_minutes)
+
+    fcols = [c for c in feature_cols if c != "session_id"]
+    X_raw = np.array([[float(features.get(c, 0.0)) for c in fcols]])
     Xs = scaler.transform(X_raw)
-    score = iso.decision_function(Xs)[0]  # positive -> more normal
+
+    decision_score = float(iso.decision_function(Xs)[0])
     anomaly_flag = 1 if iso.predict(Xs)[0] == -1 else 0
 
-    # dbscan: using fit_predict for single point may return -1 or cluster id
-    cluster_lab = dbs.fit_predict(Xs)[0]
-    cluster_flag = 1 if cluster_lab == -1 else 0
+    cluster_flag = 0
+    cluster_distance = None
+    try:
+        core = getattr(dbs, "components_", None)
+        eps = getattr(dbs, "eps", None)
+        if core is not None and eps is not None and len(core):
+            distances = np.linalg.norm(core - Xs[0], axis=1)
+            cluster_distance = float(np.min(distances)) if len(distances) else None
+            if cluster_distance is not None:
+                cluster_flag = 1 if cluster_distance > float(eps) else 0
+            else:
+                cluster_flag = anomaly_flag
+        else:
+            cluster_flag = anomaly_flag
+    except Exception:
+        cluster_flag = anomaly_flag
 
-    # geo-fence check
     zone = point_in_any_zone(p.lat, p.lon)
-    # risk weighting by zone risk level (high>medium>low)
     geo_flag = 0
     geo_risk_weight = 0.0
     if zone:
-        rl = (zone.get('risk_level') or '').lower()
-        if rl == 'high':
+        rl = (zone.get("risk_level") or "").lower()
+        if rl == "high":
             geo_flag = 1
             geo_risk_weight = 1.0
-        elif rl == 'medium':
-            geo_flag = 1  # still flag but lower weight
+        elif rl == "medium":
+            geo_flag = 1
             geo_risk_weight = 0.6
-        elif rl == 'low':
-            geo_flag = 0  # record but not risk escalate
+        elif rl == "low":
             geo_risk_weight = 0.2
-    # open water heuristic
+
     open_water_flag = detect_open_water(p.lat, p.lon, zone is not None)
 
-    # inactivity check (10 minutes)
     inact_flag = 0
     last = last_seen.get(p.session_id)
     if last:
-        delta_mins = (ts - last).total_seconds() / 60.0
-        if delta_mins > 10:
+        gap_minutes = (ts_local - last).total_seconds() / 60.0
+        if gap_minutes > 10:
             inact_flag = 1
-    last_seen[p.session_id] = ts
+    last_seen[p.session_id] = ts_local
 
-    # group check (>10 km)
     group_flag = 0
     if p.group_id is not None:
         if p.group_id not in group_members:
             group_members[p.group_id] = {}
-        group_members[p.group_id][p.user_id] = (p.lat, p.lon, ts)
-        # compute pairwise distances
+        group_members[p.group_id][p.user_id] = (p.lat, p.lon, ts_local)
         locs = list(group_members[p.group_id].values())
         for i in range(len(locs)):
-            for j in range(i+1, len(locs)):
+            for j in range(i + 1, len(locs)):
                 if haversine_km(locs[i][0], locs[i][1], locs[j][0], locs[j][1]) > 10.0:
                     group_flag = 1
+                    break
+            if group_flag:
+                break
 
-    # combine scores: convert decision_function to anomaly_score 0..1 (simple mapping)
-    # decision_function higher => more normal. invert and minmax map using a logistic-ish mapping
-    anomaly_raw = -score  # bigger = more anomalous
-    anomaly_score = float(1/(1+math.exp(-anomaly_raw/1.0)))  # logistic mapping, tweak as needed
+    anomaly_raw = -decision_score
+    anomaly_score = float(1 / (1 + math.exp(-anomaly_raw)))
 
-    # weights (tuneable)
-    w_ml = 0.55
-    w_geo = 0.25
+    crime_component = float(features.get("crime_rate_local", 0.0))
+    density_component = float(features.get("event_density_local", 0.0))
+    density_scaled = min(1.0, density_component / math.log1p(15.0)) if density_component > 0 else 0.0
+    hotspot_score = min(1.0, 0.7 * crime_component + 0.3 * density_scaled)
+    try:
+        hotspot_threshold = float(os.getenv("HOTSPOT_ALERT_THRESHOLD", "0.6"))
+    except Exception:
+        hotspot_threshold = 0.6
+    hotspot_flag = 1 if hotspot_score >= hotspot_threshold else 0
+
+    w_ml = 0.5
+    w_geo = 0.2
     w_rules = 0.15
     w_ocean = 0.05
+    w_hotspot = 0.1
     rules_score = float(inact_flag or group_flag)
-    final_risk = w_ml*anomaly_score
-    final_risk += w_geo * geo_risk_weight
-    final_risk += w_rules * rules_score
-    final_risk += w_ocean * (1.0 if open_water_flag else 0.0)
+    final_risk = (
+        w_ml * anomaly_score
+        + w_geo * geo_risk_weight
+        + w_rules * rules_score
+        + w_ocean * (1.0 if open_water_flag else 0.0)
+        + w_hotspot * hotspot_score
+    )
     final_risk = round(min(1.0, final_risk), 3)
 
-    # explain
     factors = explain_features(X_raw) if explainer else []
 
-    # collect reasons
     reasons = []
     if anomaly_flag:
         reasons.append("ml_anomaly")
     if cluster_flag:
         reasons.append("cluster_noise")
     if geo_flag and zone:
-        reasons.append(f"in_zone_{zone.get('risk_level','unknown')}")
+        reasons.append(f"in_zone_{zone.get('risk_level', 'unknown')}")
     if open_water_flag:
         reasons.append("open_water")
     if inact_flag:
         reasons.append("inactivity_gt_10m")
     if group_flag:
         reasons.append("group_distance_gt_10km")
+    if hotspot_flag:
+        reasons.append("local_hotspot")
+    if crime_component >= 0.7:
+        reasons.append("crime_hotspot_high")
+    if density_component >= math.log1p(8):
+        reasons.append("event_density_high")
+
+    feature_snapshot = {c: float(features.get(c, 0.0)) for c in fcols}
+    feature_snapshot["session_id"] = int(p.session_id)
+    feature_snapshot["buffer_size"] = len(buf)
 
     out = {
         "session_id": p.session_id,
@@ -443,25 +495,42 @@ def predict_point(p: GPSLog):
         "location": {"lat": p.lat, "lon": p.lon},
         "timestamp": p.timestamp,
         "anomaly_score": anomaly_score,
+        "decision_score": decision_score,
+        "cluster_distance": cluster_distance,
         "final_risk_score": final_risk,
         "reasons": reasons,
         "factors": factors,
         "zone": zone,
         "anomaly_flag": int(anomaly_flag),
         "cluster_flag": int(cluster_flag),
-    "geo_flag": int(geo_flag),
-    "open_water_flag": int(open_water_flag),
+        "geo_flag": int(geo_flag),
+        "open_water_flag": int(open_water_flag),
         "inactivity_flag": int(inact_flag),
-        "group_flag": int(group_flag)
+        "group_flag": int(group_flag),
+        "hotspot_flag": int(hotspot_flag),
+        "hotspot": {
+            "score": hotspot_score,
+            "crime_rate": crime_component,
+            "density_log": density_component,
+            "threshold": hotspot_threshold,
+        },
+        "feature_snapshot": feature_snapshot,
+        "history_points": len(buf),
     }
 
-    # persist prediction row for auditing
     db_save_prediction_row({
-        "session_id": p.session_id, "user_id": p.user_id, "group_id": p.group_id,
-        "lat": p.lat, "lon": p.lon, "timestamp": p.timestamp,
-        "risk_score": final_risk, "anomaly_flag": int(anomaly_flag),
-        "geo_flag": int(geo_flag), "inactivity_flag": int(inact_flag),
-        "group_flag": int(group_flag), "reasons": reasons
+        "session_id": p.session_id,
+        "user_id": p.user_id,
+        "group_id": p.group_id,
+        "lat": p.lat,
+        "lon": p.lon,
+        "timestamp": p.timestamp,
+        "risk_score": final_risk,
+        "anomaly_flag": int(anomaly_flag),
+        "geo_flag": int(geo_flag),
+        "inactivity_flag": int(inact_flag),
+        "group_flag": int(group_flag),
+        "reasons": reasons,
     })
 
     return JSONResponse(content=out)

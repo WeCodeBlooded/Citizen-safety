@@ -1,3 +1,111 @@
+.dislocation-prompt-stack {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 100010;
+  max-width: min(360px, 85vw);
+}
+
+.dislocation-prompt-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92));
+  color: #f8fafc;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 18px 20px;
+}
+
+.dislocation-prompt-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+}
+
+.dislocation-prompt-body {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.dislocation-prompt-meta {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.dislocation-prompt-question {
+  margin: 0 0 12px;
+  font-weight: 600;
+  font-size: 0.93rem;
+}
+
+.dislocation-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dislocation-btn {
+  flex: 1 1 90px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dislocation-btn:focus {
+  outline: 2px solid rgba(148, 163, 184, 0.6);
+  outline-offset: 2px;
+}
+
+.dislocation-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+}
+
+.dislocation-btn-no {
+  background: linear-gradient(120deg, #dc2626, #b91c1c);
+  color: #ffffff;
+}
+
+.dislocation-btn-yes {
+  background: linear-gradient(120deg, #22c55e, #16a34a);
+  color: #0b1120;
+}
+
+.dislocation-btn-view {
+  background: rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+  .dislocation-prompt-stack {
+    top: auto;
+    bottom: 20px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+  }
+
+  .dislocation-prompt-card {
+    padding: 16px;
+  }
+
+  .dislocation-prompt-actions {
+    flex-direction: column;
+  }
+
+  .dislocation-btn {
+    flex: 1 1 auto;
+  }
+}
 :root {
   /* Ultra Modern Color Palette - Clean & Minimal */
   --text-light: #ffffff;

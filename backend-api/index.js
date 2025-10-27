@@ -1719,6 +1719,21 @@ const adminSockets = new Map();
 const responderSockets = new Map(); // socket.id -> responder metadata
 // Simple in-memory store for recent admin notifications (last 50)
 const adminNotifications = [];
+
+const normalizePassportId = (value) => {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase();
+};
+
+const registerUserSocket = (passportIdRaw, socket) => {
+  const normalized = normalizePassportId(passportIdRaw);
+  if (!normalized) return;
+  socket.data.passportKey = normalized;
+  socket.data.passportId = String(passportIdRaw).trim();
+  userSockets.set(normalized, socket);
+};
 const port = Number(process.env.PORT) || 3001;
 let transporter = null;
 const emailUser = process.env.EMAIL_USER;
@@ -2745,6 +2760,8 @@ io.use((socket, next) => {
       passportId = `WOMEN-${passportId}`;
     }
 
+    const normalizedPassportKey = normalizePassportId(passportId);
+
     const isTouristClient = clientType === 'tourist' || clientType === 'women';
     const isResponderClient = clientType === 'responder' || clientType === 'admin';
     const isFamilyClient = clientType === 'family';
@@ -2765,13 +2782,14 @@ io.use((socket, next) => {
     }
 
     if (isTouristClient || clientType === 'legacy' || !clientType) {
-      if (!passportId) {
+      if (!passportId || !normalizedPassportKey) {
         const err = new Error('UNAUTHORIZED');
         err.data = { reason: 'missing_passport' };
         return next(err);
       }
       socket.data.clientType = clientType === 'women' ? 'women' : 'tourist';
       socket.data.passportId = passportId;
+      socket.data.passportKey = normalizedPassportKey;
       return next();
     }
 
@@ -2795,8 +2813,9 @@ io.on("connection", (socket) => {
 
   const clientType = socket.data?.clientType;
   const passportFromAuth = socket.data?.passportId;
-  if (passportFromAuth && (clientType === 'tourist' || clientType === 'women')) {
-    userSockets.set(passportFromAuth, socket);
+  const passportKeyFromAuth = socket.data?.passportKey;
+  if (passportKeyFromAuth && (clientType === 'tourist' || clientType === 'women')) {
+    registerUserSocket(passportFromAuth ?? passportKeyFromAuth, socket);
   }
   if (clientType === 'responder') {
     const displayName = socket.data?.displayName || `responder-${socket.id.slice(-4)}`;
@@ -2806,8 +2825,13 @@ io.on("connection", (socket) => {
   }
 
   socket.on("identify", (passportId) => {
+    const normalized = normalizePassportId(passportId);
+    if (!normalized) {
+      console.warn(`Socket ${socket.id} attempted identify with invalid passportId`, passportId);
+      return;
+    }
     console.log(`Socket ${socket.id} identified as user ${passportId}`);
-    userSockets.set(passportId, socket); // Save the user's socket
+    registerUserSocket(passportId, socket);
   });
 
   // Admin dashboard identification (supports multiple admins)
@@ -2850,10 +2874,15 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`Socket ${socket.id} disconnected.`);
     // Clean up the map on disconnect
-    for (const [passportId, userSocket] of userSockets.entries()) {
-      if (userSocket.id === socket.id) {
-        userSockets.delete(passportId);
-        break;
+    const passportKey = socket.data?.passportKey;
+    if (passportKey && userSockets.get(passportKey)?.id === socket.id) {
+      userSockets.delete(passportKey);
+    } else {
+      for (const [passportId, userSocket] of userSockets.entries()) {
+        if (userSocket.id === socket.id) {
+          userSockets.delete(passportId);
+          break;
+        }
       }
     }
     if (adminSockets.has(socket.id)) {
@@ -2873,63 +2902,9 @@ io.on("connection", (socket) => {
 
   socket.on(
     "dislocationResponse",
-    async ({ groupName, passportId, response }) => {
+    async (payload) => {
       try {
-        console.log(
-          `Received response from ${passportId} for group ${groupName}: ${response}`
-        );
-
-        const alertState = alertResponses.get(groupName);
-        if (!alertState) return; // Ignore response if no alert is active
-
-        // Always remove this responder from pending set to avoid re-alerting them
-        alertState.membersToRespond.delete(passportId);
-
-        const lower = String(response || '').toLowerCase();
-        if (lower === "no") {
-          io.emit("adminDislocationAlert", {
-            groupName,
-            dislocatedMember: passportId,
-            message: `${passportId} reported they are NOT with their group. Immediate attention required.`,
-          });
-          try {
-            const dislocatedMember = await db.getTouristByPassportId(passportId);
-            if (dislocatedMember && dislocatedMember.latitude) {
-              const services = await findNearbyServices(
-                dislocatedMember.latitude,
-                dislocatedMember.longitude
-              );
-              if (services) {
-                io.emit("emergencyResponseDispatched", {
-                  passport_id: passportId,
-                  message: `Services located near dislocated member.`,
-                  services,
-                });
-              }
-            }
-          } catch (svcErr) {
-            console.warn("Service lookup failed (non-fatal):", svcErr.message);
-          }
-          // Snooze group for a short cooldown; stop further alerts
-          const SNOOZE_MS = 5 * 60 * 1000;
-          snoozedGroups.set(groupName, Date.now() + SNOOZE_MS);
-          alertResponses.delete(groupName);
-          return;
-        }
-
-        if (lower === "yes") {
-          if (alertState.membersToRespond.size === 0) {
-            io.emit("adminDislocationAlert", {
-              groupName,
-              message:
-                `All members of ${groupName} confirmed they are aware and together. Snoozing further checks briefly.`,
-            });
-            const SNOOZE_MS = 2 * 60 * 1000;
-            snoozedGroups.set(groupName, Date.now() + SNOOZE_MS);
-            alertResponses.delete(groupName);
-          }
-          return;
-        }
+        await processDislocationResponse(payload, { socket });
       } catch (err) {
         console.warn("Error processing dislocationResponse:", err && err.message);
       }
@@ -2937,7 +2912,126 @@ io.on("connection", (socket) => {
   );
 
   // Removed socket-based audio streaming: the client now uploads final recording via HTTP POST.
-});
+  });
+
+  async function processDislocationResponse(
+    { groupName, passportId, response, alertId },
+    context = {}
+  ) {
+    const source = context?.socket;
+    const groupLabel = groupName || "unknown";
+    console.log(
+      `Received dislocation response from ${passportId} for group ${groupLabel}: ${response}`
+    );
+
+    if (!groupName || !passportId || !response) {
+      return { handled: false, reason: "INVALID_PAYLOAD" };
+    }
+
+    const alertState = alertResponses.get(groupName);
+    if (!alertState) {
+      return { handled: false, reason: "NO_ACTIVE_ALERT" };
+    }
+
+    if (
+      alertId &&
+      alertState.details &&
+      alertState.details.alertId &&
+      alertState.details.alertId !== alertId
+    ) {
+      console.log(
+        `Ignoring stale dislocation response for group ${groupName}. Active alert ${alertState.details.alertId}, received ${alertId}.`
+      );
+      return { handled: false, reason: "STALE_ALERT" };
+    }
+
+    const passportKey = normalizePassportId(passportId);
+    if (passportKey) {
+      alertState.membersToRespond.delete(passportKey);
+      if (!alertState.respondedMembers) {
+        alertState.respondedMembers = new Set();
+      }
+      alertState.respondedMembers.add(passportKey);
+    }
+
+    if (alertState.details) {
+      alertState.details.pendingMemberIds = Array.from(
+        alertState.membersToRespond
+      );
+      alertState.details.lastRespondedAt = Date.now();
+      alertState.details.lastResponder = passportKey || passportId;
+      alertState.details.respondedMemberIds = Array.from(
+        alertState.respondedMembers || []
+      );
+    }
+
+    const lower = String(response || "").toLowerCase();
+    if (lower === "no") {
+      if (alertState.details) {
+        alertState.details.resolvedResponse = "no";
+        alertState.details.resolvedAt = Date.now();
+        alertState.details.resolvedBy = passportKey || passportId;
+      }
+      io.emit("adminDislocationAlert", {
+        groupName,
+        dislocatedMember: passportId,
+        message: `${passportId} reported they are NOT with their group. Immediate attention required.`,
+        alertId: alertState.details?.alertId,
+      });
+      try {
+        const dislocatedMember = await db.getTouristByPassportId(passportId);
+        if (dislocatedMember && dislocatedMember.latitude) {
+          const services = await findNearbyServices(
+            dislocatedMember.latitude,
+            dislocatedMember.longitude
+          );
+          if (services) {
+            io.emit("emergencyResponseDispatched", {
+              passport_id: passportId,
+              message: `Services located near dislocated member.`,
+              services,
+            });
+          }
+        }
+      } catch (svcErr) {
+        console.warn("Service lookup failed (non-fatal):", svcErr.message);
+      }
+      const SNOOZE_MS = 5 * 60 * 1000;
+      snoozedGroups.set(groupName, Date.now() + SNOOZE_MS);
+      alertResponses.delete(groupName);
+      return { handled: true, resolution: "negative" };
+    }
+
+    if (lower === "yes") {
+      if (alertState.details) {
+        alertState.details.resolvedResponse = "yes";
+        alertState.details.resolvedAt = Date.now();
+        alertState.details.resolvedBy = passportKey || passportId;
+      }
+      if (alertState.membersToRespond.size === 0) {
+        io.emit("adminDislocationAlert", {
+          groupName,
+          message: `All members of ${groupName} confirmed they are aware and together. Snoozing further checks briefly.`,
+          alertId: alertState.details?.alertId,
+        });
+        const SNOOZE_MS = 2 * 60 * 1000;
+        snoozedGroups.set(groupName, Date.now() + SNOOZE_MS);
+        alertResponses.delete(groupName);
+        return { handled: true, resolution: "positive" };
+      }
+      return { handled: true, resolution: "partial" };
+    }
+
+    if (source) {
+      try {
+        source.emit("dislocationResponseError", {
+          reason: "UNRECOGNIZED_RESPONSE",
+          acceptedValues: ["yes", "no"],
+        });
+      } catch (_) {}
+    }
+    return { handled: false, reason: "UNSUPPORTED_VALUE" };
+  }
 
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Radius of the Earth in km
@@ -3008,58 +3102,115 @@ async function checkGroupDislocation() {
 
       // --- NEW ALERT MANAGEMENT LOGIC ---
       if (isDislocated) {
+        const normalizedMembers = members.reduce((acc, member) => {
+          const key = normalizePassportId(member.passport_id);
+          if (!key) {
+            return acc;
+          }
+          acc.push(key);
+          return acc;
+        }, []);
+
         let alertState = alertResponses.get(groupName);
+        const now = Date.now();
+        const dislocatedMemberName = alertDetails.dislocatedMember || "A member";
+        const otherMemberName = alertDetails.otherMember || "their group";
+        const distanceValue =
+          typeof alertDetails.distance === "number"
+            ? alertDetails.distance.toFixed(2)
+            : String(alertDetails.distance || "");
+        const baseMessage = `Dislocation detected: ${dislocatedMemberName} is away from ${otherMemberName}${distanceValue ? ` by ${distanceValue} km` : ""}.`;
+        const adminMessage = `Group dislocation detected in ${groupName}: ${dislocatedMemberName} is separated from ${otherMemberName}.`;
+
+        const templateDetails = {
+          alertId: alertState?.details?.alertId || `disloc-${groupName}-${now}`,
+          groupName,
+          dislocatedMember: dislocatedMemberName,
+          otherMember: otherMemberName,
+          distance: distanceValue,
+          distanceKm: distanceValue,
+          message: baseMessage,
+          firstDetectedAt: alertState?.details?.firstDetectedAt || now,
+          lastDetectedAt: now,
+        };
 
         if (!alertState) {
-          // First time this dislocation is detected, create a new alert state
           console.log(
             `New dislocation detected for group ${groupName}. Sending first alert.`
           );
           alertState = {
-            membersToRespond: new Set(members.map((m) => m.passport_id)),
+            membersToRespond: new Set(normalizedMembers),
+            respondedMembers: new Set(),
             alertCount: 1,
+            details: {
+              ...templateDetails,
+              pendingMemberIds: normalizedMembers.slice(),
+              respondedMemberIds: [],
+            },
           };
           alertResponses.set(groupName, alertState);
-          // Notify admin dashboards immediately about new dislocation
           io.emit("adminDislocationAlert", {
-            groupName,
-            dislocatedMember: alertDetails.dislocatedMember,
-            otherMember: alertDetails.otherMember,
-            distanceKm: alertDetails.distance,
-            message: `Group dislocation detected in ${groupName}: ${alertDetails.dislocatedMember} is separated from ${alertDetails.otherMember}.`
+            ...templateDetails,
+            message: adminMessage,
           });
-          // Also send a legacy / broad event name if clients listen for it
           io.emit("dislocationAlert", {
-            groupName,
-            dislocatedMember: alertDetails.dislocatedMember,
-            otherMember: alertDetails.otherMember,
-            distanceKm: alertDetails.distance,
-            message: `Dislocation detected: ${alertDetails.dislocatedMember} is away from ${alertDetails.otherMember} by ${alertDetails.distance} km.`
+            ...templateDetails,
           });
         } else {
-          // Alert is already pending, this is a subsequent check
           alertState.alertCount++;
           console.log(
             `Re-sending alert to group ${groupName}. Count: ${alertState.alertCount}`
           );
+          if (!alertState.respondedMembers) {
+            alertState.respondedMembers = new Set();
+          }
+          normalizedMembers.forEach((id) => {
+            if (alertState.respondedMembers.has(id)) {
+              alertState.membersToRespond.delete(id);
+            } else {
+              alertState.membersToRespond.add(id);
+            }
+          });
+          alertState.details = {
+            ...templateDetails,
+            alertId: templateDetails.alertId,
+            firstDetectedAt:
+              alertState.details?.firstDetectedAt || templateDetails.firstDetectedAt,
+            pendingMemberIds: Array.from(alertState.membersToRespond),
+            respondedMemberIds: Array.from(alertState.respondedMembers || []),
+          };
         }
 
+        alertState.details.pendingMemberIds = Array.from(
+          alertState.membersToRespond
+        );
+        alertState.details.lastDetectedAt = now;
+        alertState.details.alertCount = alertState.alertCount;
+        alertState.details.respondedMemberIds = Array.from(
+          alertState.respondedMembers || []
+        );
+
         if (alertState.alertCount > 3) {
-          // Timeout condition: 3 alerts sent with no full resolution
           console.log(
             `Group ${groupName} failed to respond after 3 alerts. Notifying admin.`
           );
           io.emit("adminDislocationAlert", {
             groupName: groupName,
-            message: `Group members did not respond to dislocation alert for ${alertDetails.dislocatedMember}.`,
+            message: `Group members did not respond to dislocation alert for ${alertState.details?.dislocatedMember || dislocatedMemberName}.`,
+            alertId: alertState.details?.alertId,
           });
           alertResponses.delete(groupName); // Clean up
         } else {
-          // Send alert to all members who have not yet responded 'yes'
-          alertState.membersToRespond.forEach((passportId) => {
-            const memberSocket = userSockets.get(passportId);
+          const payloadForMember = {
+            type: "group-dislocation",
+            ...alertState.details,
+          };
+          alertState.membersToRespond.forEach((passportKey) => {
+            const memberSocket = userSockets.get(passportKey);
             if (memberSocket) {
-              memberSocket.emit("geoFenceAlert", { type: 'group-dislocation', ...alertDetails });
+              memberSocket.emit("geoFenceAlert", payloadForMember);
+            } else {
+              console.warn(`No active socket found for group ${groupName} member (passport key: ${passportKey}). Pending confirmation remains queued.`);
             }
           });
         }
@@ -3406,11 +3557,18 @@ app.get('/api/family/location', requireFamilyAuth, async (req, res) => {
     if (gRes.rows.length > 0) {
       const groupIdDb = gRes.rows[0].id;
       const membersRes = await db.pool.query(
-        `SELECT t.passport_id, t.name, t.profile_picture_url, gm.status, lh.latitude, lh.longitude
+        `SELECT 
+           t.passport_id,
+           t.name,
+           t.profile_picture_url,
+           gm.status,
+           COALESCE(lh.latitude, t.latitude) AS latitude,
+           COALESCE(lh.longitude, t.longitude) AS longitude,
+           COALESCE(lh.created_at, t.last_seen) AS last_reported_at
          FROM tourists t
          JOIN group_members gm ON t.id = gm.tourist_id
          LEFT JOIN (
-           SELECT passport_id, latitude, longitude,
+           SELECT passport_id, latitude, longitude, created_at,
                   ROW_NUMBER() OVER(PARTITION BY passport_id ORDER BY created_at DESC) as rn
            FROM location_history
          ) lh ON t.passport_id = lh.passport_id AND lh.rn = 1
@@ -3930,6 +4088,17 @@ app.get("/api/v1/tourists", authenticateAdmin, async (req, res) => {
 
 // Runtime flag for attempted accuracy column creation
 let ensuredAccuracyColumn = false;
+const historyInsertTracker = new Map();
+const HISTORY_INSERT_KEEPALIVE_MS = (() => {
+  const fallback = 180000; // 3 minutes
+  const raw = process.env.LOCATION_HISTORY_KEEPALIVE_MS;
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 60000) {
+    return fallback;
+  }
+  return parsed;
+})();
 app.post("/api/v1/location", async (req, res) => {
   const { latitude, longitude, accuracy, passportId } = req.body;
   if (latitude == null || longitude == null || !passportId) {
@@ -3980,7 +4149,15 @@ app.post("/api/v1/location", async (req, res) => {
         movedMeters = R * c;
       }
       const MOVEMENT_THRESHOLD_M = 10;
-      const shouldInsertHistory = movedMeters == null || movedMeters > MOVEMENT_THRESHOLD_M;
+      const nowMs = Date.now();
+      const historyKey = String(passportId);
+      let shouldInsertHistory = movedMeters == null || movedMeters > MOVEMENT_THRESHOLD_M;
+      if (!shouldInsertHistory) {
+        const lastInsert = historyInsertTracker.get(historyKey);
+        if (!lastInsert || (nowMs - lastInsert) >= HISTORY_INSERT_KEEPALIVE_MS) {
+          shouldInsertHistory = true;
+        }
+      }
 
       const newStatus = w.status === 'distress' ? 'distress' : 'active';
       await db.pool.query(
@@ -3992,6 +4169,7 @@ app.post("/api/v1/location", async (req, res) => {
           'INSERT INTO women_location_history (user_id, latitude, longitude, accuracy, created_at) VALUES ($1,$2,$3,$4,NOW())',
           [womenId, latitude, longitude, safeAccuracy]
         );
+        historyInsertTracker.set(historyKey, nowMs);
       }
 
       // Emit generic update so clients tracking this pseudo-passport receive it
@@ -4000,10 +4178,29 @@ app.post("/api/v1/location", async (req, res) => {
 
       try {
         const det = await detectorPredictPoint({ lat: latitude, lon: longitude, passportId });
-        if (det && (det.final_risk_score >= 0.6 || det.geo_flag || det.anomaly_flag)) {
-          const riskStatus = det.geo_flag ? 'anomaly_risk_area' : (det.anomaly_flag ? 'anomaly_ml' : 'anomaly');
-          await db.pool.query('UPDATE women_users SET status = $1 WHERE id = $2', [riskStatus, womenId]);
-          io.emit('anomalyAlert', { passport_id: passportId, status: riskStatus, details: det });
+        if (det) {
+          const riskThreshold = Number.parseFloat(process.env.ANOMALY_RISK_THRESHOLD || '0.6');
+          const scoreQualified = Number.isFinite(det.final_risk_score) && det.final_risk_score >= riskThreshold;
+          const strongContextFlag = !!(det.geo_flag || det.hotspot_flag || det.open_water_flag);
+          const strongRuleFlag = !!(det.group_flag || det.inactivity_flag);
+          const historyCandidate = Number.isFinite(det.history_points)
+            ? det.history_points
+            : Number.parseInt(det.history_points, 10);
+          const historyPoints = Number.isFinite(historyCandidate) ? historyCandidate : 0;
+          const shouldRaise = scoreQualified || strongContextFlag || strongRuleFlag;
+
+          if (shouldRaise) {
+            let riskStatus = 'anomaly';
+            if (det.geo_flag) riskStatus = 'anomaly_risk_area';
+            else if (det.hotspot_flag) riskStatus = 'anomaly_hotspot';
+            else if (det.open_water_flag) riskStatus = 'anomaly_open_water';
+            else if (strongRuleFlag) riskStatus = det.group_flag ? 'anomaly_group_rule' : 'anomaly_rules';
+            else if (scoreQualified || det.anomaly_flag) riskStatus = 'anomaly_ml';
+            await db.pool.query('UPDATE women_users SET status = $1 WHERE id = $2', [riskStatus, womenId]);
+            io.emit('anomalyAlert', { passport_id: passportId, status: riskStatus, details: det });
+          } else {
+            console.log(`[detector] Suppressed low-confidence anomaly for ${passportId} (score=${det.final_risk_score}, history=${historyPoints})`);
+          }
         }
       } catch (aiError) {
         console.error('Detector check error (women):', aiError.message || aiError);
@@ -4037,7 +4234,15 @@ app.post("/api/v1/location", async (req, res) => {
 
     // Determine if we should record to history
     const MOVEMENT_THRESHOLD_M = 10; // skip tiny jitter
-    const shouldInsertHistory = movedMeters == null || movedMeters > MOVEMENT_THRESHOLD_M;
+    const nowMs = Date.now();
+    const historyKey = String(passportId);
+    let shouldInsertHistory = movedMeters == null || movedMeters > MOVEMENT_THRESHOLD_M;
+    if (!shouldInsertHistory) {
+      const lastInsert = historyInsertTracker.get(historyKey);
+      if (!lastInsert || (nowMs - lastInsert) >= HISTORY_INSERT_KEEPALIVE_MS) {
+        shouldInsertHistory = true;
+      }
+    }
 
     let newStatus = touristInfo.status === "distress" ? "distress" : "active";
 
@@ -4051,6 +4256,7 @@ app.post("/api/v1/location", async (req, res) => {
       const vals = safeAccuracy != null ? [touristId, passportId, latitude, longitude, safeAccuracy] : [touristId, passportId, latitude, longitude];
       const placeholders = safeAccuracy != null ? "$1,$2,$3,$4,$5,NOW()" : "$1,$2,$3,$4,NOW()";
       await db.pool.query(`INSERT INTO location_history ${cols} VALUES (${placeholders})`, vals);
+      historyInsertTracker.set(historyKey, nowMs);
     }
 
     io.emit("locationUpdate", { passport_id: passportId, latitude, longitude, status: newStatus, accuracy: safeAccuracy });
@@ -4066,13 +4272,36 @@ app.post("/api/v1/location", async (req, res) => {
 
     try {
       const det = await detectorPredictPoint({ lat: latitude, lon: longitude, passportId });
-      if (det && (det.final_risk_score >= 0.6 || det.geo_flag || det.anomaly_flag)) {
-        console.log(`🚨 DETECTOR RISK for Passport ID: ${passportId} | risk=${det.final_risk_score} 🚨`);
-        const riskStatus = det.geo_flag ? "anomaly_risk_area" : (det.anomaly_flag ? "anomaly_ml" : "anomaly" );
-        await db.pool.query("UPDATE tourists SET status = $1 WHERE passport_id = $2", [riskStatus, passportId]);
-        io.emit("anomalyAlert", { passport_id: passportId, status: riskStatus, details: det });
-        setCurrentAlert(passportId, { type: 'standard', startedAt: Date.now(), lat: latitude, lon: longitude });
-        try { await db.pool.query(`INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,$2,$3)`, [passportId, riskStatus, JSON.stringify(det)]); } catch(e) { console.warn('anomaly history insert failed', e.message); }
+      if (det) {
+        const riskThreshold = Number.parseFloat(process.env.ANOMALY_RISK_THRESHOLD || '0.6');
+        const scoreQualified = Number.isFinite(det.final_risk_score) && det.final_risk_score >= riskThreshold;
+        const strongContextFlag = !!(det.geo_flag || det.hotspot_flag || det.open_water_flag);
+        const strongRuleFlag = !!(det.group_flag || det.inactivity_flag);
+        const historyCandidate = Number.isFinite(det.history_points)
+          ? det.history_points
+          : Number.parseInt(det.history_points, 10);
+        const historyPoints = Number.isFinite(historyCandidate) ? historyCandidate : 0;
+        const shouldRaise = scoreQualified || strongContextFlag || strongRuleFlag;
+
+        if (shouldRaise) {
+          console.log(`🚨 DETECTOR RISK for Passport ID: ${passportId} | risk=${det.final_risk_score} 🚨`);
+          let riskStatus = "anomaly";
+          if (det.geo_flag) riskStatus = "anomaly_risk_area";
+          else if (det.hotspot_flag) riskStatus = "anomaly_hotspot";
+          else if (det.open_water_flag) riskStatus = "anomaly_open_water";
+          else if (strongRuleFlag) riskStatus = det.group_flag ? 'anomaly_group_rule' : 'anomaly_rules';
+          else if (scoreQualified || det.anomaly_flag) riskStatus = "anomaly_ml";
+          await db.pool.query("UPDATE tourists SET status = $1 WHERE passport_id = $2", [riskStatus, passportId]);
+          io.emit("anomalyAlert", { passport_id: passportId, status: riskStatus, details: det });
+          setCurrentAlert(passportId, { type: 'standard', startedAt: Date.now(), lat: latitude, lon: longitude });
+          try {
+            await db.pool.query(`INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,$2,$3)`, [passportId, riskStatus, JSON.stringify(det)]);
+          } catch(e) {
+            console.warn('anomaly history insert failed', e.message);
+          }
+        } else {
+          console.log(`[detector] Suppressed low-confidence anomaly for ${passportId} (score=${det.final_risk_score}, history=${historyPoints})`);
+        }
       }
     } catch (aiError) {
       console.error("Detector check error:", aiError.message || aiError);
@@ -4201,7 +4430,26 @@ app.post("/api/v1/safety/score", async (req, res) => {
          LIMIT 10`,
         [passportId]
       );
-      const rows = q.rows || [];
+      let rows = q.rows || [];
+      if (rows.length === 0) {
+        const fallback = await db.pool.query(
+          `SELECT latitude, longitude, last_seen
+           FROM tourists
+           WHERE passport_id = $1`,
+          [passportId]
+        );
+        const fb = fallback.rows && fallback.rows[0];
+        if (fb && fb.latitude != null && fb.longitude != null) {
+          const createdAt = fb.last_seen instanceof Date
+            ? fb.last_seen.toISOString()
+            : (fb.last_seen ? new Date(fb.last_seen).toISOString() : new Date().toISOString());
+          rows = [{
+            latitude: Number(fb.latitude),
+            longitude: Number(fb.longitude),
+            created_at: createdAt,
+          }];
+        }
+      }
       if (rows.length > 0) {
         const toRad = (d) => (d * Math.PI) / 180;
         const R = 6371; // km
@@ -4760,7 +5008,7 @@ app.post("/api/v1/alert/cancel", async (req, res) => {
     }
 
     io.emit("statusUpdate", { passport_id: passportId, status: "active" });
-    const userSocket = userSockets.get(passportId);
+  const userSocket = userSockets.get(normalizePassportId(passportId));
     if (userSocket) {
       try {
         userSocket.emit("cancelPanicMode", { passportId });
@@ -4809,7 +5057,28 @@ app.get('/api/v1/tourists/:passportId/locations', async (req, res) => {
          ORDER BY created_at ASC`,
         [womenId]
       );
-      return res.json({ locations: q.rows });
+      let rows = q.rows || [];
+      if (rows.length === 0) {
+        const fallback = await db.pool.query(
+          `SELECT latitude, longitude, last_seen
+           FROM women_users
+           WHERE id = $1`,
+          [womenId]
+        );
+        const fb = fallback.rows && fallback.rows[0];
+        if (fb && fb.latitude != null && fb.longitude != null) {
+          const createdAt = fb.last_seen instanceof Date
+            ? fb.last_seen.toISOString()
+            : (fb.last_seen ? new Date(fb.last_seen).toISOString() : new Date().toISOString());
+          rows = [{
+            latitude: Number(fb.latitude),
+            longitude: Number(fb.longitude),
+            accuracy: null,
+            created_at: createdAt,
+          }];
+        }
+      }
+      return res.json({ locations: rows });
     }
 
     const q = await db.pool.query(
@@ -4819,7 +5088,27 @@ app.get('/api/v1/tourists/:passportId/locations', async (req, res) => {
        ORDER BY created_at ASC`,
       [passportId]
     );
-    return res.json({ locations: q.rows });
+    let rows = q.rows || [];
+    if (rows.length === 0) {
+      const fallback = await db.pool.query(
+        `SELECT latitude, longitude, last_seen
+         FROM tourists
+         WHERE passport_id = $1`,
+        [passportId]
+      );
+      const fb = fallback.rows && fallback.rows[0];
+      if (fb && fb.latitude != null && fb.longitude != null) {
+        const createdAt = fb.last_seen instanceof Date
+          ? fb.last_seen.toISOString()
+          : (fb.last_seen ? new Date(fb.last_seen).toISOString() : new Date().toISOString());
+        rows = [{
+          latitude: Number(fb.latitude),
+          longitude: Number(fb.longitude),
+          created_at: createdAt,
+        }];
+      }
+    }
+    return res.json({ locations: rows });
   } catch (e) {
     console.error('Failed to fetch location history:', e && e.message);
     return res.status(500).json({ message: 'Server error' });
@@ -4927,7 +5216,7 @@ app.post("/api/v1/tourists/:passportId/reset", authenticateAdmin, async (req, re
     try { await db.pool.query(`INSERT INTO alert_history(passport_id, event_type, details) VALUES($1,'reset',NULL)`, [passportId]); } catch(e){ console.warn('reset history insert failed', e.message); }
 
     io.emit("statusUpdate", { passport_id: passportId, status: "active" });
-    const userSocket = userSockets.get(passportId);
+  const userSocket = userSockets.get(normalizePassportId(passportId));
     if (userSocket) {
       try {
         userSocket.emit("cancelPanicMode", { passportId });
@@ -5636,11 +5925,18 @@ app.get("/api/v1/groups/my-group/:passportId", async (req, res) => {
 
     // Find all members of that group
     const membersRes = await db.pool.query(
-      `SELECT t.passport_id, t.name, t.profile_picture_url, gm.status, lh.latitude, lh.longitude
+      `SELECT 
+         t.passport_id,
+         t.name,
+         t.profile_picture_url,
+         gm.status,
+         COALESCE(lh.latitude, t.latitude) AS latitude,
+         COALESCE(lh.longitude, t.longitude) AS longitude,
+         COALESCE(lh.created_at, t.last_seen) AS last_reported_at
        FROM tourists t
        JOIN group_members gm ON t.id = gm.tourist_id
        LEFT JOIN (
-         SELECT passport_id, latitude, longitude,
+         SELECT passport_id, latitude, longitude, created_at,
                 ROW_NUMBER() OVER(PARTITION BY passport_id ORDER BY created_at DESC) as rn
          FROM location_history
        ) lh ON t.passport_id = lh.passport_id AND lh.rn = 1
@@ -5649,10 +5945,77 @@ app.get("/api/v1/groups/my-group/:passportId", async (req, res) => {
     );
 
     groupInfo.members = membersRes.rows;
+    const normalizedPassport = normalizePassportId(passportId);
+    if (normalizedPassport) {
+      const activeAlert = alertResponses.get(groupInfo.group_name);
+      if (
+        activeAlert &&
+        activeAlert.details &&
+        activeAlert.membersToRespond &&
+        activeAlert.membersToRespond.has(normalizedPassport)
+      ) {
+        const {
+          alertId,
+          groupName: alertGroup,
+          dislocatedMember,
+          otherMember,
+          distance,
+          distanceKm,
+          message,
+          firstDetectedAt,
+          lastDetectedAt,
+          pendingMemberIds,
+          alertCount,
+        } = activeAlert.details;
+        const respondedMemberIds = Array.from(
+          activeAlert.respondedMembers || []
+        );
+        groupInfo.pendingDislocationAlert = {
+          alertId,
+          groupName: alertGroup || groupInfo.group_name,
+          dislocatedMember,
+          otherMember,
+          distance,
+          distanceKm,
+          message,
+          firstDetectedAt,
+          lastDetectedAt,
+          pendingMemberIds,
+          respondedMemberIds,
+          alertCount,
+          requiresResponse: true,
+        };
+      }
+    }
     res.json(groupInfo);
   } catch (error) {
     console.error("Error fetching group data:", error.message);
     res.status(500).send("Server error.");
+  }
+});
+
+app.post("/api/v1/groups/dislocation-response", async (req, res) => {
+  try {
+    const { groupName, passportId, response, alertId } = req.body || {};
+    if (!groupName || !passportId || !response) {
+      return res.status(400).json({ message: "groupName, passportId, and response are required." });
+    }
+
+    const outcome = await processDislocationResponse({
+      groupName,
+      passportId,
+      response,
+      alertId,
+    });
+
+    if (outcome.handled) {
+      return res.json({ ok: true, ...outcome });
+    }
+
+    return res.status(202).json({ ok: false, ...outcome });
+  } catch (error) {
+    console.error("Failed to process dislocation response via HTTP:", error && error.message);
+    res.status(500).json({ message: "Failed to process response" });
   }
 });
 
