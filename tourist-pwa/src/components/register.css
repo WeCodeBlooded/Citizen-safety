@@ -530,3 +530,299 @@ body {
     }
   }
 
+  /* Tourist registration hero layout */
+  .tourist-register-layout {
+    min-height: 100vh;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    background: linear-gradient(130deg, #eef2ff 0%, #ffffff 45%, #f6f8ff 100%);
+  }
+
+  .tourist-register-visual {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: clamp(32px, 6vw, 96px);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .tourist-register-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(260deg, rgba(31,41,55,0.25) 0%, rgba(15,23,42,0.75) 80%);
+  }
+
+  .tourist-register-overlay {
+    position: relative;
+    z-index: 1;
+    max-width: clamp(290px, 35vw, 485px);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .tourist-register-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    backdrop-filter: blur(6px);
+  }
+
+  .tourist-register-title {
+    margin: 0;
+    font-size: clamp(38px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+  }
+
+  .tourist-register-subtitle {
+    margin: 0;
+    font-size: clamp(15px, 2.3vw, 18px);
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .tourist-register-form-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(40px, 7vw, 80px);
+  }
+
+  .tourist-register-form-wrapper {
+    width: min(500px, 100%);
+  }
+
+  .tourist-register-card {
+    background: #ffffff;
+    border-radius: 28px;
+    padding: clamp(32px, 6vw, 48px);
+    box-shadow: 0 36px 60px rgba(15, 23, 42, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .tourist-register-header h2 {
+    margin: 0;
+    font-size: clamp(28px, 4vw, 34px);
+    color: var(--reg-text-primary);
+  }
+
+  .tourist-register-header p {
+    margin: 6px 0 0;
+    color: var(--reg-text-secondary);
+    font-size: 15px;
+  }
+
+  .tourist-register-error {
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    color: var(--reg-error);
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .tourist-register-fields {
+    display: grid;
+    gap: 18px;
+  }
+
+  .tourist-register-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--reg-text-secondary);
+  }
+
+  .tourist-register-field span {
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .tourist-register-field input {
+    width: 100%;
+    padding: 15px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--reg-border);
+    background: linear-gradient(180deg, #ffffff 0%, var(--reg-surface-alt) 100%);
+    font-size: 15px;
+    color: var(--reg-text-primary);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .tourist-register-field input:focus {
+    border-color: #7c91ff;
+    box-shadow: 0 0 0 4px rgba(124, 145, 255, 0.18);
+  }
+
+  .tourist-register-submit {
+    appearance: none;
+    border: 0;
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    background: linear-gradient(90deg, var(--reg-btn-start) 0%, var(--reg-btn-mid) 50%, var(--reg-btn-end) 100%);
+    box-shadow: 0 28px 48px rgba(39, 55, 255, 0.22);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+
+  .tourist-register-submit:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 32px 54px rgba(39, 55, 255, 0.28);
+  }
+
+  .tourist-register-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .tourist-register-submit[aria-busy="true"] {
+    color: transparent;
+    position: relative;
+  }
+
+  .tourist-register-submit[aria-busy="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+    animation: shimmer 1.2s infinite;
+  }
+
+  .tourist-register-separator {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    color: var(--reg-text-secondary);
+  }
+
+  .tourist-register-separator::before,
+  .tourist-register-separator::after {
+    content: "";
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--reg-border);
+  }
+
+  .tourist-register-social {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .social-btn {
+    border: 1px solid var(--reg-border);
+    border-radius: 16px;
+    padding: 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    background: #ffffff;
+    color: var(--reg-text-primary);
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .social-btn:hover {
+    border-color: #aab7ff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .social-btn.google { color: #ea4335; }
+  .social-btn.facebook { color: #1877f2; }
+  .social-btn.apple { color: #111827; }
+
+  .tourist-register-outline {
+    border: 1px solid var(--reg-border);
+    background: transparent;
+    color: var(--reg-text-primary);
+    border-radius: 18px;
+    padding: 14px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .tourist-register-outline:hover {
+    border-color: #aab7ff;
+    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  .tourist-register-login {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--reg-text-secondary);
+  }
+
+  .tourist-register-login button {
+    border: 0;
+    background: transparent;
+    font-weight: 600;
+    color: var(--reg-btn-start);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  @media (max-width: 1100px) {
+    .tourist-register-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .tourist-register-visual {
+      min-height: 340px;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .tourist-register-overlay {
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .tourist-register-card {
+      border-radius: 22px;
+      padding: clamp(24px, 8vw, 32px);
+    }
+
+    .tourist-register-social {
+      grid-template-columns: 1fr;
+    }
+
+    .tourist-register-outline {
+      width: 100%;
+    }
+  }
+

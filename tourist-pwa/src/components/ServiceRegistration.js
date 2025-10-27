@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import axios from 'axios';
 import '../ServiceRegistration.css';
+import './register.css';
 
 const getBackend = () => {
   const FALLBACK = (typeof window !== 'undefined' && window.location.hostname === 'localhost') ? process.env.REACT_APP_BACKEND_URL : process.env.REACT_APP_BACKEND_URL;
@@ -176,72 +177,112 @@ export default function ServiceRegistration({ onSuccess, onSwitchToLogin }) {
   }
 
   if (step === 'register') {
+    const visualStyle = {
+      backgroundImage: `linear-gradient(260deg, rgba(31, 41, 55, 0.4) 0%, rgba(31, 41, 55, 0.65) 35%, rgba(15, 23, 42, 0.8) 100%), url(${currentModule.bgImage})`,
+    };
+
     return (
-      <div 
-        className="service-registration-container" 
-        style={{ 
-          backgroundImage: `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${currentModule.bgImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
-        }}
-      >
-        <div className="service-registration-card">
-          <div className="service-header" style={{ borderLeftColor: currentModule.color }}>
-            <span className="service-icon" style={{ fontSize: 48 }}>{currentModule.icon}</span>
-            <h2>{currentModule.label}</h2>
-            <p className="service-subtitle">{currentModule.description}</p>
+      <div className="tourist-register-layout">
+        <div className="tourist-register-visual" style={visualStyle}>
+          <div className="tourist-register-overlay">
+            <div
+              className="tourist-register-pill"
+              style={{ background: `${currentModule.color}33`, color: '#ffffff' }}
+            >
+              <span style={{ fontSize: 20, marginRight: 8 }}>{currentModule.icon}</span>
+              <span>Safety Suite</span>
+            </div>
+            <h1 className="tourist-register-title">SurakshaChakra</h1>
+            <p className="tourist-register-subtitle">
+              Your safety, our priority. Experience peace of mind with secure solutions tailored for every journey.
+            </p>
           </div>
-          
-          <form onSubmit={handleRegister} className="registration-form">
-            {error && <div className="error-message">{error}</div>}
-            
-            <label>Full Name</label>
-            <input
-              type="text"
-              placeholder="Enter your full name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-            
-            <label>Email Address</label>
-            <input
-              type="email"
-              placeholder="your.email@example.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-            
-            <label>{idFieldLabel}</label>
-            <input
-              type="text"
-              placeholder={idPlaceholder}
-              value={form.passportId}
-              onChange={(e) => setForm({ ...form, passportId: e.target.value })}
-              required
-            />
-            
-            <label>Emergency Contact</label>
-            <input
-              type="tel"
-              placeholder="+1234567890"
-              value={form.emergencyContact}
-              onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })}
-              required
-            />
-            
-            <button type="submit" disabled={loading} className="primary-button" style={{ backgroundColor: currentModule.color }}>
-              {loading ? 'Registering...' : 'Register'}
-            </button>
-            
-            <button type="button" onClick={() => setStep('select')} className="secondary-button">
-              Change Service
-            </button>
-          </form>
-          
-          <div className="login-link">
-            Already have an account? <button onClick={onSwitchToLogin} className="link-button">Login</button>
+        </div>
+
+        <div className="tourist-register-form-area">
+          <div className="tourist-register-form-wrapper">
+            <div className="tourist-register-card">
+              <div className="tourist-register-header">
+                <h2>Welcome</h2>
+                <p>Register for {currentModule.label} via SurakshaChakra</p>
+              </div>
+
+              {error && <div className="tourist-register-error">{error}</div>}
+
+              <form onSubmit={handleRegister}>
+                <div className="tourist-register-fields">
+                  <label className="tourist-register-field">
+                    <span>Full Name</span>
+                    <input
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      required
+                    />
+                  </label>
+
+                  <label className="tourist-register-field">
+                    <span>Email Address</span>
+                    <input
+                      type="email"
+                      placeholder="your.email@example.com"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      required
+                    />
+                  </label>
+
+                  <label className="tourist-register-field">
+                    <span>{idFieldLabel}</span>
+                    <input
+                      type="text"
+                      placeholder={idPlaceholder}
+                      value={form.passportId}
+                      onChange={(e) => setForm({ ...form, passportId: e.target.value })}
+                      required
+                    />
+                  </label>
+
+                  <label className="tourist-register-field">
+                    <span>Emergency Contact</span>
+                    <input
+                      type="tel"
+                      placeholder="+1234567890"
+                      value={form.emergencyContact}
+                      onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="tourist-register-submit"
+                  aria-busy={loading ? 'true' : undefined}
+                >
+                  {loading ? 'Registering...' : 'Register'}
+                </button>
+              </form>
+
+              <div className="tourist-register-separator">or</div>
+
+              {/* <div className="tourist-register-social">
+                <button type="button" className="social-btn google">Google</button>
+                <button type="button" className="social-btn facebook">Facebook</button>
+                <button type="button" className="social-btn apple">Apple</button>
+              </div> */}
+
+              <button type="button" onClick={() => setStep('select')} className="tourist-register-outline">
+                Change Service
+              </button>
+
+              <p className="tourist-register-login">
+                Already have an account?
+                <button onClick={onSwitchToLogin} type="button">Login</button>
+              </p>
+            </div>
           </div>
         </div>
       </div>
