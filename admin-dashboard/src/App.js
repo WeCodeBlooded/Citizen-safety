@@ -1248,45 +1248,64 @@ function App() {
     return (
       <div className="auth-screen">
         <div className="auth-card">
-          <h1>Authority Dashboard</h1>
-          <p className="auth-card__subtitle">Sign in with administrator credentials to access live incidents and alerts.</p>
-          {authError && <div className="auth-card__error">{authError}</div>}
-          <form className="auth-form" onSubmit={handleLoginSubmit}>
-            <label className="auth-field">
-              <span>Email</span>
-              <input
-                type="email"
-                name="email"
-                autoComplete="email"
-                value={loginForm.email}
-                onChange={handleLoginFieldChange('email')}
-                required
-                placeholder="admin@example.gov"
-              />
-            </label>
-            <label className="auth-field">
-              <span>Password</span>
-              <input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={loginForm.password}
-                onChange={handleLoginFieldChange('password')}
-                required
-                placeholder="Enter your password"
-              />
-            </label>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              fullWidth
-              disabled={loginSubmitting}
-            >
-              {loginSubmitting ? 'Signing in…' : 'Sign In'}
-            </Button>
-          </form>
-          <p className="auth-card__hint">Contact the system administrator to provision or reset access.</p>
+          <div className="auth-card__inner">
+            <div className="auth-brand">
+              <div className="auth-logo" aria-hidden>
+                {/* simple shield SVG */}
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2l7 3v5c0 5-3.5 9-7 11-3.5-2-7-6-7-11V5l7-3z" fill="#0ea5e9" opacity="0.95"/>
+                  <path d="M9.75 11.5c0 .966.784 1.75 1.75 1.75s1.75-.784 1.75-1.75" stroke="#06283D" strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div className="auth-brand__name">SURAKSHA CHAKRA</div>
+            </div>
+
+            <h1 className="auth-title">Authority Dashboard</h1>
+            <p className="auth-card__subtitle">Sign in with administrator credentials to access live incidents and alerts</p>
+
+            {authError && <div className="auth-card__error">{authError}</div>}
+
+            <form className="auth-form" onSubmit={handleLoginSubmit}>
+              <div className="auth-field auth-field--icon">
+                <span className="auth-field__icon" aria-hidden />
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  value={loginForm.email}
+                  onChange={handleLoginFieldChange('email')}
+                  required
+                  placeholder="alice@example.com"
+                />
+              </div>
+
+              <div className="auth-field auth-field--icon">
+                <span className="auth-field__icon lock" aria-hidden />
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={loginForm.password}
+                  onChange={handleLoginFieldChange('password')}
+                  required
+                  placeholder="Enter your password"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                fullWidth
+                disabled={loginSubmitting}
+                className="sign-in-btn"
+              >
+                {loginSubmitting ? 'Signing in…' : 'SIGN IN'}
+              </Button>
+            </form>
+
+            <p className="auth-card__hint">Contact the system administrator to provision or reset access.</p>
+          </div>
         </div>
       </div>
     );
