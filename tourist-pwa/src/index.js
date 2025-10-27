@@ -11,6 +11,20 @@ root.render(
   </React.StrictMode>
 );
 
+if (typeof window !== 'undefined') {
+  const resizeObserverErr = 'ResizeObserver loop completed with undelivered notifications.';
+  window.addEventListener('error', (event) => {
+    if (event?.message === resizeObserverErr || event?.error?.message === resizeObserverErr) {
+      event.stopImmediatePropagation();
+    }
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const message = event?.reason?.message;
+    if (message === resizeObserverErr) {
+      event.preventDefault();
+    }
+  });
+}
 
 
 
