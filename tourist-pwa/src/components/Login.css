@@ -63,7 +63,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: clamp(32px, 6vw, 80px);
-  background: linear-gradient(135deg, var(--login-gradient-start) 0%, var(--login-gradient-mid) 48%, var(--login-gradient-end) 100%);
+  background: url('c:/Users/disha/OneDrive/Desktop/Citizen-safety/tourist-pwa/public/bg1.jpg') center center/cover no-repeat, linear-gradient(135deg, var(--login-gradient-start) 0%, var(--login-gradient-mid) 48%, var(--login-gradient-end) 100%);
   position: relative;
   overflow: hidden;
 }
@@ -101,6 +101,7 @@ body {
   text-align: center;
 }
 
+
 .login-brand-block {
   color: #ffffff;
   display: flex;
@@ -108,18 +109,67 @@ body {
   gap: 8px;
   align-items: center;
 }
+.login-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(39,64,255,0.18), 0 2px 8px #fff;
+  margin-bottom: 18px;
+  animation: avatarPop 0.7s cubic-bezier(.4,0,.2,1);
+}
 
 .login-logo {
-  font-size: clamp(28px, 5vw, 42px);
-  font-weight: 800;
-  letter-spacing: 3px;
+  font-size: clamp(32px, 6vw, 48px);
+  font-weight: 900;
+  letter-spacing: 3.5px;
+  color: #fff;
+  text-shadow:
+    0 0 12px #4c6dff,
+    0 0 24px #2740ff,
+    0 2px 8px #fff,
+    0 0 2px #1fd0d0;
+  filter: drop-shadow(0 0 8px #2740ff);
+  animation: glowLogo 2.2s infinite alternate;
+}
+
+@keyframes glowLogo {
+  0% {
+    text-shadow: 0 0 12px #4c6dff, 0 0 24px #2740ff, 0 2px 8px #fff, 0 0 2px #1fd0d0;
+    filter: drop-shadow(0 0 8px #2740ff);
+  }
+  100% {
+    text-shadow: 0 0 24px #4c6dff, 0 0 48px #2740ff, 0 2px 16px #fff, 0 0 8px #1fd0d0;
+    filter: drop-shadow(0 0 16px #2740ff);
+  }
 }
 
 .login-tagline {
-  font-size: clamp(14px, 2.2vw, 17px);
-  opacity: 0.82;
+  font-size: clamp(16px, 2.5vw, 20px);
+  font-weight: 600;
+  opacity: 0.92;
   max-width: 420px;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: #eaf6ff;
+  text-shadow:
+    0 0 8px #4c6dff,
+    0 0 16px #2740ff,
+    0 2px 8px #fff;
+  letter-spacing: 1.2px;
+  filter: drop-shadow(0 0 6px #2740ff);
+  animation: glowTagline 2.2s infinite alternate;
+}
+
+@keyframes glowTagline {
+  0% {
+    text-shadow: 0 0 8px #4c6dff, 0 0 16px #2740ff, 0 2px 8px #fff;
+    filter: drop-shadow(0 0 6px #2740ff);
+  }
+  100% {
+    text-shadow: 0 0 16px #4c6dff, 0 0 32px #2740ff, 0 2px 16px #fff;
+    filter: drop-shadow(0 0 12px #2740ff);
+  }
 }
 
 .login-card {
@@ -127,7 +177,7 @@ body {
   background: var(--login-card-surface);
   border-radius: clamp(22px, 4vw, 30px);
   padding: clamp(28px, 6vw, 44px);
-  box-shadow: var(--login-card-shadow);
+  box-shadow: 0 8px 32px rgba(39,64,255,0.18), 0 2px 8px #fff, 0 0 32px 8px rgba(39,64,255,0.12), 0 0 0 4px rgba(76,109,255,0.08);
   border: 1px solid var(--login-card-border);
   display: flex;
   flex-direction: column;
