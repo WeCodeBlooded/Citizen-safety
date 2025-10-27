@@ -572,7 +572,7 @@ function App() {
   const [pendingInvites, setPendingInvites] = useState([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [groupActionLoading, setGroupActionLoading] = useState(false);
-  const [safeZoneSummary, setSafeZoneSummary] = useState({ count: null, nearest: null, loading: false, error: null });
+  const [safeZoneSummary, setSafeZoneSummary] = useState({ count: null, nearest: null, loading: false, error: null, list: [] });
   const [lastLocationTimestamp, setLastLocationTimestamp] = useState(null);
   const [emergencyContactCount, setEmergencyContactCount] = useState(0);
   const [showGeoAlert, setShowGeoAlert] = useState(false);
@@ -751,8 +751,70 @@ function App() {
       }
       return `${safeZoneSummary.nearest.toFixed(1)} km away`;
     }
+    const firstListed = safeZoneSummary.list?.[0];
+    if (firstListed?.distanceText) return firstListed.distanceText;
     return 'Within 5 km radius';
   }, [safeZoneSummary]);
+
+  const safeZoneList = useMemo(() => safeZoneSummary.list || [], [safeZoneSummary.list]);
+
+  const resolveSafeZoneGlyph = React.useCallback((label = '') => {
+    const normalized = String(label).toLowerCase();
+    if (normalized.includes('police')) return '🚓';
+    if (normalized.includes('hospital') || normalized.includes('clinic')) return '🏥';
+    if (normalized.includes('embassy') || normalized.includes('consulate')) return '🛂';
+    if (normalized.includes('tourist') || normalized.includes('info')) return '🧭';
+    if (normalized.includes('station')) return '🚉';
+    return '🛡';
+  }, []);
+
+  const liveStatusLabel = useMemo(() => {
+    if (isPanicMode) return 'Locked';
+    if (locationSharingStatus === 'error') return 'Error';
+    if (locationSharingStatus === 'offline') return 'Offline';
+    if (locationSharingStatus === 'sending' || locationSharingStatus === 'syncing') return 'Syncing';
+    return isLiveLocationEnabled ? 'Active' : 'Paused';
+  }, [isPanicMode, locationSharingStatus, isLiveLocationEnabled]);
+
+  const liveStatusVariant = useMemo(() => {
+    if (isPanicMode) return 'locked';
+    if (locationSharingStatus === 'error') return 'error';
+    if (locationSharingStatus === 'offline') return 'offline';
+    if (locationSharingStatus === 'sending' || locationSharingStatus === 'syncing') return 'syncing';
+    return isLiveLocationEnabled ? 'active' : 'paused';
+  }, [isPanicMode, locationSharingStatus, isLiveLocationEnabled]);
+
+  const destinationSummaryLabel = useMemo(() => {
+    if (selectedDestination) {
+      return selectedDestination.formatted || selectedDestination.name || selectedDestination.address_line1 || destinationQuery || 'Selected destination';
+    }
+    if (destinationQuery) return destinationQuery;
+    return 'Choose your next stop';
+  }, [selectedDestination, destinationQuery]);
+
+  const destinationDistanceLabel = useMemo(() => {
+    if (selectedDestination) {
+      const destLat = selectedDestination.lat || selectedDestination.latitude || selectedDestination.geometry?.lat;
+      const destLon = selectedDestination.lon || selectedDestination.longitude || selectedDestination.geometry?.lon;
+      if (currentPosition && destLat != null && destLon != null && currentPosition.latitude != null && currentPosition.longitude != null) {
+        const meters = haversineMeters(currentPosition.latitude, currentPosition.longitude, destLat, destLon);
+        if (Number.isFinite(meters)) {
+          if (meters < 1000) return `${Math.max(50, Math.round(meters))} m`;
+          return `${(meters / 1000).toFixed(1)} km`;
+        }
+      }
+      if (typeof selectedDestination.distance_text === 'string' && selectedDestination.distance_text.trim()) {
+        return selectedDestination.distance_text.trim();
+      }
+      if (typeof selectedDestination.distance === 'number' && Number.isFinite(selectedDestination.distance)) {
+        const kilometers = selectedDestination.distance;
+        return kilometers < 1
+          ? `${Math.max(50, Math.round(kilometers * 1000))} m`
+          : `${kilometers.toFixed(1)} km`;
+      }
+    }
+    return '—';
+  }, [selectedDestination, currentPosition]);
 
   const touristDisplayName = useMemo(() => {
     if (!loggedInUserName) return 'Traveler';
@@ -1232,7 +1294,7 @@ function App() {
     if (!currentPosition?.latitude || !currentPosition?.longitude) return;
 
     let cancelled = false;
-    setSafeZoneSummary((prev) => ({ ...prev, loading: true, error: null }));
+  setSafeZoneSummary((prev) => ({ ...prev, loading: true, error: null }));
 
     const fetchNearbyZones = async () => {
       try {
@@ -1248,13 +1310,43 @@ function App() {
 
         if (cancelled) return;
         const zones = Array.isArray(res.data?.data) ? res.data.data : [];
-        const nearestDistance = zones.length && typeof zones[0]?.distance === 'number'
-          ? zones[0].distance
-          : null;
-        setSafeZoneSummary({ count: zones.length, nearest: nearestDistance, loading: false, error: null });
+        let nearestDistance = null;
+        if (zones.length) {
+          const rawDistance = zones[0]?.distance ?? zones[0]?.distance_km ?? zones[0]?.distanceMeters;
+          if (typeof rawDistance === 'number' && Number.isFinite(rawDistance)) {
+            nearestDistance = rawDistance;
+          } else if (typeof rawDistance === 'string' && rawDistance.trim()) {
+            const parsed = parseFloat(rawDistance);
+            if (!Number.isNaN(parsed)) {
+              nearestDistance = parsed;
+            }
+          }
+        }
+        const formattedZones = zones.slice(0, 3).map((zone, index) => {
+          const rawName = zone.name || zone.zone_name || zone.place_name || zone.location || zone.title || zone.type;
+          const label = rawName ? String(rawName) : `Safe Zone ${index + 1}`;
+          let distanceText = null;
+          if (typeof zone.distance === 'number' && Number.isFinite(zone.distance)) {
+            distanceText = zone.distance < 1
+              ? `${Math.max(50, Math.round(zone.distance * 1000))} m`
+              : `${zone.distance.toFixed(1)} km`;
+          } else if (typeof zone.distance === 'string' && zone.distance.trim()) {
+            distanceText = zone.distance.trim();
+          } else if (typeof zone.distance_text === 'string' && zone.distance_text.trim()) {
+            distanceText = zone.distance_text.trim();
+          } else if (typeof zone.distance_label === 'string' && zone.distance_label.trim()) {
+            distanceText = zone.distance_label.trim();
+          }
+          return {
+            id: zone.id || zone.zone_id || zone.place_id || zone.uuid || `zone-${index}`,
+            label,
+            distanceText: distanceText || 'Within reach',
+          };
+        });
+        setSafeZoneSummary({ count: zones.length, nearest: nearestDistance, loading: false, error: null, list: formattedZones });
       } catch (error) {
         if (cancelled) return;
-        setSafeZoneSummary((prev) => ({ ...prev, loading: false, error: error?.message || 'Failed to load safe zones' }));
+        setSafeZoneSummary((prev) => ({ ...prev, loading: false, error: error?.message || 'Failed to load safe zones', list: prev.list || [] }));
       }
     };
 
@@ -2466,16 +2558,11 @@ function App() {
     if (initialTheme === 'dark') body.setAttribute('data-theme','dark'); else body.removeAttribute('data-theme');
   }, [initialTheme]);
 
-  // Auto-night class (non-persistent, recalculated hourly)
+  // Auto-night previously introduced a dark mode; keep the dashboard light-only for now.
   useEffect(() => {
     const body = document.body;
-    function applyAutoNight(){
-      const hr = new Date().getHours();
-      if (hr >= 18 || hr < 6) body.classList.add('auto-night'); else body.classList.remove('auto-night');
-    }
-    applyAutoNight();
-    const id = setInterval(applyAutoNight, 60 * 60 * 1000);
-    return () => clearInterval(id);
+    body.classList.remove('auto-night');
+    return () => body.classList.remove('auto-night');
   }, []);
 
   // (toggleTheme removed – family view currently not exposing manual theme toggle here)
@@ -2912,6 +2999,16 @@ function App() {
 
                 <div className="tourist-hero__body">
                   <div className="tourist-live-card">
+                    <header className="tourist-live-card__header">
+                      <div className="tourist-live-card__header-text">
+                        <span className="tourist-live-card__heading">Live Location</span>
+                        <span className="tourist-live-card__subheading">Last check-in {lastCheckInLabel}</span>
+                      </div>
+                      <span className={`tourist-live-card__badge tourist-live-card__badge--${liveStatusVariant}`}>
+                        {liveStatusLabel}
+                      </span>
+                    </header>
+
                     <div className="tourist-live-card__status-bar">
                       <div
                         className="tourist-live-card__status-indicator"
@@ -2937,10 +3034,89 @@ function App() {
                         </label>
                       </div>
                     </div>
+                    <p className="tourist-live-card__helper">We track your location in real-time to keep you safe.</p>
+
+                    <div className="tourist-live-card__map-shell">
+                      <div className="tourist-live-card__map">
+                        <div className="tourist-live-card__location-header">
+                          <span className="tourist-live-card__location-title">Map View</span>
+                          <span className="tourist-live-card__location-subtitle">{locationName || 'Getting your location…'}</span>
+                        </div>
+                        {currentPosition ? (
+                          <>
+                            <div className="dashboard-map-wrapper">
+                              <Map
+                                userPosition={currentPosition}
+                                groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                                route={safeRoute}
+                                realTimeTracking={realTimeTracking}
+                                isMapEnlarged={false}
+                              />
+                            </div>
+                            <div className="dashboard-map-actions">
+                              <button
+                                onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
+                                className="primary-button"
+                                disabled={!safeRoute || safeRoute.length === 0}
+                                title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
+                              >
+                                {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
+                              </button>
+                              <button
+                                onClick={() => setIsMapEnlarged(true)}
+                                className="primary-button"
+                              >
+                                Enlarge Map
+                              </button>
+                            </div>
+
+                            {isMapEnlarged && (
+                              <div className="tourist-map-overlay">
+                                <div className="tourist-map-overlay__panel">
+                                  <div className="tourist-map-overlay__header">
+                                    <div className="tourist-map-overlay__title">Map - Navigation</div>
+                                    <div className="tourist-map-overlay__actions">
+                                      <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
+                                      <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
+                                    </div>
+                                  </div>
+                                  <div className="tourist-map-overlay__body">
+                                    <Map
+                                      userPosition={currentPosition}
+                                      groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
+                                      route={safeRoute}
+                                      realTimeTracking={realTimeTracking}
+                                      isMapEnlarged
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <p className="status-text">Getting your location...</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="tourist-live-card__summary">
+                      <div className="tourist-live-card__summary-item">
+                        <span>Destination</span>
+                        <strong>{destinationSummaryLabel}</strong>
+                      </div>
+                      <div className="tourist-live-card__summary-item">
+                        <span>Distance</span>
+                        <strong>{destinationDistanceLabel}</strong>
+                      </div>
+                      <div className="tourist-live-card__summary-item">
+                        <span>Last Check-in</span>
+                        <strong>{lastCheckInLabel}</strong>
+                      </div>
+                    </div>
 
                     <div className="tourist-live-card__destination">
                       <div className="tourist-live-card__destination-header">
-                        <span>Destination</span>
+                        <span>Plan your next move</span>
                         <small>Find the safest path to your next stop</small>
                       </div>
                       <div className="tourist-live-card__destination-input">
@@ -3008,67 +3184,6 @@ function App() {
                       </div>
                     )}
 
-                    <div className="tourist-live-card__map">
-                      <div className="tourist-live-card__location-header">
-                        <span className="tourist-live-card__location-title">Live Location</span>
-                        <span className="tourist-live-card__location-subtitle">{locationName || 'Getting your location…'}</span>
-                      </div>
-                      {currentPosition ? (
-                        <>
-                          <div className="dashboard-map-wrapper">
-                            <Map
-                              userPosition={currentPosition}
-                              groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
-                              route={safeRoute}
-                              realTimeTracking={realTimeTracking}
-                              isMapEnlarged={false}
-                            />
-                          </div>
-                          <div className="dashboard-map-actions">
-                            <button
-                              onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}
-                              className="primary-button"
-                              disabled={!safeRoute || safeRoute.length === 0}
-                              title={!safeRoute || safeRoute.length === 0 ? 'Find a safe route first' : (realTimeTracking ? 'Stop Navigation' : 'Start Navigation')}
-                            >
-                              {realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}
-                            </button>
-                            <button
-                              onClick={() => setIsMapEnlarged(true)}
-                              className="primary-button"
-                            >
-                              Enlarge Map
-                            </button>
-                          </div>
-
-                          {isMapEnlarged && (
-                            <div className="tourist-map-overlay">
-                              <div className="tourist-map-overlay__panel">
-                                <div className="tourist-map-overlay__header">
-                                  <div className="tourist-map-overlay__title">Map - Navigation</div>
-                                  <div className="tourist-map-overlay__actions">
-                                    <button className="primary-button" onClick={() => (realTimeTracking ? stopNavigation() : startNavigation())}>{realTimeTracking ? 'Stop Navigation' : 'Start Navigation'}</button>
-                                    <button className="primary-button" onClick={() => setIsMapEnlarged(false)}>Close</button>
-                                  </div>
-                                </div>
-                                <div className="tourist-map-overlay__body">
-                                  <Map
-                                    userPosition={currentPosition}
-                                    groupMembers={serviceType === 'women_safety' ? [] : groupInfo?.members?.filter((m) => m.passport_id !== passportId)}
-                                    route={safeRoute}
-                                    realTimeTracking={realTimeTracking}
-                                    isMapEnlarged
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <p className="status-text">Getting your location...</p>
-                      )}
-                    </div>
-
                     <div className="tourist-quick-actions">
                       <button
                         type="button"
@@ -3087,11 +3202,6 @@ function App() {
                       <button type="button" className="tourist-quick-action" onClick={() => setTouristActivePanel('safety')}>
                         Health Check
                       </button>
-                    </div>
-
-                    <div className="tourist-safety-tip">
-                      <strong>Safety Tip</strong>
-                      <p>Always share your live location with trusted contacts when exploring new areas.</p>
                     </div>
                   </div>
                 </div>
@@ -3495,6 +3605,38 @@ function App() {
             <small>Invites</small>
           </div>
         </div>
+      )}
+
+      {isTouristDashboard && (
+        <>
+          <div className="tourist-sidebar__safezones">
+            <h4>Nearby Safe Zones</h4>
+            <ul className="tourist-sidebar__safezones-list">
+              {safeZoneSummary.loading ? (
+                <li className="tourist-sidebar__safezones-empty">Loading nearby zones…</li>
+              ) : safeZoneList.length ? (
+                safeZoneList.map((zone) => (
+                  <li key={zone.id} className="tourist-sidebar__safezones-item">
+                    <span className="tourist-sidebar__safezones-icon" aria-hidden="true">
+                      {resolveSafeZoneGlyph(zone.label)}
+                    </span>
+                    <div className="tourist-sidebar__safezones-text">
+                      <strong>{zone.label}</strong>
+                      <span>{zone.distanceText}</span>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="tourist-sidebar__safezones-empty">No safe zones detected within 5 km.</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="tourist-sidebar__tip">
+            <h4>Safety Tip</h4>
+            <p>Always share your live location with trusted contacts when exploring new areas.</p>
+          </div>
+        </>
       )}
 
       <button

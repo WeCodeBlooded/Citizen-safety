@@ -1015,20 +1015,21 @@ body {
 }
 
 .tourist-stat-card {
-  background: linear-gradient(160deg, rgba(236, 233, 254, 0.5) 0%, rgba(219, 234, 254, 0.6) 100%);
+  background: linear-gradient(150deg, #ffffff 0%, #f8fafc 55%, #e0e7ff 100%);
   border-radius: 22px;
   padding: 18px;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  box-shadow: 0 12px 30px -18px rgba(79, 70, 229, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 12px 30px -20px rgba(15, 23, 42, 0.26);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  color: #0f172a;
 }
 
 .tourist-stat-card__label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #312e81;
+  color: #1e3a8a;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1036,12 +1037,12 @@ body {
 .tourist-stat-card__value {
   font-size: clamp(1.6rem, 3vw, 2rem);
   font-weight: 700;
-  color: #1d4ed8;
+  color: #0f172a;
 }
 
 .tourist-stat-card__hint {
   font-size: 0.85rem;
-  color: #64748b;
+  color: #475569;
 }
 
 .tourist-hero__body {
@@ -1083,14 +1084,96 @@ body {
   z-index: 1;
 }
 
+.tourist-live-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: linear-gradient(140deg, #eef2ff 0%, #dbeafe 60%, #fdf2f8 100%);
+  color: #0f172a;
+  padding: 20px 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 40px -24px rgba(59, 130, 246, 0.45);
+}
+
+.tourist-live-card__header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tourist-live-card__heading {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.tourist-live-card__subheading {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.tourist-live-card__badge {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(6px);
+  color: #0f172a;
+}
+
+.tourist-live-card__badge--active {
+  background: #ecfdf5;
+  border-color: #34d399;
+  color: #047857;
+}
+
+.tourist-live-card__badge--paused {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #1f2937;
+}
+
+.tourist-live-card__badge--offline {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.tourist-live-card__badge--syncing {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.tourist-live-card__badge--error {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.tourist-live-card__badge--locked {
+  background: #e0e7ff;
+  border-color: #6366f1;
+  color: #3730a3;
+}
+
 .tourist-live-card__status-bar {
   display: flex;
   align-items: center;
   gap: 14px;
+  row-gap: 12px;
+  flex-wrap: wrap;
   padding: 14px 18px;
   border-radius: 18px;
-  background: rgba(224, 231, 255, 0.6);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  box-shadow: 0 12px 26px -22px rgba(99, 102, 241, 0.35);
 }
 
 .tourist-live-card__status-indicator {
@@ -1104,7 +1187,7 @@ body {
 .tourist-live-card__status-text {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #1e293b;
+  color: #0f172a;
 }
 
 .tourist-live-card__status-toggle {
@@ -1114,7 +1197,7 @@ body {
   gap: 10px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #334155;
+  color: #1f2937;
 }
 
 .tourist-live-card__toggle {
@@ -1161,14 +1244,64 @@ body {
   cursor: not-allowed;
 }
 
+.tourist-live-card__helper {
+  font-size: 0.85rem;
+  color: #1f2937;
+  margin-top: -6px;
+}
+
+.tourist-live-card__map-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tourist-live-card__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 24px -20px rgba(15, 23, 42, 0.45);
+  padding: 14px 18px;
+}
+
+.tourist-live-card__summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tourist-live-card__summary-item span {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.tourist-live-card__summary-item strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 .tourist-live-card__destination {
-  background: rgba(248, 250, 252, 0.8);
+  background: #ffffff;
   border-radius: 20px;
   padding: 16px 18px;
-  border: 1px solid rgba(203, 213, 225, 0.6);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 24px -20px rgba(15, 23, 42, 0.45);
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.tourist-live-card__destination-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tourist-live-card__destination-header span {
@@ -1373,18 +1506,6 @@ body {
   box-shadow: 0 16px 32px -20px rgba(239, 68, 68, 0.55);
 }
 
-.tourist-safety-tip {
-  background: rgba(255, 247, 237, 0.85);
-  border: 1px solid rgba(251, 191, 36, 0.45);
-  border-radius: 18px;
-  padding: 14px 16px;
-  color: #92400e;
-  font-size: 0.9rem;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .tourist-overview-card {
   background: linear-gradient(170deg, rgba(99, 102, 241, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%);
   border-radius: 28px;
@@ -1577,15 +1698,15 @@ body {
 }
 
 .tourist-sidebar__status--success {
-  background: rgba(16, 185, 129, 0.15);
+  background: #ecfdf5;
   color: #047857;
-  border-color: rgba(16, 185, 129, 0.35);
+  border-color: #10b981;
 }
 
 .tourist-sidebar__status--pending {
-  background: rgba(251, 191, 36, 0.18);
+  background: #fef3c7;
   color: #92400e;
-  border-color: rgba(251, 191, 36, 0.38);
+  border-color: #f59e0b;
 }
 
 .tourist-sidebar__edit {
@@ -1624,13 +1745,106 @@ body {
 
 .tourist-sidebar__stat span {
   font-size: 1.4rem;
-  color: #1d4ed8;
+  color: #0f172a;
 }
 
 .tourist-sidebar__stat small {
   font-size: 0.8rem;
   color: #64748b;
   font-weight: 500;
+}
+
+.tourist-sidebar__safezones {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tourist-sidebar__safezones h4 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.tourist-sidebar__safezones-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tourist-sidebar__safezones-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  box-shadow: 0 14px 30px -24px rgba(79, 70, 229, 0.6);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tourist-sidebar__safezones-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px -20px rgba(79, 70, 229, 0.45);
+}
+
+.tourist-sidebar__safezones-icon {
+  font-size: 1.4rem;
+}
+
+.tourist-sidebar__safezones-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.tourist-sidebar__safezones-text strong {
+  font-weight: 600;
+}
+
+.tourist-sidebar__safezones-text span {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.tourist-sidebar__safezones-empty {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  background: rgba(248, 250, 252, 0.7);
+  font-size: 0.85rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.tourist-sidebar__tip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(254, 240, 138, 0.45) 0%, rgba(253, 186, 116, 0.35) 100%);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #92400e;
+}
+
+.tourist-sidebar__tip h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.tourist-sidebar__tip p {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .tourist-sidebar__refresh {
@@ -2154,11 +2368,10 @@ body.auto-night .navbar-user-actions button[title="Toggle theme"] { background: 
 
 
 body[data-theme="dark"] .app-container {
-  background: #0f172a url('./background-image.jpg') center/cover no-repeat fixed;
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.96) 0%, rgba(2, 6, 23, 0.94) 60%);
 }
 body.auto-night .app-container:not([data-theme]) {
-  
-  background: #0b1322 url('./background-image.jpg') center/cover no-repeat fixed;
+  background: radial-gradient(circle at top, rgba(11, 19, 34, 0.94) 0%, rgba(2, 6, 23, 0.92) 60%);
 }
 body[data-theme="dark"] .app-container::before,
 body.auto-night .app-container::before {
