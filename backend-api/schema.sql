@@ -46,6 +46,11 @@ CREATE TABLE tourists (
     otp_code VARCHAR(10),
     profile_picture_url VARCHAR(255),
     blockchain_id VARCHAR(255),    
+    passport_hash CHAR(66),
+    blockchain_tx_hash VARCHAR(255),
+    blockchain_status VARCHAR(30) DEFAULT 'pending',
+    blockchain_registered_at TIMESTAMPTZ,
+    blockchain_metadata_uri TEXT,
     country VARCHAR(100),
     visa_id VARCHAR(100),
     visa_expiry VARCHAR(50),
@@ -57,7 +62,8 @@ CREATE TABLE tourists (
     passport_image_secondary_url VARCHAR(255),
     visa_image_url VARCHAR(255),
     profile_complete BOOLEAN DEFAULT false,
-    service_type VARCHAR(50) DEFAULT 'general_safety' -- women_safety | tourist_safety | citizen_safety | general_safety
+    service_type VARCHAR(50) DEFAULT 'general_safety', -- women_safety | tourist_safety | citizen_safety | general_safety
+    CONSTRAINT tourists_passport_hash_unique UNIQUE (passport_hash)
 );
 
 
@@ -66,7 +72,11 @@ CREATE TABLE groups (
     group_id UUID DEFAULT gen_random_uuid() NOT NULL,
     group_name VARCHAR(100) NOT NULL,
     created_by_tourist_id INTEGER REFERENCES tourists(id),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    blockchain_group_id VARCHAR(255),
+    blockchain_tx_hash VARCHAR(255),
+    blockchain_status VARCHAR(30) DEFAULT 'pending',
+    blockchain_created_at TIMESTAMPTZ
 );
 
 
@@ -76,6 +86,87 @@ CREATE TABLE group_members (
     tourist_id INTEGER NOT NULL REFERENCES tourists(id) ON DELETE CASCADE,
     status VARCHAR(50) DEFAULT 'accepted',
     UNIQUE(group_id, tourist_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS blockchain_transactions (
+    id SERIAL PRIMARY KEY,
+    passport_hash CHAR(66),
+    entity_type VARCHAR(40) NOT NULL,
+    action VARCHAR(40) NOT NULL,
+    tx_hash VARCHAR(255) UNIQUE NOT NULL,
+    status VARCHAR(20) DEFAULT 'submitted',
+    block_number BIGINT,
+    payload JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_blockchain_transactions_tourist FOREIGN KEY (passport_hash)
+        REFERENCES tourists(passport_hash)
+        ON DELETE SET NULL DEFERRABLE INITIALLY IMMEDIATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_passport ON blockchain_transactions(passport_hash);
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_action ON blockchain_transactions(action);
+
+
+CREATE TABLE IF NOT EXISTS blockchain_alerts (
+    alert_id BIGINT PRIMARY KEY,
+    passport_hash CHAR(66) NOT NULL,
+    location TEXT,
+    severity INTEGER,
+    tx_hash VARCHAR(255),
+    block_number BIGINT,
+    occurred_at TIMESTAMPTZ,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_blockchain_alerts_tourist FOREIGN KEY (passport_hash)
+        REFERENCES tourists(passport_hash)
+        ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_alerts_passport ON blockchain_alerts(passport_hash);
+
+
+CREATE TABLE IF NOT EXISTS blockchain_emergencies (
+    log_id BIGINT PRIMARY KEY,
+    passport_hash CHAR(66) NOT NULL,
+    evidence_hash TEXT,
+    location TEXT,
+    tx_hash VARCHAR(255),
+    block_number BIGINT,
+    occurred_at TIMESTAMPTZ,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_blockchain_emergencies_tourist FOREIGN KEY (passport_hash)
+        REFERENCES tourists(passport_hash)
+        ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
+);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_emergencies_passport ON blockchain_emergencies(passport_hash);
+
+
+CREATE TABLE IF NOT EXISTS blockchain_audit_log (
+    audit_id BIGINT PRIMARY KEY,
+    actor VARCHAR(66),
+    action VARCHAR(100),
+    subject_hash CHAR(66),
+    details TEXT,
+    tx_hash VARCHAR(255),
+    block_number BIGINT,
+    occurred_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_audit_action ON blockchain_audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_blockchain_audit_subject ON blockchain_audit_log(subject_hash);
+
+
+CREATE TABLE IF NOT EXISTS blockchain_event_cursors (
+    id SERIAL PRIMARY KEY,
+    event_name VARCHAR(120) UNIQUE NOT NULL,
+    last_block BIGINT DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 
