@@ -40,63 +40,104 @@ const TOURIST_FEATURE_SECTIONS = [
   { id: 'nearby', label: 'Nearby Assistance' }
 ];
 
+const DEFAULT_BACKEND_PORT = process.env.REACT_APP_BACKEND_PORT || '3001';
 
+const deriveDefaultBackendUrl = () => {
+  const envValue = (process.env.REACT_APP_BACKEND_URL || '').trim();
+  if (envValue) {
+    return envValue;
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol = 'http:', hostname = 'localhost', port } = window.location;
+    if (/^(localhost|127\.0\.0\.1)$/i.test(hostname)) {
+      return `${protocol}//${hostname}:${DEFAULT_BACKEND_PORT}`;
+    }
+    const targetPort = port ? `:${port}` : '';
+    return `${protocol}//${hostname}${targetPort}`;
+  }
+  return `http://localhost:${DEFAULT_BACKEND_PORT}`;
+};
 
-// Use http for local development (no TLS) to avoid ERR_SSL_PROTOCOL_ERROR.
-// You can override the backend URL at runtime by setting localStorage.setItem('BACKEND_URL', '<your-backend>')
-// Default backend selection: prefer localhost when running locally.
-const FALLBACK_NGROK = process.env.REACT_APP_BACKEND_URL;
-const DEFAULT_BACKEND =
-  (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost')
-    ? process.env.REACT_APP_BACKEND_URL
-    : FALLBACK_NGROK;
+const sanitizeBackendUrl = (rawValue, fallbackValue) => {
+  const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+  if (!value) {
+    return fallbackValue;
+  }
+  let candidate = value;
+  if (!/^https?:\/\//i.test(candidate)) {
+    const protocolGuess =
+      (typeof window !== 'undefined' && window.location && window.location.protocol) || 'http:';
+    candidate = `${protocolGuess}//${candidate.replace(/^\/+/, '')}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.pathname && parsed.pathname !== '/') {
+      console.warn(
+        `[config] BACKEND_URL included path '${parsed.pathname}', trimming to origin.`
+      );
+    }
+    return parsed.origin;
+  } catch (error) {
+    console.warn('[config] Failed to parse BACKEND_URL, resetting to fallback.', error?.message || error);
+    return fallbackValue;
+  }
+};
 
-// Read raw value from localStorage (if present) and sanitize it to avoid
-// malformed values like " https://..." which create requests to
-// "http://%20https/..." and cause ERR_NAME_NOT_RESOLVED.
-let _rawBackend = DEFAULT_BACKEND;
+const DEFAULT_BACKEND = deriveDefaultBackendUrl();
+
+let rawBackendUrl = DEFAULT_BACKEND;
 if (typeof window !== 'undefined') {
   try {
-    const v = localStorage.getItem('BACKEND_URL');
-    if (v) _rawBackend = v;
-  } catch (e) {
-    // ignore localStorage access errors
+    const stored = localStorage.getItem('BACKEND_URL');
+    if (stored) {
+      rawBackendUrl = stored;
+    }
+  } catch (error) {
+    console.warn('[config] Unable to read BACKEND_URL from storage:', error?.message || error);
   }
 }
-let BACKEND_URL = (typeof _rawBackend === 'string' ? _rawBackend.trim() : DEFAULT_BACKEND) || DEFAULT_BACKEND;
-// Normalize scheme-less or malformed values
-if (!/^https?:\/\//i.test(BACKEND_URL)) {
-  console.warn('[config] BACKEND_URL lacked protocol, defaulting to', DEFAULT_BACKEND);
-  BACKEND_URL = DEFAULT_BACKEND;
-}
+
+let BACKEND_URL = sanitizeBackendUrl(rawBackendUrl, DEFAULT_BACKEND);
 
 try {
   const parsed = new URL(BACKEND_URL);
-  if (parsed.pathname && parsed.pathname !== '/') {
-    console.warn(`[config] BACKEND_URL included path '${parsed.pathname}', trimming to origin.`);
+  if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname) && parsed.port !== String(DEFAULT_BACKEND_PORT)) {
+    const newUrl = `${parsed.protocol}//${parsed.hostname}:${DEFAULT_BACKEND_PORT}`;
+    console.warn(
+      `[config] Normalizing BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for local backend access.`
+    );
+    BACKEND_URL = newUrl;
   }
-  BACKEND_URL = parsed.origin;
 } catch (error) {
-  console.warn('[config] Failed to parse BACKEND_URL, resetting to default.', error?.message || error);
-  BACKEND_URL = DEFAULT_BACKEND;
+  console.warn('[config] BACKEND_URL normalization failed:', error?.message || error);
 }
-// If the frontend is being opened from a LAN IP (e.g., 192.168.x.x) and BACKEND_URL still points to localhost,
-// remote devices will try to reach their own localhost instead of the dev machine. Automatically rewrite.
+
 try {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    const isLocalhostBackend = /(^|\b)localhost\b/i.test(BACKEND_URL);
     const isLoopbackFrontend = /^(localhost|127\.0\.0\.1)$/i.test(host);
+    const isLocalhostBackend = /(^|\b)localhost\b/i.test(BACKEND_URL);
     if (!isLoopbackFrontend && isLocalhostBackend) {
-      const newUrl = `${window.location.protocol}//${host}:3001`;
-      console.warn(`[config] Rewriting BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for LAN access.`);
+      const newUrl = `${window.location.protocol}//${host}:${DEFAULT_BACKEND_PORT}`;
+      console.warn(
+        `[config] Rewriting BACKEND_URL from '${BACKEND_URL}' to '${newUrl}' for LAN access.`
+      );
       BACKEND_URL = newUrl;
     }
   }
-} catch (e) {
-  // ignore
+} catch (error) {
+  console.warn('[config] BACKEND_URL rewrite for LAN failed:', error?.message || error);
 }
+
 console.log('[config] Using BACKEND_URL =', BACKEND_URL);
+
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.setItem('BACKEND_URL', BACKEND_URL);
+  } catch (error) {
+    console.warn('[config] Failed to persist BACKEND_URL:', error?.message || error);
+  }
+}
 
 // Ensure axios sends cookies for session handling and add the ngrok skip header globally
 axios.defaults.withCredentials = true;
@@ -573,6 +614,7 @@ function App() {
   const [groupActionLoading, setGroupActionLoading] = useState(false);
   const [showGeoAlert, setShowGeoAlert] = useState(false);
   const [geoAlertData, setGeoAlertData] = useState(null);
+  const [dislocationPrompts, setDislocationPrompts] = useState([]);
   const [locationName, setLocationName] = useState("");
   const [safetyScore, setSafetyScore] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -615,22 +657,65 @@ function App() {
   const DISLOCATION_SNOOZE_MS = 2 * 60 * 1000; // 2 minutes default snooze to match backend 'yes'
 
   // helpers for snooze persistence
-  const getSnoozeKey = (groupName) => `disloc_snooze_${groupName || 'unknown'}`;
-  const isGroupSnoozed = (groupName) => {
-    try {
-      const raw = localStorage.getItem(getSnoozeKey(groupName));
-      if (!raw) return false;
-      const until = Number(raw);
-      if (!until) return false;
-      if (Date.now() < until) return true;
-      // expired -> cleanup
-      localStorage.removeItem(getSnoozeKey(groupName));
-      return false;
-    } catch { return false; }
-  };
-  const snoozeGroup = (groupName, ms = DISLOCATION_SNOOZE_MS) => {
-    try { localStorage.setItem(getSnoozeKey(groupName), String(Date.now() + ms)); } catch {}
-  };
+  const getSnoozeKey = React.useCallback(
+    (groupName) => `disloc_snooze_${groupName || 'unknown'}`,
+    []
+  );
+  const isGroupSnoozed = React.useCallback(
+    (groupName) => {
+      try {
+        const raw = localStorage.getItem(getSnoozeKey(groupName));
+        if (!raw) return false;
+        const until = Number(raw);
+        if (!until) return false;
+        if (Date.now() < until) return true;
+        // expired -> cleanup
+        localStorage.removeItem(getSnoozeKey(groupName));
+        return false;
+      } catch {
+        return false;
+      }
+    },
+    [getSnoozeKey]
+  );
+  const snoozeGroup = React.useCallback(
+    (groupName, ms = DISLOCATION_SNOOZE_MS) => {
+      try {
+        localStorage.setItem(
+          getSnoozeKey(groupName),
+          String(Date.now() + ms)
+        );
+      } catch {}
+    },
+    [getSnoozeKey, DISLOCATION_SNOOZE_MS]
+  );
+
+  const submitDislocationResponse = React.useCallback(
+    async ({ groupName, response, alertId }) => {
+      if (!passportId) return;
+      try {
+        await axios.post(
+          `${BACKEND_URL}/api/v1/groups/dislocation-response`,
+          {
+            groupName,
+            passportId,
+            response,
+            alertId,
+          },
+          {
+            withCredentials: true,
+            headers: { 'ngrok-skip-browser-warning': 'true' },
+          }
+        );
+      } catch (error) {
+        console.warn(
+          '[dislocation] Failed to submit response via HTTP:',
+          error?.message || error
+        );
+      }
+    },
+    [passportId]
+  );
 
   // Toggle live location sharing
   const toggleLiveLocation = () => {
@@ -821,6 +906,87 @@ function App() {
     } catch { return null; }
   }, [currentPosition, groupInfo, passportId]);
 
+  const presentDislocationAlert = React.useCallback(
+    (incoming, options = {}) => {
+      if (!incoming) return false;
+      const { ignoreProximityCheck = false } = options || {};
+
+      const dislocatedMemberRaw =
+        incoming.dislocatedMember || incoming.dislocated_member;
+      if (!dislocatedMemberRaw) {
+        return false;
+      }
+
+      const groupName = incoming.groupName || incoming.group_name;
+      if (groupName && isGroupSnoozed(groupName)) {
+        console.log(
+          `[dislocationAlert] Ignoring alert for ${groupName} because it is snoozed locally.`
+        );
+        return false;
+      }
+
+      const distanceRaw =
+        incoming.distance ?? incoming.distanceKm ?? incoming.distance_km;
+      const parsedDistance =
+        typeof distanceRaw === "number" ? distanceRaw : parseFloat(distanceRaw);
+      const proximityDistance = Number.isFinite(parsedDistance)
+        ? parsedDistance
+        : nearestGroupDistanceKm();
+
+      if (
+        !ignoreProximityCheck &&
+        proximityDistance != null &&
+        proximityDistance <= DISLOCATION_PROXIMITY_OK_KM
+      ) {
+        console.log(
+          "[dislocationAlert] Suppressing due to proximity:",
+          proximityDistance
+        );
+        return false;
+      }
+
+      const promptKey = groupName ? `group:${groupName}` : "group:unknown";
+      const normalizedAlert = {
+        id:
+          incoming.alertId ||
+          incoming.id ||
+          `disloc-${groupName || "unknown"}-${Date.now()}`,
+        alertId: incoming.alertId || incoming.id || null,
+        promptKey,
+        groupName,
+        dislocatedMember: dislocatedMemberRaw,
+        otherMember: incoming.otherMember || incoming.other_member || "group",
+        distance:
+          distanceRaw !== undefined && distanceRaw !== null
+            ? String(distanceRaw)
+            : "",
+        message: incoming.message,
+      };
+
+      setDislocationPrompts((prev) => {
+        const base = Array.isArray(prev) ? prev : [];
+        const filtered = base.filter((entry) => {
+          if (normalizedAlert.alertId && entry.alertId) {
+            return entry.alertId !== normalizedAlert.alertId;
+          }
+          return entry.promptKey !== promptKey;
+        });
+        return [...filtered, normalizedAlert];
+      });
+      setGeoAlertData(normalizedAlert);
+      setShowGeoAlert(true);
+      return true;
+    },
+    [
+      isGroupSnoozed,
+      nearestGroupDistanceKm,
+      setDislocationPrompts,
+      setGeoAlertData,
+      setShowGeoAlert,
+      DISLOCATION_PROXIMITY_OK_KM,
+    ]
+  );
+
   // When the map is enlarged (fullscreen overlay), disable page scroll
   useEffect(() => {
     if (isMapEnlarged) {
@@ -847,6 +1013,9 @@ function App() {
           group_name: data.group_name || data.groupName || "Unnamed Group",
           members: Array.isArray(data.members) ? data.members : [],
         };
+        if (data.pendingDislocationAlert) {
+          safe.pendingDislocationAlert = data.pendingDislocationAlert;
+        }
         setGroupInfo(safe.group_id ? safe : null);
         if (!safe.group_id) {
           console.warn("Group object received without group_id, treating as no group", data);
@@ -854,6 +1023,11 @@ function App() {
         // No need to refresh invites if we have a group
         if (safe.group_id) {
           setPendingInvites([]);
+          if (data.pendingDislocationAlert) {
+            presentDislocationAlert(data.pendingDislocationAlert, {
+              ignoreProximityCheck: true,
+            });
+          }
           return;
         }
       }
@@ -877,7 +1051,7 @@ function App() {
     } catch (error) {
       console.warn("Could not fetch group info:", error?.message || error);
     }
-  }, [passportId]);
+  }, [passportId, presentDislocationAlert]);
 
 
   // Registration is delegated to RegisterForm component now; removed unused handleRegister
@@ -1044,6 +1218,7 @@ function App() {
       setPendingInvites([]);
       setErrorMessage("");
       setAuthState("login");
+  setDislocationPrompts([]);
       
       // Clear women user from localStorage
       try {
@@ -1057,23 +1232,53 @@ function App() {
 
   // Removed inline profile picture upload from header; handled within profile flow if needed.
 
-  const handleDislocationResponse = (response) => {
-    if (socketRef.current && geoAlertData) {
+  const handleDislocationResponse = (response, alertPayload = null) => {
+    const payload = alertPayload || geoAlertData;
+    if (!payload) {
+      return;
+    }
+
+    if (socketRef.current) {
       socketRef.current.emit("dislocationResponse", {
-        groupName: geoAlertData.groupName,
+        groupName: payload.groupName,
         passportId: passportId,
-        response: response, // 'yes' or 'no'
+        response: response,
+        alertId: payload.alertId || payload.id || null,
       });
     }
-    // Local snooze to avoid repeated popups immediately
-    if (geoAlertData && geoAlertData.groupName) {
-      // Match backend: 'yes' -> 2 minutes, 'no' -> 5 minutes
+
+    submitDislocationResponse({
+      groupName: payload.groupName,
+      response,
+      alertId: payload.alertId || payload.id || null,
+    });
+
+    if (payload.groupName) {
       const ms = String(response).toLowerCase() === 'no' ? (5 * 60 * 1000) : (2 * 60 * 1000);
-      snoozeGroup(geoAlertData.groupName, ms);
+      snoozeGroup(payload.groupName, ms);
     }
-    // Close the modal immediately after responding
-    setShowGeoAlert(false);
-    setGeoAlertData(null);
+
+    const promptKey =
+      payload.promptKey || (payload.groupName ? `group:${payload.groupName}` : null);
+    setDislocationPrompts((prev) => {
+      if (!Array.isArray(prev)) {
+        return [];
+      }
+      return prev.filter((entry) => {
+        if (payload.alertId && entry.alertId) {
+          return entry.alertId !== payload.alertId;
+        }
+        if (promptKey) {
+          return entry.promptKey !== promptKey;
+        }
+        return entry.id !== payload.id;
+      });
+    });
+
+    if (!alertPayload || (geoAlertData && geoAlertData.groupName === payload.groupName)) {
+      setShowGeoAlert(false);
+      setGeoAlertData(null);
+    }
   };
 
   const handleCloseAlert = () => {
@@ -1910,51 +2115,19 @@ function App() {
 
     socket.on("dislocationAlert", (alertData) => {
       console.log("Received Dislocation Alert:", alertData);
-      const groupName = alertData.groupName || alertData.group_name;
-      // Suppress if snoozed locally
-      if (groupName && isGroupSnoozed(groupName)) return;
-      // Proximity suppression
-      const nearestKm = nearestGroupDistanceKm();
-      if (nearestKm != null && nearestKm <= DISLOCATION_PROXIMITY_OK_KM) {
-        console.log('Suppressing dislocationAlert due to proximity:', nearestKm);
-        return;
+      const handled = presentDislocationAlert(alertData);
+      if (!handled) {
+        console.log(
+          "[dislocationAlert] Alert ignored (snoozed, proximate, or invalid)."
+        );
       }
-      // Normalize payload to show in GeoFenceAlertModal (interactive)
-      const normalized = {
-        groupName,
-        dislocatedMember: alertData.dislocatedMember || alertData.dislocated_member || 'A member',
-        otherMember: alertData.otherMember || alertData.other_member || 'group',
-        distance: String(alertData.distance || alertData.distanceKm || ''),
-        message: alertData.message,
-      };
-      setGeoAlertData(normalized);
-      setShowGeoAlert(true);
     });
 
     socket.on("geoFenceAlert", (alertData) => {
       console.log("Received Geo-Fence Alert:", alertData);
-      // Only treat group-dislocation alerts here; other types show as-is
-      const isGroupDislocation = alertData?.type === 'group-dislocation' || !!alertData?.dislocatedMember;
-      const groupName = alertData.groupName || alertData.group_name;
-      if (isGroupDislocation) {
-        if (groupName && isGroupSnoozed(groupName)) return;
-        const nearestKm = nearestGroupDistanceKm();
-        if (nearestKm != null && nearestKm <= DISLOCATION_PROXIMITY_OK_KM) {
-          console.log('Suppressing geoFenceAlert (dislocation) due to proximity:', nearestKm);
-          return;
-        }
-        const normalized = {
-          groupName,
-          dislocatedMember: alertData.dislocatedMember || 'A member',
-          otherMember: alertData.otherMember || 'group',
-          distance: String(alertData.distance || alertData.distanceKm || ''),
-          message: alertData.message,
-        };
-        setGeoAlertData(normalized);
-        setShowGeoAlert(true);
+      if (presentDislocationAlert(alertData)) {
         return;
       }
-      // Non-dislocation geo-fence alerts
       setGeoAlertData(alertData);
       setShowGeoAlert(true);
     });
@@ -2129,7 +2302,13 @@ function App() {
       if (socketRef.current) socketRef.current.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- socket/geolocation lifecycle managed manually
-  }, [userToken, passportId, serviceType]);
+  }, [
+    userToken,
+    passportId,
+    serviceType,
+    presentDislocationAlert,
+    submitDislocationResponse,
+  ]);
 
   // Geolocation tracking for women users (no passportId, uses email/aadhaar)
   useEffect(() => {
@@ -3466,6 +3645,50 @@ function App() {
     <div className="App">
       {showAlert && (
         <AlertModal message={alertMessage} onClose={handleCloseAlert} />
+      )}
+      {dislocationPrompts.length > 0 && (
+        <div className="dislocation-prompt-stack">
+          {dislocationPrompts.map((prompt) => (
+            <div key={prompt.id} className="dislocation-prompt-card">
+              <div className="dislocation-prompt-title">Group Dislocation Alert</div>
+              <p className="dislocation-prompt-body">
+                {prompt.dislocatedMember} is approximately&nbsp;
+                <strong>{prompt.distance || 'unknown'}</strong>&nbsp;km away from&nbsp;
+                <strong>{prompt.otherMember}</strong>.
+              </p>
+              {prompt.groupName && (
+                <p className="dislocation-prompt-meta">Group: {prompt.groupName}</p>
+              )}
+              <p className="dislocation-prompt-question">Are you aware of this separation?</p>
+              <div className="dislocation-prompt-actions">
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-no"
+                  onClick={() => handleDislocationResponse('no', prompt)}
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-yes"
+                  onClick={() => handleDislocationResponse('yes', prompt)}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  className="dislocation-btn dislocation-btn-view"
+                  onClick={() => {
+                    setGeoAlertData(prompt);
+                    setShowGeoAlert(true);
+                  }}
+                >
+                  View Map
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
       {showGeoAlert && (
         <GeoFenceAlertModal

@@ -1,6 +1,7 @@
 {
-  "trained_at": "2025-09-16T08:59:37.008350",
-  "n_sessions": 20,
+  "trained_at": "2025-10-26T20:04:06.479637+00:00",
+  "n_sessions": 101,
+  "gps_points": 3012,
   "feature_cols": [
     "session_id",
     "avg_speed",
@@ -16,5 +17,23 @@
     "time_since_last",
     "crime_rate_local",
     "event_density_local"
-  ]
+  ],
+  "iforest": {
+    "contamination": 0.05,
+    "n_estimators": 300,
+    "decision_score_min": -0.2508155563535859,
+    "decision_score_max": 0.2215891320338625,
+    "decision_score_median": 0.15837828069391036
+  },
+  "dbscan": {
+    "eps": 2.5,
+    "min_samples": 3,
+    "n_clusters": 2,
+    "noise_ratio": 0.019801980198019802
+  },
+  "hotspot": {
+    "enabled": true,
+    "grid_size": 0.02,
+    "cells": 60
+  }
 }

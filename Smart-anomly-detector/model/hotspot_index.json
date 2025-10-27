@@ -1,0 +1,426 @@
+{
+  "grid_size": 0.02,
+  "scale": 50,
+  "cells": {
+    "1708|3879": {
+      "lat_idx": 1708,
+      "lon_idx": 3879,
+      "count": 11,
+      "severity_sum": 6.8260000000000005,
+      "max_severity": 0.934
+    },
+    "953|3642": {
+      "lat_idx": 953,
+      "lon_idx": 3642,
+      "count": 14,
+      "severity_sum": 8.338000000000001,
+      "max_severity": 0.805
+    },
+    "1329|4659": {
+      "lat_idx": 1329,
+      "lon_idx": 4659,
+      "count": 7,
+      "severity_sum": 3.8179999999999996,
+      "max_severity": 1.0
+    },
+    "424|3847": {
+      "lat_idx": 424,
+      "lon_idx": 3847,
+      "count": 9,
+      "severity_sum": 6.073,
+      "max_severity": 0.958
+    },
+    "1381|4692": {
+      "lat_idx": 1381,
+      "lon_idx": 4692,
+      "count": 3,
+      "severity_sum": 1.927,
+      "max_severity": 0.827
+    },
+    "947|3641": {
+      "lat_idx": 947,
+      "lon_idx": 3641,
+      "count": 5,
+      "severity_sum": 2.579,
+      "max_severity": 0.695
+    },
+    "1704|3740": {
+      "lat_idx": 1704,
+      "lon_idx": 3740,
+      "count": 13,
+      "severity_sum": 8.085999999999999,
+      "max_severity": 0.843
+    },
+    "1379|4593": {
+      "lat_idx": 1379,
+      "lon_idx": 4593,
+      "count": 36,
+      "severity_sum": 22.098999999999997,
+      "max_severity": 1.0
+    },
+    "504|3853": {
+      "lat_idx": 504,
+      "lon_idx": 3853,
+      "count": 3,
+      "severity_sum": 1.419,
+      "max_severity": 0.56
+    },
+    "597|3992": {
+      "lat_idx": 597,
+      "lon_idx": 3992,
+      "count": 6,
+      "severity_sum": 3.924,
+      "max_severity": 0.945
+    },
+    "994|4305": {
+      "lat_idx": 994,
+      "lon_idx": 4305,
+      "count": 24,
+      "severity_sum": 13.153,
+      "max_severity": 0.923
+    },
+    "1342|4047": {
+      "lat_idx": 1342,
+      "lon_idx": 4047,
+      "count": 27,
+      "severity_sum": 16.731,
+      "max_severity": 1.0
+    },
+    "1537|3839": {
+      "lat_idx": 1537,
+      "lon_idx": 3839,
+      "count": 24,
+      "severity_sum": 13.224,
+      "max_severity": 0.984
+    },
+    "1266|4149": {
+      "lat_idx": 1266,
+      "lon_idx": 4149,
+      "count": 6,
+      "severity_sum": 3.8569999999999998,
+      "max_severity": 0.841
+    },
+    "649|3880": {
+      "lat_idx": 649,
+      "lon_idx": 3880,
+      "count": 23,
+      "severity_sum": 14.745000000000003,
+      "max_severity": 1.0
+    },
+    "475|3817": {
+      "lat_idx": 475,
+      "lon_idx": 3817,
+      "count": 16,
+      "severity_sum": 10.342,
+      "max_severity": 1.0
+    },
+    "991|4292": {
+      "lat_idx": 991,
+      "lon_idx": 4292,
+      "count": 9,
+      "severity_sum": 5.315,
+      "max_severity": 0.864
+    },
+    "1359|3902": {
+      "lat_idx": 1359,
+      "lon_idx": 3902,
+      "count": 14,
+      "severity_sum": 9.801999999999998,
+      "max_severity": 1.0
+    },
+    "1346|3789": {
+      "lat_idx": 1346,
+      "lon_idx": 3789,
+      "count": 22,
+      "severity_sum": 12.344000000000001,
+      "max_severity": 1.0
+    },
+    "498|3812": {
+      "lat_idx": 498,
+      "lon_idx": 3812,
+      "count": 8,
+      "severity_sum": 4.393,
+      "max_severity": 0.926
+    },
+    "1504|3913": {
+      "lat_idx": 1504,
+      "lon_idx": 3913,
+      "count": 8,
+      "severity_sum": 4.968,
+      "max_severity": 0.975
+    },
+    "1381|4691": {
+      "lat_idx": 1381,
+      "lon_idx": 4691,
+      "count": 20,
+      "severity_sum": 11.112,
+      "max_severity": 0.961
+    },
+    "1352|4413": {
+      "lat_idx": 1352,
+      "lon_idx": 4413,
+      "count": 6,
+      "severity_sum": 3.07,
+      "max_severity": 0.622
+    },
+    "955|3641": {
+      "lat_idx": 955,
+      "lon_idx": 3641,
+      "count": 22,
+      "severity_sum": 12.793000000000001,
+      "max_severity": 0.969
+    },
+    "1426|3859": {
+      "lat_idx": 1426,
+      "lon_idx": 3859,
+      "count": 32,
+      "severity_sum": 20.647000000000002,
+      "max_severity": 0.964
+    },
+    "1229|3684": {
+      "lat_idx": 1229,
+      "lon_idx": 3684,
+      "count": 20,
+      "severity_sum": 10.928,
+      "max_severity": 1.0
+    },
+    "581|4636": {
+      "lat_idx": 581,
+      "lon_idx": 4636,
+      "count": 13,
+      "severity_sum": 8.472,
+      "max_severity": 0.981
+    },
+    "1315|3651": {
+      "lat_idx": 1315,
+      "lon_idx": 3651,
+      "count": 16,
+      "severity_sum": 8.679000000000002,
+      "max_severity": 0.779
+    },
+    "946|3642": {
+      "lat_idx": 946,
+      "lon_idx": 3642,
+      "count": 22,
+      "severity_sum": 12.83,
+      "max_severity": 1.0
+    },
+    "1346|3791": {
+      "lat_idx": 1346,
+      "lon_idx": 3791,
+      "count": 16,
+      "severity_sum": 10.999,
+      "max_severity": 1.0
+    },
+    "437|3836": {
+      "lat_idx": 437,
+      "lon_idx": 3836,
+      "count": 15,
+      "severity_sum": 9.351,
+      "max_severity": 1.0
+    },
+    "1432|3861": {
+      "lat_idx": 1432,
+      "lon_idx": 3861,
+      "count": 20,
+      "severity_sum": 13.36,
+      "max_severity": 1.0
+    },
+    "1497|3908": {
+      "lat_idx": 1497,
+      "lon_idx": 3908,
+      "count": 7,
+      "severity_sum": 4.41,
+      "max_severity": 0.84
+    },
+    "650|4013": {
+      "lat_idx": 650,
+      "lon_idx": 4013,
+      "count": 8,
+      "severity_sum": 4.583,
+      "max_severity": 0.765
+    },
+    "1346|3545": {
+      "lat_idx": 1346,
+      "lon_idx": 3545,
+      "count": 4,
+      "severity_sum": 2.148,
+      "max_severity": 0.654
+    },
+    "926|3693": {
+      "lat_idx": 926,
+      "lon_idx": 3693,
+      "count": 16,
+      "severity_sum": 11.945,
+      "max_severity": 1.0
+    },
+    "777|3688": {
+      "lat_idx": 777,
+      "lon_idx": 3688,
+      "count": 9,
+      "severity_sum": 4.965,
+      "max_severity": 0.901
+    },
+    "868|3924": {
+      "lat_idx": 868,
+      "lon_idx": 3924,
+      "count": 11,
+      "severity_sum": 7.013,
+      "max_severity": 1.0
+    },
+    "1127|4417": {
+      "lat_idx": 1127,
+      "lon_idx": 4417,
+      "count": 16,
+      "severity_sum": 8.605999999999998,
+      "max_severity": 0.959
+    },
+    "404|3877": {
+      "lat_idx": 404,
+      "lon_idx": 3877,
+      "count": 19,
+      "severity_sum": 11.618,
+      "max_severity": 1.0
+    },
+    "1699|3762": {
+      "lat_idx": 1699,
+      "lon_idx": 3762,
+      "count": 4,
+      "severity_sum": 2.5999999999999996,
+      "max_severity": 0.851
+    },
+    "570|3835": {
+      "lat_idx": 570,
+      "lon_idx": 3835,
+      "count": 14,
+      "severity_sum": 7.867,
+      "max_severity": 0.793
+    },
+    "1555|3859": {
+      "lat_idx": 1555,
+      "lon_idx": 3859,
+      "count": 7,
+      "severity_sum": 4.559,
+      "max_severity": 1.0
+    },
+    "1280|4257": {
+      "lat_idx": 1280,
+      "lon_idx": 4257,
+      "count": 12,
+      "severity_sum": 6.3309999999999995,
+      "max_severity": 1.0
+    },
+    "621|3787": {
+      "lat_idx": 621,
+      "lon_idx": 3787,
+      "count": 2,
+      "severity_sum": 1.427,
+      "max_severity": 0.725
+    },
+    "1115|4438": {
+      "lat_idx": 1115,
+      "lon_idx": 4438,
+      "count": 19,
+      "severity_sum": 12.923,
+      "max_severity": 1.0
+    },
+    "652|4014": {
+      "lat_idx": 652,
+      "lon_idx": 4014,
+      "count": 13,
+      "severity_sum": 7.880999999999999,
+      "max_severity": 1.0
+    },
+    "598|4648": {
+      "lat_idx": 598,
+      "lon_idx": 4648,
+      "count": 4,
+      "severity_sum": 2.485,
+      "max_severity": 0.788
+    },
+    "1367|4430": {
+      "lat_idx": 1367,
+      "lon_idx": 4430,
+      "count": 4,
+      "severity_sum": 2.0869999999999997,
+      "max_severity": 0.615
+    },
+    "1611|3816": {
+      "lat_idx": 1611,
+      "lon_idx": 3816,
+      "count": 8,
+      "severity_sum": 4.447,
+      "max_severity": 0.846
+    },
+    "1265|4149": {
+      "lat_idx": 1265,
+      "lon_idx": 4149,
+      "count": 2,
+      "severity_sum": 1.315,
+      "max_severity": 0.695
+    },
+    "1612|3859": {
+      "lat_idx": 1612,
+      "lon_idx": 3859,
+      "count": 9,
+      "severity_sum": 5.637,
+      "max_severity": 0.941
+    },
+    "1129|4417": {
+      "lat_idx": 1129,
+      "lon_idx": 4417,
+      "count": 3,
+      "severity_sum": 1.3519999999999999,
+      "max_severity": 0.589
+    },
+    "1612|3860": {
+      "lat_idx": 1612,
+      "lon_idx": 3860,
+      "count": 2,
+      "severity_sum": 1.333,
+      "max_severity": 0.846
+    },
+    "1115|4439": {
+      "lat_idx": 1115,
+      "lon_idx": 4439,
+      "count": 2,
+      "severity_sum": 0.507,
+      "max_severity": 0.353
+    },
+    "1431|3861": {
+      "lat_idx": 1431,
+      "lon_idx": 3861,
+      "count": 6,
+      "severity_sum": 3.178,
+      "max_severity": 0.71
+    },
+    "405|3877": {
+      "lat_idx": 405,
+      "lon_idx": 3877,
+      "count": 1,
+      "severity_sum": 0.329,
+      "max_severity": 0.329
+    },
+    "648|3879": {
+      "lat_idx": 648,
+      "lon_idx": 3879,
+      "count": 4,
+      "severity_sum": 2.515,
+      "max_severity": 0.772
+    },
+    "1581|3744": {
+      "lat_idx": 1581,
+      "lon_idx": 3744,
+      "count": 1,
+      "severity_sum": 0.809,
+      "max_severity": 0.809
+    },
+    "505|3853": {
+      "lat_idx": 505,
+      "lon_idx": 3853,
+      "count": 1,
+      "severity_sum": 0.519,
+      "max_severity": 0.519
+    }
+  }
+}
